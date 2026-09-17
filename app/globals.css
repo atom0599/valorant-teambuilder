@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Chakra Petch", var(--font-body);
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #0e1012;
+  background-image:
+    linear-gradient(180deg, rgba(232, 72, 58, 0.05), transparent 320px),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.012) 0px,
+      rgba(255, 255, 255, 0.012) 1px,
+      transparent 1px,
+      transparent 10px
+    );
+  color: #eceef0;
+}
+
+::selection {
+  background: #e8483a;
+  color: #0e1012;
+}
+
+.clip-tag {
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 96% 100%, 0 100%);
+}
+
+.clip-tag-r {
+  clip-path: polygon(4% 0, 100% 0, 100% 100%, 0 100%, 0 30%);
+}
+
+@keyframes pulse-line {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.turn-indicator {
+  animation: pulse-line 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-indicator {
+    animation: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid #e8483a;
+  outline-offset: 2px;
+}
