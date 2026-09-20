@@ -84,7 +84,7 @@ export default function Page() {
   const version = useRef(0);
   const pushChainRef = useRef(Promise.resolve());
   // True while a local teams change (balance / swap / clear) hasn't been
-  // accepted by the server yet. Every client pushes every ~3s and each push
+  // accepted by the server yet. Every client pushes every ~1s and each push
   // bumps the server version, so a pull or rejected push landing right after
   // balancing would otherwise overwrite the fresh teams with the server's old
   // (null) ones — the "teams appear then vanish" bug.
@@ -190,7 +190,7 @@ export default function Page() {
       fetch('/api/seasonstats').then((r) => r.json()).then((d) => { if (alive && d.stats) setSeasonStats(d.stats); }).catch(() => {});
     };
     pull();
-    const t = setInterval(pull, 3000);
+    const t = setInterval(pull, 1000);
     return () => { alive = false; clearInterval(t); };
   }, []);
 
@@ -227,7 +227,7 @@ export default function Page() {
   }), [roomCode, createdAt, players, usePosition, teams, series, pool, captains, bp, scores]);
 
   // Room sync is last-write-wins on the whole blob: every client pushes its
-  // full local state every ~3s, and a stale push just gets overwritten by
+  // full local state every ~1s, and a stale push just gets overwritten by
   // whoever's version is newest. That's fine for teams/bp/captains (low
   // churn, one clear owner at a time), but tier lookups can now take several
   // seconds (HenrikDev throttling + retries), so another client's routine
@@ -252,7 +252,7 @@ export default function Page() {
       // were confirmed in sync with the server, there's nothing of ours to
       // protect — adopt the remote value outright. This is what lets someone
       // else's registration/tier lookup on another computer actually show up
-      // here on the next ~3s poll, instead of a slot we never touched being
+      // here on the next ~1s poll, instead of a slot we never touched being
       // mistaken for "a deliberate local edit" just because it differs from
       // whatever the server now has.
       const base = Array.isArray(baseline) ? baseline[i] : null;
@@ -345,7 +345,7 @@ export default function Page() {
     // outgoing push (via roomState) — leaving the *state* stale while
     // lastSeenCreatedAtRef (above) tracked the real value meant a client
     // that hadn't resynced its createdAt state kept re-pushing the old one
-    // every ~3s, which the version guard doesn't reject (equal version
+    // every ~1s, which the version guard doesn't reject (equal version
     // passes), silently reverting the server's createdAt back and forth and
     // making every client re-detect a "reset" over and over. Always syncing
     // it is the only way the pushed value can't drift from the truth.
@@ -443,13 +443,13 @@ export default function Page() {
       });
     };
     pushFnRef.current = push;
-    const t = setInterval(push, 3000);
+    const t = setInterval(push, 1000);
     push();
     return () => { pushAliveRef.current = false; clearInterval(t); };
   }, [roomCode]);
 
   // Fire an out-of-band push the moment local state actually changes (e.g. a
-  // banpick click), on top of the regular 3s interval above — without
+  // banpick click), on top of the regular 1s interval above — without
   // recreating that interval/alive machinery, since pushFnRef always calls
   // through to the current, still-alive push().
   // Debounced rather than immediate: typing a round score is several
@@ -488,14 +488,14 @@ export default function Page() {
         })
         .catch(() => {});
     };
-    const t2 = setInterval(pullRoom, 3000);
+    const t2 = setInterval(pullRoom, 1000);
     return () => { alive = false; clearInterval(t2); };
   }, [roomCode]);
 
   // "방 초기화" — everyone shares the same fixed room code (DEFAULT_ROOM_CODE),
   // so there's no separate room to move to: this just wipes the shared match
   // state (wrong map pool, botched setup, etc.) and force-pushes the clean
-  // slate. Everyone else on the same code picks it up on their next ~3s poll
+  // slate. Everyone else on the same code picks it up on their next ~1s poll
   // automatically — no redirect needed since nobody's room code changes.
   // Roster and season-stats cache are untouched (stored independently of any
   // room, not "this room's" mistake to undo).
@@ -529,10 +529,28 @@ export default function Page() {
     setResetNotice(true);
     clearTimeout(resetNoticeTimer.current);
     resetNoticeTimer.current = setTimeout(() => setResetNotice(false), 3500);
-    fetch('/api/room', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...adminHeaders() },
-      body: JSON.stringify({ code: roomCode, room: { ...fresh, version: 0 }, force: true })
+    // Must go through the same serialized pushChainRef as the regular 1s
+    // push, not a bare fetch — otherwise a regular push that was already
+    // queued (or fires from the debounced roomState effect right after this)
+    // can land on the server *before* this force-push does. That push still
+    // carries version.current from before the reset (stale — this function
+    // never learned the server's post-reset version, since a bare fetch's
+    // response was never read), so the server rejects it as behind and hands
+    // back `prev`, which at that moment is the *pre-reset* room — and the
+    // client dutifully re-applies the just-reset banpick/captains/pool right
+    // back onto itself. Queuing here also updates version.current from the
+    // real response, so whatever push runs next sends a version the server
+    // will actually accept.
+    pushChainRef.current = pushChainRef.current.then(async () => {
+      try {
+        const res = await fetch('/api/room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+          body: JSON.stringify({ code: roomCode, room: { ...fresh, version: 0 }, force: true })
+        });
+        const d = await res.json().catch(() => null);
+        if (d?.room) version.current = d.room.version;
+      } catch {}
     }).catch(() => {});
   }
 
@@ -543,7 +561,7 @@ export default function Page() {
   // same answer, purely as a local animation — nobody needs to "own" the
   // roll or race to broadcast it first.
   // Depending on `bp?.deciderRoll` directly is wrong: that's a fresh object
-  // every time bp is replaced (every ~3s poll tick, or any other unrelated
+  // every time bp is replaced (every ~1s poll tick, or any other unrelated
   // bp update), so React's dependency check treats it as "changed" on every
   // re-render even when the actual roll is identical. That reruns the effect
   // — tearing down the in-flight interval via cleanup — before the 18 ticks
@@ -1071,7 +1089,7 @@ export default function Page() {
   }
 
   function startBanpick() {
-    if (pool.length < minPoolSize || !captains.A || !captains.B || bp) return;
+    if (pool.length < minPoolSize || !captains.A || !captains.B || !teams || bp) return;
     // Fresh per-session seed so the decider's deterministic "roll" (below)
     // actually varies between banpick attempts — without it, the same
     // ban/pick order always hashed to the same leftover map (looked rigged).
@@ -1258,8 +1276,11 @@ export default function Page() {
   // Blocked once a banpick session already exists (in progress or finished)
   // — starting fresh here used to just overwrite `bp` with a brand-new
   // index-0 session, silently wiping whatever banpick was already underway.
-  // Restarting on purpose still works via "방 초기화".
-  const canStart = poolReady && captains.A && captains.B && !bp;
+  // Restarting on purpose still works via "방 초기화". Also requires teams
+  // to already be balanced — captains joining doesn't imply anyone ever
+  // clicked "5:5 자동 밸런싱", and starting banpick without teams set would
+  // leave the whole match unattributed (no roster for either side).
+  const canStart = poolReady && captains.A && captains.B && !!teams && !bp;
   const pendingShow = !!bp?.pending;
   const myTurn = !!bp && ((pendingShow && myRole === bp.pending.chooser) || (!pendingShow && step && step[0] !== 'decider' && myRole === step[1]));
   const finished = !!bp && bp.index >= steps.length && !bp.pending;
@@ -1454,7 +1475,7 @@ export default function Page() {
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '6px 12px', fontSize: 12, color: '#A8B0B9' }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: remoteOk === false ? '#E1424F' : '#C8F24C', animation: 'pulseDot 1.6s infinite' }} />
-              <span>{remoteOk === false ? '동기화 오류' : remoteOk ? '서버 동기화 · 3초' : '폴링 동기화 · 3초'}</span>
+              <span>{remoteOk === false ? '동기화 오류' : remoteOk ? '서버 동기화 · 1초' : '폴링 동기화 · 1초'}</span>
             </div>
             <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#A8B0B9' }}>ROOM {roomCode}</div>
             <button onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -1923,7 +1944,11 @@ export default function Page() {
                       })}
                       <div style={{ fontSize: 12, color: '#8B949E', textWrap: 'pretty' }}>토큰을 발급받은 주장만 자기 차례에 밴픽할 수 있고, 나머지 참가자는 관전 모드로 진행 상황만 봅니다.</div>
                       <button onClick={startBanpick} disabled={!canStart} style={{ marginTop: 4, borderRadius: 12, padding: 13, fontSize: 13, fontWeight: 700, border: 'none', cursor: canStart ? 'pointer' : 'not-allowed', background: canStart ? '#C8F24C' : '#252C34', color: canStart ? '#0B0D10' : '#6B737C' }}>
-                        {canStart ? '밴픽 시작' : bp ? '이미 밴픽이 시작됨 — 방 초기화 후 다시 시작하세요' : `맵 ${minPoolSize}개 이상 + 주장 2명이 필요합니다`}
+                        {canStart ? '밴픽 시작'
+                          : bp ? '이미 밴픽이 시작됨 — 방 초기화 후 다시 시작하세요'
+                          : !poolReady ? `맵 ${minPoolSize}개 이상이 필요합니다`
+                          : (!captains.A || !captains.B) ? '주장 2명이 필요합니다'
+                          : '먼저 "5:5 자동 밸런싱"을 진행하세요'}
                       </button>
                     </div>
                   </div>
@@ -1931,8 +1956,24 @@ export default function Page() {
               </div>
             )}
 
-            {/* BANPICK */}
-            {screen === 'banpick' && (
+            {/* BANPICK — not ready yet (no session started, and match setup
+                isn't done: captains haven't both joined, or balancing hasn't
+                been run) — nudge back to 매치 설정 instead of showing an
+                empty/half-set-up banpick screen. Once bp exists, keep showing
+                it here regardless of captains/teams so mid-banpick state
+                never disappears just because something else changed. */}
+            {screen === 'banpick' && !bp && !(captains.A && captains.B && teams) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
+                <div style={{ ...card, textAlign: 'center', padding: '40px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                  <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 22 }}>밴픽 준비가 안 됐어요</div>
+                  <div style={{ fontSize: 13, color: '#8B949E', maxWidth: 420, textWrap: 'pretty' }}>
+                    먼저 "매치 설정"에서 5:5 자동 밸런싱을 마치고, 양 팀 주장이 참가해야 밴픽을 시작할 수 있어요.
+                  </div>
+                  <button onClick={() => setScreen('setup')} style={{ marginTop: 6, borderRadius: 12, padding: '12px 22px', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', background: '#FF4B57', color: '#0B0D10' }}>매치 설정으로</button>
+                </div>
+              </div>
+            )}
+            {screen === 'banpick' && (bp || (captains.A && captains.B && teams)) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
                 <div style={{ ...card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -2034,7 +2075,7 @@ export default function Page() {
 
                 {pendingShow && !deciderAnimating && (
                   <div style={{ background: '#1B2027', border: '1px solid #FF4B57', borderRadius: 16, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: 14 }}>{bp.pending.map} — {teamName(bp.pending.chooser)}이 진영을 선택합니다.{myTurn ? '' : ' (관전)'}</div>
+                    <div style={{ fontSize: 14 }}>{bp.pending.map} — {teamName(bp.pending.chooser)}가 진영을 선택합니다.{myTurn ? '' : ' (관전)'}</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {[['attack', '공격'], ['defense', '수비']].map(([v, label]) => (
                         <button key={v} onClick={() => chooseSide(v)} style={{ borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, border: 'none', cursor: myTurn ? 'pointer' : 'default', background: myTurn ? '#FF4B57' : '#252C34', color: myTurn ? '#0B0D10' : '#6B737C' }}>{label}</button>
