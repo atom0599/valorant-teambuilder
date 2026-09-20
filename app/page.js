@@ -466,13 +466,14 @@ export default function Page() {
               // we already know is empty, never overrides one that isn't.
               const mine = myCaptainTokensRef.current;
               const localNow = roomStateRef.current;
-              if (d.room.captains) {
+              const stale = isStaleBeforePendingReset(d.room.createdAt);
+              if (!stale && d.room.captains) {
                 setCaptains((c) => ({
                   A: localNow.captains?.A ?? (d.room.captains.A || mine.A || null),
                   B: localNow.captains?.B ?? (d.room.captains.B || mine.B || null)
                 }));
               }
-              if (!isStaleBeforePendingReset(d.room.createdAt) && bpIsAhead(d.room.bp, localNow.bp)) setBp(d.room.bp);
+              if (!stale && bpIsAhead(d.room.bp, localNow.bp)) setBp(d.room.bp);
             }
           }
         } catch { if (pushAliveRef.current) setRemoteOk(false); }
@@ -571,19 +572,17 @@ export default function Page() {
     setResetNotice(true);
     clearTimeout(resetNoticeTimer.current);
     resetNoticeTimer.current = setTimeout(() => setResetNotice(false), 3500);
-    // Must go through the same serialized pushChainRef as the regular 1s
-    // push, not a bare fetch — otherwise a regular push that was already
-    // queued (or fires from the debounced roomState effect right after this)
-    // can land on the server *before* this force-push does. That push still
-    // carries version.current from before the reset (stale — this function
-    // never learned the server's post-reset version, since a bare fetch's
-    // response was never read), so the server rejects it as behind and hands
-    // back `prev`, which at that moment is the *pre-reset* room — and the
-    // client dutifully re-applies the just-reset banpick/captains/pool right
-    // back onto itself. Queuing here also updates version.current from the
-    // real response, so whatever push runs next sends a version the server
-    // will actually accept.
-    pushChainRef.current = pushChainRef.current.then(async () => {
+    // Jump the queue instead of appending to pushChainRef: during an active
+    // banpick, that chain can easily have several regular/debounced pushes
+    // already backed up (each awaiting its own round trip), and appending
+    // would make the force-push wait behind all of them — "방 초기화 눌러도
+    // 한참 그대로" while it sits in line. Starting a fresh chain from here
+    // fires it essentially immediately. The old chain's stragglers still run
+    // and resolve on their own; whatever stale (pre-reset) data they bring
+    // back is exactly what pendingResetRef (set above) exists to ignore, so
+    // abandoning them here doesn't reopen the race the queue was originally
+    // there to prevent — it's just no longer this push's problem to wait on.
+    pushChainRef.current = Promise.resolve().then(async () => {
       try {
         const res = await fetch('/api/room', {
           method: 'POST',
