@@ -301,23 +301,30 @@ export default function Page() {
     return prog(remote) > prog(local);
   }
 
+  // resetRoom() zeroes version.current locally the instant it's clicked,
+  // before its own force-push has actually landed on the server. Any GET
+  // poll (or push response) that resolves in that window still sees the
+  // server's *old* (pre-reset) room, whose real version number is now —
+  // purely because we just zeroed ours — bigger than version.current, so a
+  // plain version/progress check would treat genuinely stale data as
+  // "newer" and reapply the very bp/teams/captains resetRoom just cleared
+  // (the "방 초기화 눌렀는데 밴픽 현황이 그대로" bug). Shared by applyRoom
+  // AND the two bp-only fast paths below (the accepted-push reconciliation,
+  // and pullRoom's "not strictly newer but bp looks ahead" branch) — those
+  // read room data straight off the network too and bypass applyRoom
+  // entirely, so they need the same guard, not just applyRoom's callers.
+  // Ignores anything whose createdAt doesn't match the reset we're waiting
+  // to see confirmed; once one does match, the reset has landed and this
+  // clears itself so normal processing resumes. resetRoom also clears it
+  // once its own push resolves, with a timeout fallback either way.
+  function isStaleBeforePendingReset(createdAt) {
+    if (pendingResetRef.current == null) return false;
+    if (createdAt === pendingResetRef.current) { pendingResetRef.current = null; return false; }
+    return true;
+  }
+
   function applyRoom(d) {
-    // resetRoom() zeroes version.current locally the instant it's clicked,
-    // before its own force-push has actually landed on the server. Any GET
-    // poll that resolves in that window still sees the server's *old*
-    // (pre-reset) room, whose real version number is now — purely because
-    // we just zeroed ours — bigger than version.current, so the plain
-    // version check below would treat genuinely stale data as "newer" and
-    // reapply the very bp/teams/captains resetRoom just cleared (the
-    // "방 초기화 눌렀는데 밴픽 현황이 그대로" bug). Ignore anything whose
-    // createdAt doesn't match the reset we're waiting to see confirmed;
-    // once one does match, the reset has landed and normal processing
-    // resumes. resetRoom also clears this itself once its own push
-    // resolves, with a timeout fallback — this is just the interim guard.
-    if (pendingResetRef.current != null) {
-      if (d.createdAt === pendingResetRef.current) pendingResetRef.current = null;
-      else return;
-    }
+    if (isStaleBeforePendingReset(d.createdAt)) return;
     // Whatever players array we're about to render IS what we're adopting as
     // truth (freshly fetched, or already merged against our own pending
     // edits) — record it as the new "last known in sync" baseline so the
@@ -465,7 +472,7 @@ export default function Page() {
                   B: localNow.captains?.B ?? (d.room.captains.B || mine.B || null)
                 }));
               }
-              if (bpIsAhead(d.room.bp, localNow.bp)) setBp(d.room.bp);
+              if (!isStaleBeforePendingReset(d.room.createdAt) && bpIsAhead(d.room.bp, localNow.bp)) setBp(d.room.bp);
             }
           }
         } catch { if (pushAliveRef.current) setRemoteOk(false); }
@@ -511,7 +518,7 @@ export default function Page() {
           if (!alive || !d?.room) return;
           if (typeof d.room.version === 'number' && d.room.version > version.current) {
             applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) });
-          } else if (bpIsAhead(d.room.bp, roomStateRef.current.bp)) {
+          } else if (!isStaleBeforePendingReset(d.room.createdAt) && bpIsAhead(d.room.bp, roomStateRef.current.bp)) {
             setBp(d.room.bp);
           }
         })
@@ -2038,7 +2045,6 @@ export default function Page() {
                     <div style={{ fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '8px 14px', background: myRole ? (myRole === 'A' ? '#FF4B5720' : '#2FD3B720') : '#1B2027', color: myRole ? (myRole === 'A' ? '#FF4B57' : '#2FD3B7') : '#8B949E', border: `1px solid ${myRole ? (myRole === 'A' ? '#FF4B5755' : '#2FD3B755') : '#262C34'}` }}>
                       {myRole ? teamName(myRole) + ' 주장' : '관전자'}
                     </div>
-                    {finished && <button onClick={() => setScreen('stats')} style={{ borderRadius: 10, padding: '9px 16px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', background: '#C8F24C', color: '#0B0D10' }}>전체 전적으로</button>}
                   </div>
                 </div>
 
@@ -2110,12 +2116,19 @@ export default function Page() {
                             display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 18,
                             border: `3px solid ${hit ? '#E5C04C' : '#262C34'}`,
                             boxShadow: hit ? '0 0 0 6px #E5C04C33, 0 0 50px #E5C04C77' : 'none',
-                            backgroundImage: `linear-gradient(180deg,rgba(11,13,16,${hit ? .3 : .68}),rgba(11,13,16,${hit ? .5 : .88})), url(${MAP_IMG[m] || '/maps/ascent.png'})`,
+                            // Same darkness on every tile at all times — only the
+                            // glow/border/scale moves between candidates, instead
+                            // of each tile also flatly darkening/lightening as the
+                            // highlight lands on or leaves it. A touch slower
+                            // transition than the fastest ticks so consecutive
+                            // highlights blend into a moving glow rather than
+                            // snapping between two states.
+                            backgroundImage: `linear-gradient(180deg,rgba(11,13,16,.55),rgba(11,13,16,.8)), url(${MAP_IMG[m] || '/maps/ascent.png'})`,
                             backgroundSize: 'cover', backgroundPosition: 'center 30%',
-                            transform: hit ? 'scale(1.08)' : 'scale(1)',
-                            transition: 'transform .08s ease, box-shadow .08s ease, border-color .08s ease'
+                            transform: hit ? 'scale(1.05)' : 'scale(1)',
+                            transition: 'transform .16s ease-out, box-shadow .16s ease-out, border-color .16s ease-out'
                           }}>
-                            <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: hit ? '#E5C04C' : '#E8EAEC' }}>{m}</div>
+                            <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: hit ? '#E5C04C' : '#E8EAEC', transition: 'color .16s ease-out' }}>{m}</div>
                           </div>
                         );
                       })}
