@@ -81,6 +81,7 @@ export default function Page() {
   const confirmNewRoomTimer = useRef(null);
   const [resetNotice, setResetNotice] = useState(false);
   const resetNoticeTimer = useRef(null);
+  const resetGuardTimer = useRef(null);
   const version = useRef(0);
   const pushChainRef = useRef(Promise.resolve());
   // True while a local teams change (balance / swap / clear) hasn't been
@@ -187,6 +188,10 @@ export default function Page() {
   const myCaptainTokensRef = useRef(myCaptainTokens);
   useEffect(() => { myCaptainTokensRef.current = myCaptainTokens; }, [myCaptainTokens]);
   const lastSeenCreatedAtRef = useRef(null);
+  // Set by resetRoom() to the fresh createdAt it just reset to, locking out
+  // applyRoom (see below) until either that exact reset is confirmed back
+  // from the server or the fallback timeout clears it.
+  const pendingResetRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -297,6 +302,22 @@ export default function Page() {
   }
 
   function applyRoom(d) {
+    // resetRoom() zeroes version.current locally the instant it's clicked,
+    // before its own force-push has actually landed on the server. Any GET
+    // poll that resolves in that window still sees the server's *old*
+    // (pre-reset) room, whose real version number is now — purely because
+    // we just zeroed ours — bigger than version.current, so the plain
+    // version check below would treat genuinely stale data as "newer" and
+    // reapply the very bp/teams/captains resetRoom just cleared (the
+    // "방 초기화 눌렀는데 밴픽 현황이 그대로" bug). Ignore anything whose
+    // createdAt doesn't match the reset we're waiting to see confirmed;
+    // once one does match, the reset has landed and normal processing
+    // resumes. resetRoom also clears this itself once its own push
+    // resolves, with a timeout fallback — this is just the interim guard.
+    if (pendingResetRef.current != null) {
+      if (d.createdAt === pendingResetRef.current) pendingResetRef.current = null;
+      else return;
+    }
     // Whatever players array we're about to render IS what we're adopting as
     // truth (freshly fetched, or already merged against our own pending
     // edits) — record it as the new "last known in sync" baseline so the
@@ -518,6 +539,12 @@ export default function Page() {
       captains: { A: null, B: null }, bp: null, scores: {}
     };
     version.current = 0;
+    // Locks out applyRoom (mount fetch / pullRoom / rejected-push) from
+    // reapplying stale pre-reset data until the force-push below actually
+    // lands — see the guard at the top of applyRoom for why that's needed.
+    pendingResetRef.current = fresh.createdAt;
+    clearTimeout(resetGuardTimer.current);
+    resetGuardTimer.current = setTimeout(() => { pendingResetRef.current = null; }, 5000);
     setTeamsLocal(fresh.teams);
     setSel(null);
     setSeries(fresh.series);
@@ -558,6 +585,8 @@ export default function Page() {
         });
         const d = await res.json().catch(() => null);
         if (d?.room) version.current = d.room.version;
+        clearTimeout(resetGuardTimer.current);
+        pendingResetRef.current = null;
       } catch {}
     }).catch(() => {});
   }
@@ -572,8 +601,8 @@ export default function Page() {
   // every time bp is replaced (every ~1s poll tick, or any other unrelated
   // bp update), so React's dependency check treats it as "changed" on every
   // re-render even when the actual roll is identical. That reruns the effect
-  // — tearing down the in-flight interval via cleanup — before the 18 ticks
-  // finish, so `setDeciderAnimating(false)` (which only runs at tick 18)
+  // — tearing down the in-flight timer chain via cleanup — before all the
+  // ticks finish, so `setDeciderAnimating(false)` (which only runs at the last tick)
   // never fires and the "데사이더 맵 추첨 중" state gets stuck forever on
   // whichever client's animation happened to lose that race. Depending on a
   // derived string instead means the effect only re-runs when the roll's
