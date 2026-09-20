@@ -627,19 +627,48 @@ export default function Page() {
     return task;
   }
 
-  async function runLookup(i, fullName, skipStats) {
+  async function runLookup(i, fullNameArg, skipStats) {
     setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, loading: true } : x)));
+    let fullName = fullNameArg;
     const [name, tag] = fullName.split('#');
 
     // Parse the body even on non-2xx — our API routes always return a JSON
     // {error} payload, and that's the only way to show *why* it failed
     // instead of silently making up a tier (see rankError below).
-    const [rankData, roleData] = await Promise.all([
+    let [rankData, roleData] = await Promise.all([
       fetch(`/api/rank?name=${encodeURIComponent(name || '')}&tag=${encodeURIComponent(tag || '')}`)
         .then((r) => r.json()).catch(() => null),
       fetch(`/api/role?name=${encodeURIComponent(name || '')}&tag=${encodeURIComponent(tag || '')}`)
         .then((r) => r.json()).catch(() => null)
     ]);
+
+    // Riot ID rename recovery: the by-name lookup 404s the instant someone
+    // renames (the old string just stops resolving to anyone), but their
+    // puuid — cached on the roster entry from the last time this succeeded,
+    // see rememberPuuid below — still resolves under HenrikDev's by-puuid
+    // endpoint. A hit there with a *different* current name means they
+    // renamed; auto-relink the roster (old name kept as a 부계정 so past
+    // records stay attached) instead of just failing "계정을 찾을 수 없음"
+    // forever.
+    let renamedFrom = null;
+    if (!rankData?.account) {
+      const entry = roster.find((r) => r.name === fullName || (r.alts || []).includes(fullName));
+      if (entry?.puuid) {
+        const byPuuid = await fetch(`/api/rank?puuid=${encodeURIComponent(entry.puuid)}`).then((r) => r.json()).catch(() => null);
+        if (byPuuid?.account && byPuuid.account.trim().toLowerCase() !== fullName.trim().toLowerCase()) {
+          rankData = byPuuid;
+          renamedFrom = entry.name;
+          fullName = byPuuid.account;
+          const [n2, t2] = fullName.split('#');
+          roleData = await fetch(`/api/role?name=${encodeURIComponent(n2 || '')}&tag=${encodeURIComponent(t2 || '')}`).then((r) => r.json()).catch(() => null);
+        }
+      }
+    }
+    if (renamedFrom) {
+      relinkRosterName(renamedFrom, fullName);
+      setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, name: fullName } : x)));
+      window.alert(`"${renamedFrom}"의 Riot ID가 "${fullName}"로 바뀐 것을 감지해서 자동으로 연결했습니다.`);
+    }
 
     let tier = null, source = null, rankError = null;
     const idx = rankData ? TIERS.findIndex((t) => t.label === (rankData.peakTier || rankData.currentTier)) : -1;
@@ -652,6 +681,7 @@ export default function Page() {
         : rankData?.error ? 'api_error' : 'network';
     }
     setApiSource(source);
+    if (rankData?.puuid) rememberPuuid(canonicalName(fullName), rankData.puuid);
 
     const currentTier = rankData?.currentTier || null;
     const currentTierIcon = rankData?.currentTierIcon || null;
@@ -919,6 +949,27 @@ export default function Page() {
   }, [roster]);
   function canonicalName(name) {
     return rosterAlias.get(String(name).trim().toLowerCase()) || name;
+  }
+  // Called when runLookup's by-puuid fallback detects someone's Riot ID
+  // changed. Renames the roster entry outright (no 부계정 kept for the old
+  // name — that's reserved for someone who genuinely plays multiple
+  // accounts, not a one-time rename) and migrates their saved 전적 onto the
+  // new name server-side so history keeps counting toward the same person.
+  function relinkRosterName(oldName, newName) {
+    if (!roster.some((r) => r.name === oldName)) return;
+    persistRoster(roster.map((r) => (r.name === oldName ? { ...r, name: newName } : r)));
+    fetch('/api/records', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: oldName, to: newName })
+    }).then((r) => r.json()).then((d) => { if (d.records) setRecords(d.records); }).catch(() => {});
+  }
+  // Caches the Riot puuid behind whichever name currently resolves to it —
+  // the one thing that keeps working after a rename — so a future lookup
+  // that 404s under the (by-then-stale) name can recover via relinkRosterName.
+  function rememberPuuid(name, puuid) {
+    const entry = roster.find((r) => r.name === name);
+    if (!entry || entry.puuid === puuid) return;
+    persistRoster(roster.map((r) => (r.name === name ? { ...r, puuid } : r)));
   }
   function pickMember(name, pos, realName) {
     // Block registering the same person twice under two different accounts
@@ -1539,10 +1590,12 @@ export default function Page() {
                                   {(r.alts || []).map((a) => (
                                     <span key={a} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8B949E', background: '#20262E', border: '1px solid #333B45', borderRadius: 999, padding: '2px 7px', whiteSpace: 'nowrap' }}>
                                       {a}
-                                      <button onClick={() => removeAlt(r.name, a)} title="부계정 삭제" style={{ background: 'transparent', border: 'none', color: '#6B737C', cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0 }}>×</button>
+                                      {isAdmin && <button onClick={() => removeAlt(r.name, a)} title="부계정 삭제" style={{ background: 'transparent', border: 'none', color: '#6B737C', cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0 }}>×</button>}
                                     </span>
                                   ))}
-                                  <button onClick={() => { const a = window.prompt(`${r.name}의 부계정 Riot ID (예: 닉네임#KR1)`); if (a) addAlt(r.name, a); }} title="같은 사람이 쓰는 다른 계정을 등록해두면, 그 계정으로 참가해도 전적이 합산됩니다." style={{ fontSize: 10, color: '#8B949E', background: 'transparent', border: '1px dashed #333B45', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}>+ 부계정</button>
+                                  {isAdmin && (
+                                    <button onClick={() => { const a = window.prompt(`${r.name}의 부계정 Riot ID (예: 닉네임#KR1)`); if (a) addAlt(r.name, a); }} title="같은 사람이 쓰는 다른 계정을 등록해두면, 그 계정으로 참가해도 전적이 합산됩니다." style={{ fontSize: 10, color: '#8B949E', background: 'transparent', border: '1px dashed #333B45', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}>+ 부계정</button>
+                                  )}
                                 </div>
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>

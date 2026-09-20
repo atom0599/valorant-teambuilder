@@ -22,17 +22,22 @@ export async function GET(request) {
   const url = new URL(request.url);
   const name = (url.searchParams.get('name') || '').trim();
   const tag = (url.searchParams.get('tag') || '').trim();
+  const puuid = (url.searchParams.get('puuid') || '').trim();
   const region = url.searchParams.get('region') || 'kr';
-  if (!name || !tag) return Response.json({ error: 'name and tag required' }, { status: 400 });
+  if (!puuid && (!name || !tag)) return Response.json({ error: 'name and tag (or puuid) required' }, { status: 400 });
 
   const key = process.env.HENRIKDEV_API_KEY;
   if (!key) return Response.json({ error: 'HENRIKDEV_API_KEY not set', source: 'none' }, { status: 503 });
 
   try {
-    const res = await henrikFetch(
-      `https://api.henrikdev.xyz/valorant/v2/mmr/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
-      { headers: { Authorization: key }, cache: 'no-store' }
-    );
+    // A stored puuid survives a Riot ID rename (name#tag doesn't — the old
+    // string just stops resolving) — querying by puuid instead lets a caller
+    // recover the account's *current* name/tag after one, see app/page.js
+    // runLookup's rename-detection fallback.
+    const path = puuid
+      ? `https://api.henrikdev.xyz/valorant/v2/by-puuid/mmr/${region}/${encodeURIComponent(puuid)}`
+      : `https://api.henrikdev.xyz/valorant/v2/mmr/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`;
+    const res = await henrikFetch(path, { headers: { Authorization: key }, cache: 'no-store' });
     if (!res.ok) return Response.json({ error: `henrikdev ${res.status}`, source: 'none' }, { status: res.status });
 
     const json = await res.json();
@@ -51,9 +56,18 @@ export async function GET(request) {
     const iconBaseMatch = currentTierIcon ? currentTierIcon.match(/^(.*\/competitivetiers\/[^/]+)\/\d+\//) : null;
     const peakTierIcon = iconBaseMatch && typeof peak.tier === 'number' ? `${iconBaseMatch[1]}/${peak.tier}/smallicon.png` : currentTierIcon;
 
+    // Current name/tag/puuid, echoed back so the caller can notice a rename
+    // (queried by old name, got back a puuid — or queried by puuid, got back
+    // a name/tag that no longer matches what's on file).
+    const resolvedName = d.name || name || null;
+    const resolvedTag = d.tag || tag || null;
+
     return Response.json({
       source: 'api',
-      account: `${name}#${tag}`,
+      account: resolvedName && resolvedTag ? `${resolvedName}#${resolvedTag}` : null,
+      name: resolvedName,
+      tag: resolvedTag,
+      puuid: d.puuid || null,
       peakTier: peakTier || currentTier,
       peakTierRaw: peak.patched_tier || null,
       peakSeason: peak.season || null,

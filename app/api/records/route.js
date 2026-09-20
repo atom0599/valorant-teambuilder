@@ -81,6 +81,46 @@ export async function POST(request) {
   }
 }
 
+// Not admin-gated — fires automatically when app/page.js's runLookup detects
+// a Riot ID rename (via the by-puuid fallback) so a name change migrates
+// existing history onto the new name instead of fragmenting it into two
+// separate leaderboard entries. body: { from, to }. If `to` already has its
+// own record (rare — they were manually re-registered under the new name
+// before the auto-detection caught up), the two get merged rather than one
+// clobbering the other; matches are deduped by matchKey (falling back to
+// date) in case the same match somehow ended up saved under both.
+export async function PATCH(request) {
+  const body = await request.json().catch(() => null);
+  const from = body?.from ? String(body.from).trim() : null;
+  const to = body?.to ? String(body.to).trim() : null;
+  if (!from || !to || from === to) return Response.json({ error: 'from and to (different) required' }, { status: 400 });
+
+  try {
+    const all = (await getJSON(KEY)) || {};
+    const src = all[from];
+    if (!src) return Response.json({ records: all, persistent: hasKV });
+
+    const dst = all[to] || { wins: 0, losses: 0, matches: [] };
+    const seenKeys = new Set((dst.matches || []).map((m) => m.matchKey || String(m.date)));
+    const mergedMatches = [...(dst.matches || [])];
+    (src.matches || []).forEach((m) => {
+      const k = m.matchKey || String(m.date);
+      if (seenKeys.has(k)) return;
+      seenKeys.add(k);
+      mergedMatches.push(m);
+    });
+    mergedMatches.sort((a, b) => b.date - a.date);
+
+    all[to] = { wins: (dst.wins || 0) + (src.wins || 0), losses: (dst.losses || 0) + (src.losses || 0), matches: mergedMatches.slice(0, 20) };
+    delete all[from];
+
+    await setJSON(KEY, all);
+    return Response.json({ records: all, persistent: hasKV });
+  } catch (e) {
+    return Response.json({ error: String(e) }, { status: 502 });
+  }
+}
+
 // Admin only. body: { id } removes one player's whole record, or
 // { date } removes one saved match from every player who played it (all
 // players of a match share the same `date`, see POST above) and rolls their
