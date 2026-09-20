@@ -100,10 +100,21 @@ export async function POST(request) {
     ? prev.pool
     : body.room.pool;
 
+  // Same class of race as `bp` and `captains`: a client that hasn't run
+  // "5:5 자동 밸런싱" yet keeps pushing its own still-null `teams` every
+  // ~1s. Two clients' pushes can both pass the version check within the
+  // same tick — whichever with the null teams lands second would silently
+  // wipe the just-balanced (or mid-banpick) teams for everyone, until the
+  // balancer's own client happens to re-push and fix it a second or so
+  // later. Only protects the null-vs-real transition, so a genuine
+  // rebalance/swap (always a real object) is never blocked. `force` (방
+  // 초기화) bypasses this since it's a deliberate, authoritative clear.
+  const teams = (!body.force && !body.clearTeams && prev?.teams && body.room.teams == null) ? prev.teams : body.room.teams;
+
   // Scores merge per map (newest edit wins) instead of blob-level last-write-wins.
   const scores = (!body.force && prev?.scores && body.room.scores) ? mergeScores(prev.scores, body.room.scores) : body.room.scores;
 
-  const room = { ...body.room, captains, bp, pool, scores, version: (prev?.version ?? 0) + 1, updatedAt: Date.now() };
+  const room = { ...body.room, captains, bp, pool, scores, teams, version: (prev?.version ?? 0) + 1, updatedAt: Date.now() };
   try {
     await setJSON(key, room);
     return Response.json({ room, persistent: hasKV });

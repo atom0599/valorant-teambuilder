@@ -116,6 +116,12 @@ export default function Page() {
   // overwrite, see app/api/room/route.js) would just as happily protect a
   // cancel from ever taking effect, since a null looks the same either way.
   const releaseCaptainRef = useRef(null);
+  // Same trick for teams: the server's null-vs-real protection (see
+  // app/api/room/route.js) would just as happily protect "참가자 입력란
+  // 비우기" from ever landing, since a deliberate clear is a null that
+  // looks identical to "I don't know about the balance yet". This flag
+  // names that one push as the intentional exception.
+  const clearTeamsRef = useRef(false);
 
   const [seasonStats, setSeasonStats] = useState({});
   const [seasonStatsLoading, setSeasonStatsLoading] = useState(false);
@@ -380,6 +386,8 @@ export default function Page() {
       // not every push afterward.
       const releaseCaptain = releaseCaptainRef.current;
       releaseCaptainRef.current = null;
+      const clearTeams = clearTeamsRef.current;
+      clearTeamsRef.current = false;
       pushChainRef.current = pushChainRef.current.then(async () => {
         if (!pushAliveRef.current) return;
         const sentTeams = roomStateRef.current.teams;
@@ -396,7 +404,7 @@ export default function Page() {
           const res = await fetch('/api/room', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...adminHeaders() },
-            body: JSON.stringify({ code: roomCode, room: roomToSend, releaseCaptain })
+            body: JSON.stringify({ code: roomCode, room: roomToSend, releaseCaptain, clearTeams })
           });
           const d = await res.json();
           if (!pushAliveRef.current) return;
@@ -1015,7 +1023,7 @@ export default function Page() {
     setPlayers(next);
     next.forEach((p, i) => { if (p.name.trim() && p.tier == null) lookup(i, p.name); });
   }
-  function clearSlots() { setPlayers(emptyPlayers()); setTeamsLocal(null); setSel(null); }
+  function clearSlots() { setPlayers(emptyPlayers()); setTeamsLocal(null); setSel(null); clearTeamsRef.current = true; }
 
   /* ---------- ban/pick ---------- */
   const steps = seqFor(series, pool.length);
