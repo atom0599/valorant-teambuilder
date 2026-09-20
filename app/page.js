@@ -585,18 +585,29 @@ export default function Page() {
 
     setDeciderAnimating(true);
     const { candidates, chosen } = bp.deciderRoll;
+    // Slot-machine deceleration instead of a flat tick rate: fast flicker at
+    // the start, easing (cubic ease-out) into longer and longer pauses right
+    // before landing, so it reads as "spinning down" rather than just
+    // stopping abruptly. ~20 ticks between 60ms and 250ms apart averages out
+    // to roughly twice the old flat-18-ticks-at-110ms (~2s) total spin time.
+    const totalTicks = 20;
+    const minDelay = 60;
+    const maxDelay = 250;
     let tick = 0;
-    const totalTicks = 18;
-    const interval = setInterval(() => {
+    let timer;
+    const scheduleNext = () => {
       tick++;
       setDeciderDisplay(candidates[Math.floor(Math.random() * candidates.length)]);
       if (tick >= totalTicks) {
-        clearInterval(interval);
         setDeciderDisplay(chosen);
-        setTimeout(() => setDeciderAnimating(false), 700);
+        timer = setTimeout(() => setDeciderAnimating(false), 700);
+        return;
       }
-    }, 110);
-    return () => clearInterval(interval);
+      const eased = 1 - Math.pow(1 - tick / totalTicks, 3);
+      timer = setTimeout(scheduleNext, minDelay + (maxDelay - minDelay) * eased);
+    };
+    timer = setTimeout(scheduleNext, minDelay);
+    return () => clearTimeout(timer);
   }, [deciderRollKey]);
 
   // Auto-navigate both captains to the banpick screen the moment banpick
@@ -1878,19 +1889,21 @@ export default function Page() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14 }}>
                   <div style={card}>
-                    {bpInProgress && (
+                    {!!bp && (
                       <div style={{ fontSize: 12, color: '#E5C04C', background: '#E5C04C14', border: '1px solid #E5C04C33', borderRadius: 10, padding: '9px 12px', marginBottom: 14 }}>
-                        밴픽이 진행 중이라 경기 방식/맵 풀을 바꿀 수 없습니다 — 바꾸면 진행 중인 밴픽이 초기화됩니다. 먼저 밴픽을 끝내거나 방을 초기화하세요.
+                        {finished
+                          ? '밴픽이 이미 끝났어요 — 경기 방식/맵 풀을 바꾸면 이 결과가 지워집니다. 다음 매치를 준비하려면 먼저 방을 초기화하세요.'
+                          : '밴픽이 진행 중이라 경기 방식/맵 풀을 바꿀 수 없습니다 — 바꾸면 진행 중인 밴픽이 초기화됩니다. 먼저 밴픽을 끝내거나 방을 초기화하세요.'}
                       </div>
                     )}
                     <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>경기 방식</div>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
                       {['BO3', 'BO5'].map((v) => (
-                        <button key={v} disabled={bpInProgress} onClick={() => { if (bpInProgress) return; setSeries(v); setBp(null); }} style={{ ...boxBtn(series === v), opacity: bpInProgress ? .5 : 1, cursor: bpInProgress ? 'not-allowed' : 'pointer' }}>{v}</button>
+                        <button key={v} disabled={!!bp} onClick={() => { if (bp) return; setSeries(v); setBp(null); }} style={{ ...boxBtn(series === v), opacity: bp ? .5 : 1, cursor: bp ? 'not-allowed' : 'pointer' }}>{v}</button>
                       ))}
                     </div>
                     <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>맵 풀</div>
-                    <button disabled={bpInProgress} onClick={() => { if (!bpInProgress) setPoolPickerOpen((v) => !v); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#1B2027', border: '1px solid #333B45', borderRadius: 12, padding: '12px 14px', color: '#E8EAEC', fontSize: 13, fontWeight: 600, cursor: bpInProgress ? 'not-allowed' : 'pointer', opacity: bpInProgress ? .5 : 1 }}>
+                    <button disabled={!!bp} onClick={() => { if (!bp) setPoolPickerOpen((v) => !v); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: '#1B2027', border: '1px solid #333B45', borderRadius: 12, padding: '12px 14px', color: '#E8EAEC', fontSize: 13, fontWeight: 600, cursor: bp ? 'not-allowed' : 'pointer', opacity: bp ? .5 : 1 }}>
                       <span>{pool.length}개 선택됨</span>
                       <span style={{ color: '#8B949E', fontSize: 11, transition: 'transform .2s', transform: poolPickerOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
                     </button>
@@ -1901,7 +1914,7 @@ export default function Page() {
                         ))}
                       </div>
                     )}
-                    {poolPickerOpen && !bpInProgress && (
+                    {poolPickerOpen && !bp && (
                       <div style={{ border: '1px solid #262C34', borderRadius: 12, padding: 12, marginTop: 10, background: '#14181D' }}>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                           <button onClick={() => { setPoolLocal(ROTATION); setBp(null); }} style={boxBtn(false)}>맵풀로 설정</button>
@@ -2478,6 +2491,11 @@ export default function Page() {
                     <div key={m} style={{ display: 'flex', flexDirection: 'column', gap: 4, borderRadius: 14, padding: '11px 12px', background: bg, color: fg, opacity: st === 'ban' ? .75 : 1, transition: 'background .3s ease, opacity .3s ease' }}>
                       <div style={{ fontSize: 12, fontWeight: 700 }}>{m}</div>
                       <div style={{ fontSize: 10, opacity: .85 }}>{st === 'ban' ? '밴' : st === 'pick' ? `팀 ${info.by} 픽` : st === 'decider' ? '데사이더' : '대기'}</div>
+                      {!!info?.side && (
+                        <div style={{ fontSize: 10, opacity: .85 }}>
+                          {teamName(info.sideBy)} {info.side === 'attack' ? '공격' : '수비'} · {teamName(info.sideBy === 'A' ? 'B' : 'A')} {info.side === 'attack' ? '수비' : '공격'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
