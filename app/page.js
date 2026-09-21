@@ -2294,9 +2294,9 @@ export default function Page() {
                             : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34', flex: 'none' }} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.id}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                              {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13, flex: 'none' }} />}
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tierPill(p.tier).label}{p.agent ? ` · ${p.agent}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E' }}>
+                              {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13, flex: 'none', marginTop: 1 }} />}
+                              <span style={{ wordBreak: 'break-word' }}>{tierPill(p.tier).label}{p.agent ? ` · ${p.agent}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
                             </div>
                           </div>
                         </div>
@@ -2424,7 +2424,7 @@ export default function Page() {
                                     {m.tierIcon && <img src={m.tierIcon} alt="" style={{ width: 14, height: 14 }} />}
                                     <span>{tierPill(m.tier).label}</span>
                                   </div>
-                                  {m.kills != null && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.kills}/{m.deaths}/{m.assists} · ACS {m.acs} · HS {m.hsPct}%</div>}
+                                  {m.kills != null && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E', wordBreak: 'break-word' }}>{m.kills}/{m.deaths}/{m.assists} · ACS {m.acs} · HS {m.hsPct}%</div>}
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
                                   <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#C8D0D8' }}>{m.score}</div>
