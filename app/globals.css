@@ -52,3 +52,26 @@ button:active { transform: scale(.97); }
   .syncPill:not(.syncPill--error) { display: none; }
   .roomTag { display: none; }
 }
+
+@media (max-width: 680px) {
+  /* The player leaderboard's 7-column grid needs a horizontal scroll to
+     fit on desktop; on a narrow window that scroll hid whichever side
+     (name or HS%) wasn't currently scrolled into view. Drop the grid/
+     scroll requirement here and let each row wrap into a compact card:
+     name on its own line, the rest as small labeled stats below it. */
+  .boardHeader { display: none; }
+  .boardTable { min-width: 0 !important; }
+  .boardRow {
+    display: flex !important;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    column-gap: 12px;
+  }
+  .boardRow .b-player { flex: 1 1 100%; }
+  .boardRow .b-tier, .boardRow .b-wl, .boardRow .b-games, .boardRow .b-kd, .boardRow .b-hs { flex: 0 1 auto; }
+  .boardRow .b-rate { flex: 1 1 130px; }
+  .boardRow .b-wl::before { content: '전적 '; color: #5F6872; }
+  .boardRow .b-games::before { content: '경기 '; color: #5F6872; }
+  .boardRow .b-kd::before { content: 'K/D '; color: #5F6872; }
+  .boardRow .b-hs::before { content: 'HS '; color: #5F6872; }
+}

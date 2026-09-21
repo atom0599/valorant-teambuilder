@@ -1440,7 +1440,7 @@ export default function Page() {
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
   const playerGrid = '44px minmax(0,1.3fr) minmax(0,0.9fr) 108px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
   const rosterGrid = 'minmax(0,1.1fr) 60px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
-  const boardGrid = '44px minmax(140px,1.8fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
+  const boardGrid = 'minmax(190px,1.8fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
   return (
@@ -2340,39 +2340,39 @@ export default function Page() {
 
                 {statView === 'player' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
                   <div data-scrollx="1" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
-                    <div style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                      <div>RANK</div><div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div>
+                    <div className="boardHeader boardTable" style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                      <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div>
                     </div>
-                    <div style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="boardTable" style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {boardList.map((x, i) => {
                         const t = tierPill(x.tier);
                         const top = i < 3;
                         const selected = statId === x.id;
                         return (
-                          <div key={x.id} data-row="1" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
-                            <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 16, color: top ? '#C8F24C' : '#5F6872' }}>{String(i + 1).padStart(2, '0')}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                          <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
+                            <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                              <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 16, color: top ? '#C8F24C' : '#5F6872', flex: 'none' }}>{String(i + 1).padStart(2, '0')}</div>
                               <div style={{ width: 32, height: 32, flex: 'none', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 700, fontSize: 14, color: '#0B0D10', background: top ? '#C8F24C' : '#3A424C' }}>{x.id.slice(0, 1).toUpperCase()}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                                 <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.id}</div>
                                 <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · 최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</div>
                               </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div className="b-tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               {x.tierIcon
                                 ? <><img src={x.tierIcon} alt={t.label} title={t.label} style={{ width: 26, height: 26 }} /><span style={{ fontSize: 12, color: '#C6CDD4' }}>{t.label}</span></>
                                 : <span style={t.style}>{t.label}</span>}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div className="b-rate" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <div style={{ position: 'relative', flex: 1, height: 6, borderRadius: 999, background: '#22282F', overflow: 'hidden' }}>
                                 <div style={{ position: 'absolute', inset: 0, width: `${x.rate}%`, borderRadius: 999, transformOrigin: 'left', background: x.rate >= 50 ? 'linear-gradient(90deg,#8FBF2E,#C8F24C)' : 'linear-gradient(90deg,#8A2B33,#E1424F)', animation: 'growBar .6s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 60}ms` }} />
                               </div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, fontWeight: 600, width: 44, textAlign: 'right', color: x.rate >= 50 ? '#C8F24C' : '#E1424F' }}>{x.rate}%</div>
                             </div>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#C8D0D8' }}>{x.wins} - {x.losses}</div>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.games}</div>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.kd ?? '—'}</div>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.hsPct != null ? `${x.hsPct}%` : '—'}</div>
+                            <div className="b-wl" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#C8D0D8' }}>{x.wins} - {x.losses}</div>
+                            <div className="b-games" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.games}</div>
+                            <div className="b-kd" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.kd ?? '—'}</div>
+                            <div className="b-hs" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.hsPct != null ? `${x.hsPct}%` : '—'}</div>
                           </div>
                         );
                       })}
