@@ -2373,7 +2373,8 @@ export default function Page() {
                         return (
                           <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
                             <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', position: 'relative' }}>
+                                {x.rank === 1 && <span style={{ position: 'absolute', top: -15, fontSize: 15, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.5))', animation: 'floaty 2.6s ease-in-out infinite' }}>👑</span>}
                                 {medal
                                   ? <div title={x.tied ? `공동 ${x.rank}위` : `${x.rank}위`} style={{ width: 28, height: 28, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 13, color: medal.fg, background: medal.bg, boxShadow: `0 2px 8px ${medal.ring}55` }}>{x.rank}</div>
                                   : <div title={x.tied ? `공동 ${x.rank}위` : `${x.rank}위`} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 15, color: '#5F6872' }}>{String(x.rank).padStart(2, '0')}</div>}
