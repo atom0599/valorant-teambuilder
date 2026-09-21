@@ -43,3 +43,12 @@ button:active { transform: scale(.97); }
 @media (max-width: 760px) {
   .brandWord { max-width: 0; opacity: 0; margin-left: -10px; transform: translateX(-6px); }
 }
+
+@media (max-width: 640px) {
+  /* Collapse the top bar to two clean rows: logo + admin/reset actions on
+     top, nav tabs as their own scrollable strip below — instead of every
+     pill (nav + sync status + room code + admin + reset) wrapping together. */
+  .navRow { flex-basis: 100%; order: 3; }
+  .syncPill:not(.syncPill--error) { display: none; }
+  .roomTag { display: none; }
+}

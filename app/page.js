@@ -1513,7 +1513,7 @@ export default function Page() {
             </div>
             <div className="brandWord" style={{ fontFamily: "'Archivo'", fontWeight: 700, fontSize: 15, letterSpacing: '.02em', whiteSpace: 'nowrap' }}>SCRIM MANAGER</div>
           </div>
-          <div data-scrollx="1" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 380px', minWidth: 0, paddingBottom: 2 }}>
+          <div data-scrollx="1" className="navRow" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 380px', minWidth: 0, paddingBottom: 2 }}>
             {NAV.map(([k, label]) => (
               <button key={k} onClick={() => setScreen(k)} style={pill(screen === k)}>
                 {label}{k === 'banpick' && bpInProgress ? ' ●' : ''}
@@ -1527,11 +1527,11 @@ export default function Page() {
                 <span>밴픽중</span>
               </button>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '6px 12px', fontSize: 12, color: '#A8B0B9' }}>
+            <div className={remoteOk === false ? 'syncPill syncPill--error' : 'syncPill'} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '6px 12px', fontSize: 12, color: '#A8B0B9' }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: remoteOk === false ? '#E1424F' : '#C8F24C', animation: 'pulseDot 1.6s infinite' }} />
               <span>{remoteOk === false ? '동기화 오류' : remoteOk ? '서버 동기화 · 1초' : '폴링 동기화 · 1초'}</span>
             </div>
-            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#A8B0B9' }}>ROOM {roomCode}</div>
+            <div className="roomTag" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#A8B0B9' }}>ROOM {roomCode}</div>
             <button onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
               {isAdmin ? '관리자 ✓ 로그아웃' : '관리자'}
             </button>
@@ -2294,9 +2294,9 @@ export default function Page() {
                             : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34', flex: 'none' }} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.id}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', whiteSpace: 'nowrap' }}>
-                              {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13 }} />}
-                              <span>{tierPill(p.tier).label}{p.agent ? ` · ${p.agent}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                              {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13, flex: 'none' }} />}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tierPill(p.tier).label}{p.agent ? ` · ${p.agent}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
                             </div>
                           </div>
                         </div>
@@ -2316,12 +2316,12 @@ export default function Page() {
                           </div>
                           {expanded && (
                             <div style={{ background: '#14181D', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
                                   <div style={{ fontSize: 11, fontWeight: 700, color: '#C8F24C', letterSpacing: '.06em' }}>승리</div>
                                   {mt.winners.map(row)}
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
                                   <div style={{ fontSize: 11, fontWeight: 700, color: '#8B949E', letterSpacing: '.06em' }}>패배</div>
                                   {mt.losers.map(row)}
                                 </div>
@@ -2416,17 +2416,17 @@ export default function Page() {
                           <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>최근 경기</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                             {(statRec.matches || []).slice().sort((a, b) => b.date - a.date).map((m, i) => (
-                              <div key={i} data-row="1" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#1B2027', border: '1px solid #262C34', borderRadius: 12, padding: '11px 13px', animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 50}ms` }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                              <div key={i} data-row="1" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#1B2027', border: '1px solid #262C34', borderRadius: 12, padding: '11px 13px', animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 50}ms` }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: '1 1 140px' }}>
                                   <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.map}</div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>
                                     <span>{fmtDate(m.date)} ·</span>
                                     {m.tierIcon && <img src={m.tierIcon} alt="" style={{ width: 14, height: 14 }} />}
                                     <span>{tierPill(m.tier).label}</span>
                                   </div>
-                                  {m.kills != null && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{m.kills}/{m.deaths}/{m.assists} · ACS {m.acs} · HS {m.hsPct}%</div>}
+                                  {m.kills != null && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.kills}/{m.deaths}/{m.assists} · ACS {m.acs} · HS {m.hsPct}%</div>}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}>
                                   <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#C8D0D8' }}>{m.score}</div>
                                   <div style={{ fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '4px 10px', color: '#0B0D10', background: m.result === '승' ? '#C8F24C' : '#E1424F' }}>{m.result}</div>
                                   {isAdmin && <button onClick={() => deleteRecord({ date: m.date }, '이 경기를 모든 선수의 전적에서 삭제할까요?')} style={{ background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>삭제</button>}
