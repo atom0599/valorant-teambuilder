@@ -1373,13 +1373,22 @@ export default function Page() {
     };
     const cmp = sorters[statSort];
     const sorted = board.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
-    // Standard competition ranking ("1, 1, 3, 4…"): a full tie on the
-    // active sort's comparator (primary *and* its tiebreaker) shares one
-    // rank, and the next distinct entry's rank is its position — so a
-    // 2-way tie for 1st is followed by 3rd, not 2nd.
+    // A tie is decided by the sort's own value only (e.g. games count for
+    // 경기순) — the tiebreaker (usually 승률) still orders people *within*
+    // a tie for display, but shouldn't split them into separate ranks.
+    const primaryVal = {
+      rate: (x) => x.rate,
+      games: (x) => x.games,
+      tier: (x) => x.tier ?? -1,
+      kd: (x) => x.kd ?? -1,
+      hsPct: (x) => x.hsPct ?? -1
+    }[statSort];
+    // Dense ranking ("1, 1, 2, 3…"): a tie shares one rank, and the next
+    // distinct entry just continues from there — a 2-way tie for 1st is
+    // followed by 2nd, not 3rd.
     let rank = 0;
     const ranked = sorted.map((x, i) => {
-      if (i === 0 || cmp(sorted[i - 1], x) !== 0) rank = i + 1;
+      if (i === 0 || primaryVal(sorted[i - 1]) !== primaryVal(x)) rank += 1;
       return { ...x, rank };
     });
     const rankCounts = ranked.reduce((m, x) => (m[x.rank] = (m[x.rank] || 0) + 1, m), {});
