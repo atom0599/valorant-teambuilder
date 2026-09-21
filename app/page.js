@@ -1366,19 +1366,17 @@ export default function Page() {
     const q = statQuery.trim().toLowerCase();
     const sorters = {
       rate: (a, b) => b.rate - a.rate || b.games - a.games,
-      games: (a, b) => b.games - a.games || b.rate - a.rate,
       tier: (a, b) => (b.tier ?? -1) - (a.tier ?? -1) || b.rate - a.rate,
       kd: (a, b) => (b.kd ?? -1) - (a.kd ?? -1) || b.rate - a.rate,
       hsPct: (a, b) => (b.hsPct ?? -1) - (a.hsPct ?? -1) || b.rate - a.rate
     };
     const cmp = sorters[statSort];
     const sorted = board.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
-    // A tie is decided by the sort's own value only (e.g. games count for
-    // 경기순) — the tiebreaker (usually 승률) still orders people *within*
-    // a tie for display, but shouldn't split them into separate ranks.
+    // A tie is decided by the sort's own value only — the tiebreaker
+    // (usually 승률) still orders people *within* a tie for display, but
+    // shouldn't split them into separate ranks.
     const primaryVal = {
       rate: (x) => x.rate,
-      games: (x) => x.games,
       tier: (x) => x.tier ?? -1,
       kd: (x) => x.kd ?? -1,
       hsPct: (x) => x.hsPct ?? -1
@@ -2293,7 +2291,7 @@ export default function Page() {
                   </div>
                   <div style={{ width: 1, height: 20, background: '#2C333C', flex: 'none' }} />
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {statView === 'player' && [['rate', '승률순'], ['games', '경기순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순']].map(([k, label]) => (
+                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순']].map(([k, label]) => (
                       <button key={k} onClick={() => setStatSort(k)} style={{ ...pill(statSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                     {statView === 'match' && [['newest', '최신순'], ['oldest', '오래된순']].map(([k, label]) => (
