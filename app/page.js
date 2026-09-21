@@ -2347,16 +2347,18 @@ export default function Page() {
                     <div className="boardTable" style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {boardList.map((x, i) => {
                         const t = tierPill(x.tier);
-                        const top = i < 3;
+                        const medal = [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][i];
                         const selected = statId === x.id;
                         return (
-                          <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
+                          <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
                             <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                              <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 16, color: top ? '#C8F24C' : '#5F6872', flex: 'none' }}>{String(i + 1).padStart(2, '0')}</div>
+                              {medal
+                                ? <div style={{ width: 28, height: 28, flex: 'none', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 13, color: medal.fg, background: medal.bg, boxShadow: `0 2px 8px ${medal.ring}55` }}>{i + 1}</div>
+                                : <div style={{ width: 28, height: 28, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 15, color: '#5F6872' }}>{String(i + 1).padStart(2, '0')}</div>}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
                                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.id}</div>
-                                  {!!x.realName && <div style={{ fontSize: 12, color: '#C8F24C', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.realName}</div>}
+                                  {!!x.realName && <div style={{ fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.realName}</div>}
                                 </div>
                                 <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · 최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</div>
                               </div>
