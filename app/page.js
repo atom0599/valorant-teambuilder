@@ -1371,7 +1371,19 @@ export default function Page() {
       kd: (a, b) => (b.kd ?? -1) - (a.kd ?? -1) || b.rate - a.rate,
       hsPct: (a, b) => (b.hsPct ?? -1) - (a.hsPct ?? -1) || b.rate - a.rate
     };
-    return board.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(sorters[statSort]);
+    const cmp = sorters[statSort];
+    const sorted = board.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
+    // Standard competition ranking ("1, 1, 3, 4…"): a full tie on the
+    // active sort's comparator (primary *and* its tiebreaker) shares one
+    // rank, and the next distinct entry's rank is its position — so a
+    // 2-way tie for 1st is followed by 3rd, not 2nd.
+    let rank = 0;
+    const ranked = sorted.map((x, i) => {
+      if (i === 0 || cmp(sorted[i - 1], x) !== 0) rank = i + 1;
+      return { ...x, rank };
+    });
+    const rankCounts = ranked.reduce((m, x) => (m[x.rank] = (m[x.rank] || 0) + 1, m), {});
+    return ranked.map((x) => ({ ...x, tied: rankCounts[x.rank] > 1 }));
   }, [board, statQuery, statSort]);
 
   const statRec = statId ? records[statId] : null;
@@ -2347,14 +2359,17 @@ export default function Page() {
                     <div className="boardTable" style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {boardList.map((x, i) => {
                         const t = tierPill(x.tier);
-                        const medal = [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][i];
+                        const medal = x.rank <= 3 ? [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][x.rank - 1] : null;
                         const selected = statId === x.id;
                         return (
                           <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
                             <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                              {medal
-                                ? <div style={{ width: 28, height: 28, flex: 'none', borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 13, color: medal.fg, background: medal.bg, boxShadow: `0 2px 8px ${medal.ring}55` }}>{i + 1}</div>
-                                : <div style={{ width: 28, height: 28, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 15, color: '#5F6872' }}>{String(i + 1).padStart(2, '0')}</div>}
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none' }}>
+                                {medal
+                                  ? <div title={x.tied ? `공동 ${x.rank}위` : `${x.rank}위`} style={{ width: 28, height: 28, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 13, color: medal.fg, background: medal.bg, boxShadow: `0 2px 8px ${medal.ring}55` }}>{x.rank}</div>
+                                  : <div title={x.tied ? `공동 ${x.rank}위` : `${x.rank}위`} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 15, color: '#5F6872' }}>{String(x.rank).padStart(2, '0')}</div>}
+                                {x.tied && <span style={{ fontSize: 8, fontWeight: 700, color: '#8B949E', letterSpacing: '.03em' }}>공동</span>}
+                              </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
                                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.id}</div>
