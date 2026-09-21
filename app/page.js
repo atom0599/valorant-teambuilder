@@ -2339,7 +2339,7 @@ export default function Page() {
                 )}
 
                 {statView === 'player' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
-                  <div data-scrollx="1" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
+                  <div data-scrollx="1" className="boardContainer" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
                     <div className="boardHeader boardTable" style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
                       <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div>
                     </div>

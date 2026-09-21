@@ -53,12 +53,19 @@ button:active { transform: scale(.97); }
   .roomTag { display: none; }
 }
 
-@media (max-width: 680px) {
-  /* The player leaderboard's 7-column grid needs a horizontal scroll to
-     fit on desktop; on a narrow window that scroll hid whichever side
-     (name or HS%) wasn't currently scrolled into view. Drop the grid/
-     scroll requirement here and let each row wrap into a compact card:
-     name on its own line, the rest as small labeled stats below it. */
+/* The player leaderboard sits next to a sibling panel (the detail rail),
+   so its actual rendered width doesn't track the browser viewport width —
+   a viewport media query switched modes too late, leaving a middling
+   window size where the grid was still narrower than its own 7-column
+   content minimum (~730px) and needed a horizontal scroll that clipped
+   whichever column (name or HS%) wasn't currently scrolled into view.
+   A container query measures this box's own width directly instead. */
+.boardContainer { container-type: inline-size; }
+
+@container (max-width: 760px) {
+  /* Drop the grid/scroll requirement and let each row wrap into a
+     compact card: name on its own line, the rest as small labeled
+     stats below it — nothing ever sits behind an unscrolled edge. */
   .boardHeader { display: none; }
   .boardTable { min-width: 0 !important; }
   .boardRow {
