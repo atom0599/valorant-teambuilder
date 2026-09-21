@@ -1358,8 +1358,9 @@ export default function Page() {
     statMatches.forEach((m) => { kills += m.kills; deaths += m.deaths; hsSum += m.hsPct || 0; });
     const kd = statMatches.length ? (deaths ? Math.round((kills / deaths) * 100) / 100 : kills) : null;
     const hsPct = statMatches.length ? Math.round(hsSum / statMatches.length) : null;
-    return { id, wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct };
-  }), [records]);
+    const realName = roster.find((r) => r.name === id)?.realName || '';
+    return { id, realName, wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct };
+  }), [records, roster]);
 
   const boardList = useMemo(() => {
     const q = statQuery.trim().toLowerCase();
@@ -2352,9 +2353,11 @@ export default function Page() {
                           <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
                             <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                               <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 16, color: top ? '#C8F24C' : '#5F6872', flex: 'none' }}>{String(i + 1).padStart(2, '0')}</div>
-                              <div style={{ width: 32, height: 32, flex: 'none', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 700, fontSize: 14, color: '#0B0D10', background: top ? '#C8F24C' : '#3A424C' }}>{x.id.slice(0, 1).toUpperCase()}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.id}</div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+                                  <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.id}</div>
+                                  {!!x.realName && <div style={{ fontSize: 12, color: '#C8F24C', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.realName}</div>}
+                                </div>
                                 <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · 최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</div>
                               </div>
                             </div>
