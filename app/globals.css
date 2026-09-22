@@ -45,17 +45,22 @@ button:active { transform: scale(.97); }
 }
 
 @media (max-width: 640px) {
-  /* Keep the whole top bar down to one line: drop the status pills that
-     are redundant on a phone, shrink admin/reset to icon-only buttons,
-     and let the nav row's own horizontal scroll (already wired up via
-     [data-scrollx]) absorb whatever the six tabs don't have room for —
-     instead of wrapping the bar into two rows. */
-  .topBar { flex-wrap: nowrap; }
-  .syncPill:not(.syncPill--error) { display: none; }
+  /* Two rows on a phone: logo + sync status + admin/reset icon buttons
+     sit together on the first row, and the nav tabs get the full second
+     row (still horizontally scrollable via [data-scrollx]). */
+  .topBar { flex-wrap: wrap; row-gap: 10px !important; }
+  .topControls { order: 1; gap: 8px !important; }
+  .navRow { order: 2; flex: 1 1 100% !important; }
   .roomTag { display: none; }
+  .syncPill { padding: 6px 10px !important; white-space: nowrap; }
   .adminBtn, .resetBtn { padding: 7px 9px !important; }
   .adminBtn .btnLabel, .resetBtn .btnLabel { display: none; }
   .adminBtn .btnIcon, .resetBtn .btnIcon { display: inline; }
+
+  /* 전체 전적 header: keep the three summary tiles on one line. */
+  .statTiles { flex: 1 1 100%; flex-wrap: nowrap !important; gap: 8px !important; }
+  .statTile { flex: 1 1 0; min-width: 0 !important; padding: 12px 12px !important; }
+  .statTile .statValue { font-size: 22px !important; white-space: nowrap; }
 }
 
 .btnIcon { display: none; }

@@ -1540,7 +1540,7 @@ export default function Page() {
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', flex: '0 1 auto' }}>
+          <div className="topControls" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', flex: '0 1 auto' }}>
             {bpInProgress && (
               <button onClick={() => setScreen('banpick')} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,75,87,.14)', border: '1px solid rgba(255,75,87,.4)', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 700, color: '#FF4B57', cursor: 'pointer' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#FF4B57', animation: 'pulseDot 1.2s infinite' }} />
@@ -2231,15 +2231,15 @@ export default function Page() {
                       <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(34px,7vw,56px)', lineHeight: 1, letterSpacing: '-.02em', animation: 'revealMask .7s cubic-bezier(.2,.7,.3,1) both' }}>전체 전적</div>
                       <div style={{ fontSize: 13, color: '#A8B0B9', marginTop: 10, maxWidth: 520 }}>Riot ID 기준으로 방을 넘어 누적된 순위표입니다. 행을 클릭하면 최근 경기와 티어 스냅샷이 보입니다.</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div className="statTiles" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       {[
                         ['등록 선수', `${board.length}명`],
                         ['누적 경기', String(totalMatchCount)],
                         ['최고 승률', `${board.length ? Math.max(...board.map((x) => x.rate)) : 0}%`]
                       ].map(([label, value], i) => (
-                        <div key={label} data-lift="1" style={{ minWidth: 130, background: 'rgba(20,24,29,.72)', border: '1px solid #2C333C', borderRadius: 16, padding: '14px 18px', animation: 'fadeUp .5s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 90 + 120}ms` }}>
+                        <div key={label} className="statTile" data-lift="1" style={{ minWidth: 130, background: 'rgba(20,24,29,.72)', border: '1px solid #2C333C', borderRadius: 16, padding: '14px 18px', animation: 'fadeUp .5s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 90 + 120}ms` }}>
                           <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>{label}</div>
-                          <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 30, marginTop: 6 }}>{value}</div>
+                          <div className="statValue" style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 30, marginTop: 6 }}>{value}</div>
                         </div>
                       ))}
                     </div>
