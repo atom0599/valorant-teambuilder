@@ -1526,7 +1526,7 @@ export default function Page() {
 
       <div style={{ position: 'relative', maxWidth: 1460, margin: '0 auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* top bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'rgba(16,20,25,.58)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 22, padding: '10px 16px', boxShadow: '0 18px 44px rgba(0,0,0,.35)', animation: 'dropIn .55s cubic-bezier(.2,.7,.3,1) both' }}>
+        <div className="topBar" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'rgba(16,20,25,.58)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 22, padding: '10px 16px', boxShadow: '0 18px 44px rgba(0,0,0,.35)', animation: 'dropIn .55s cubic-bezier(.2,.7,.3,1) both' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingRight: 6, flex: 'none' }}>
             <div style={{ width: 26, height: 26, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img src="/logo.png" alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
@@ -1552,10 +1552,12 @@ export default function Page() {
               <span>{remoteOk === false ? '동기화 오류' : remoteOk ? '서버 동기화 · 1초' : '폴링 동기화 · 1초'}</span>
             </div>
             <div className="roomTag" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#A8B0B9' }}>ROOM {roomCode}</div>
-            <button onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              {isAdmin ? '관리자 ✓ 로그아웃' : '관리자'}
+            <button className="adminBtn" onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <span className="btnIcon">⚙{isAdmin ? '✓' : ''}</span>
+              <span className="btnLabel">{isAdmin ? '관리자 ✓ 로그아웃' : '관리자'}</span>
             </button>
             <button
+              className="resetBtn"
               onClick={() => {
                 if (confirmNewRoom) {
                   clearTimeout(confirmNewRoomTimer.current);
@@ -1572,7 +1574,9 @@ export default function Page() {
                 padding: '7px 13px', fontSize: 12, fontWeight: confirmNewRoom ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap'
               }}
             >
-              {confirmNewRoom ? '정말요? 다시 누르면 초기화' : '방 초기화'}
+              {confirmNewRoom
+                ? '정말요? 다시 누르면 초기화'
+                : <><span className="btnIcon">↻</span><span className="btnLabel">방 초기화</span></>}
             </button>
           </div>
         </div>
@@ -2298,8 +2302,8 @@ export default function Page() {
                       <button key={k} onClick={() => setMatchSort(k)} style={{ ...pill(matchSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                   </div>
-                  <div style={{ flex: 1, minWidth: 120 }} />
-                  <input value={statQuery} onChange={(e) => setStatQuery(e.target.value)} placeholder="Riot ID 검색" style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 999, padding: '11px 18px', color: '#E8EAEC', fontSize: 13, width: 230 }} />
+                  <div style={{ flex: '1 0 0', minWidth: 0 }} />
+                  <input value={statQuery} onChange={(e) => setStatQuery(e.target.value)} placeholder="Riot ID 검색" style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 999, padding: '11px 18px', color: '#E8EAEC', fontSize: 13, flex: '1 1 160px', minWidth: 0, maxWidth: 230 }} />
                 </div>
 
                 {statView === 'match' && (

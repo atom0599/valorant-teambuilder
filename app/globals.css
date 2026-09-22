@@ -45,13 +45,20 @@ button:active { transform: scale(.97); }
 }
 
 @media (max-width: 640px) {
-  /* Collapse the top bar to two clean rows: logo + admin/reset actions on
-     top, nav tabs as their own scrollable strip below — instead of every
-     pill (nav + sync status + room code + admin + reset) wrapping together. */
-  .navRow { flex-basis: 100%; order: 3; }
+  /* Keep the whole top bar down to one line: drop the status pills that
+     are redundant on a phone, shrink admin/reset to icon-only buttons,
+     and let the nav row's own horizontal scroll (already wired up via
+     [data-scrollx]) absorb whatever the six tabs don't have room for —
+     instead of wrapping the bar into two rows. */
+  .topBar { flex-wrap: nowrap; }
   .syncPill:not(.syncPill--error) { display: none; }
   .roomTag { display: none; }
+  .adminBtn, .resetBtn { padding: 7px 9px !important; }
+  .adminBtn .btnLabel, .resetBtn .btnLabel { display: none; }
+  .adminBtn .btnIcon, .resetBtn .btnIcon { display: inline; }
 }
+
+.btnIcon { display: none; }
 
 /* The player leaderboard sits next to a sibling panel (the detail rail),
    so its actual rendered width doesn't track the browser viewport width —
@@ -66,7 +73,10 @@ button:active { transform: scale(.97); }
   /* Drop the grid/scroll requirement and let each row wrap into a
      compact card: name on its own line, the rest as small labeled
      stats below it — nothing ever sits behind an unscrolled edge. */
-  .boardHeader { display: none; }
+  /* The header's inline style sets display:grid directly on the element,
+     which beats a plain class selector regardless of source order — this
+     needs !important to actually win and hide the header on mobile. */
+  .boardHeader { display: none !important; }
   .boardTable { min-width: 0 !important; }
   .boardRow {
     display: flex !important;
