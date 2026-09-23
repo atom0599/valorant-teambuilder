@@ -1215,9 +1215,25 @@ export default function Page() {
     if (hashIdx < 1) { setPastMsg('명단에서 Riot ID(이름#태그)가 있는 사람을 선택하세요.'); return; }
     setPastScanning(true); setPastMsg(''); setPastCandidates(null);
     try {
-      const res = await fetch(`/api/customs?name=${encodeURIComponent(id.slice(0, hashIdx))}&tag=${encodeURIComponent(id.slice(hashIdx + 1))}&since=0`);
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setPastMsg(`불러오기에 실패했습니다. (${d.error || res.status})`); return; }
+      const { list, error } = await fetchCustomCandidates(id, 0);
+      if (error) { setPastMsg(`불러오기에 실패했습니다. (${error})`); return; }
+      setPastCandidates(list.map((m) => ({ ...m, checked: true })));
+      if (!list.length) setPastMsg('명단과 겹치는 예전 내전 매치를 찾지 못했습니다. (최근 50경기까지만 조회됩니다)');
+    } catch {
+      setPastMsg('서버에 연결할 수 없습니다.');
+    } finally {
+      setPastScanning(false);
+    }
+  }
+
+  // Fetches one Riot ID's custom games from HenrikDev and keeps only the
+  // ones that are actually "ours" — shared by 과거 내전 불러오기 and the
+  // one-click 내전 결과 불러오기 below.
+  async function fetchCustomCandidates(id, since) {
+    const hashIdx = id.indexOf('#');
+    const res = await fetch(`/api/customs?name=${encodeURIComponent(id.slice(0, hashIdx))}&tag=${encodeURIComponent(id.slice(hashIdx + 1))}&since=${since || 0}`);
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return { list: [], error: d.error || res.status };
 
       const engToKo = {};
       ALL_MAPS.forEach((ko) => { engToKo[(MAP_IMG[ko] || '').split('/').pop().replace('.png', '')] = ko; });
@@ -1243,16 +1259,8 @@ export default function Page() {
         // to decide this match is actually "ours" (not some unrelated
         // public custom the anchor player happened to join) — but that's
         // only a relevance filter, not a filter on who gets included above.
-        .filter((m) => m.koMap && m.redRounds !== m.blueRounds && m.redRosterHits && m.blueRosterHits)
-        .map((m) => ({ ...m, checked: true }));
-
-      setPastCandidates(list);
-      if (!list.length) setPastMsg('명단과 겹치는 예전 내전 매치를 찾지 못했습니다. (최근 50경기까지만 조회됩니다)');
-    } catch {
-      setPastMsg('서버에 연결할 수 없습니다.');
-    } finally {
-      setPastScanning(false);
-    }
+        .filter((m) => m.koMap && m.redRounds !== m.blueRounds && m.redRosterHits && m.blueRosterHits);
+    return { list };
   }
 
   function togglePastCandidate(id) {
@@ -1286,6 +1294,13 @@ export default function Page() {
     if (!selected.length || pastSaving) return;
     setPastSaving(true);
     setPastMsg('현재 티어 조회 중…');
+    const { saved, duplicate, failed } = await saveCustomMatches(selected);
+    setPastCandidates((list) => list.filter((m) => !selected.some((s) => s.id === m.id)));
+    setPastMsg(`${saved}경기 저장됨${duplicate ? ` · 이미 저장된 경기 ${duplicate}개` : ''}${failed ? ` · 실패 ${failed}개` : ''}`);
+    setPastSaving(false);
+  }
+
+  async function saveCustomMatches(selected) {
     const allNames = new Set();
     selected.forEach((m) => { m.redPlayers.forEach((p) => allNames.add(p.name)); m.bluePlayers.forEach((p) => allNames.add(p.name)); });
     const tierByName = await fetchCurrentTiers(allNames);
@@ -1313,9 +1328,53 @@ export default function Page() {
         if (d.duplicate) duplicate++; else { saved++; if (d.records) setRecords(d.records); }
       } catch { failed++; }
     }
-    setPastCandidates((list) => list.filter((m) => !selected.some((s) => s.id === m.id)));
-    setPastMsg(`${saved}경기 저장됨${duplicate ? ` · 이미 저장된 경기 ${duplicate}개` : ''}${failed ? ` · 실패 ${failed}개` : ''}`);
-    setPastSaving(false);
+    return { saved, duplicate, failed };
+  }
+
+  // ---- 내전 결과 불러오기: one click after a match ends. Picks an anchor
+  // automatically (today's teams first, then the roster), looks back 12h,
+  // skips anything already saved, and saves the rest straight away — no
+  // anchor dropdown or checkbox review like 과거 내전 불러오기.
+  const [quickImporting, setQuickImporting] = useState(false);
+  const [quickMsg, setQuickMsg] = useState('');
+
+  async function quickImportLatest() {
+    if (quickImporting) return;
+    setQuickImporting(true); setQuickMsg('최근 내전 찾는 중…');
+    try {
+      const teamNames = teams ? [...teams.A, ...teams.B].map((p) => p?.name?.trim()) : [];
+      const anchors = [...new Set([...teamNames, ...roster.map((r) => r.name)])]
+        .filter((n) => typeof n === 'string' && n.indexOf('#') > 0)
+        .slice(0, 3);
+      if (!anchors.length) { setQuickMsg('Riot ID(이름#태그)가 등록된 선수가 없습니다.'); return; }
+
+      const savedKeys = new Set();
+      Object.values(records).forEach((r) => (r.matches || []).forEach((m) => m.matchKey && savedKeys.add(m.matchKey)));
+      const since = Date.now() - 12 * 60 * 60 * 1000;
+
+      // Try a few anchors in case one account's history fails (rate limit,
+      // private profile) — the first successful scan wins.
+      let list = null, lastError = null;
+      for (const a of anchors) {
+        const r = await fetchCustomCandidates(a, since);
+        if (!r.error) { list = r.list; break; }
+        lastError = r.error;
+      }
+      if (!list) { setQuickMsg(`불러오기에 실패했습니다. (${lastError})`); return; }
+
+      const fresh = list.filter((m) => !savedKeys.has(`customs:${m.id}`));
+      if (!fresh.length) { setQuickMsg(list.length ? '최근 12시간 내전은 이미 모두 저장되어 있습니다.' : '최근 12시간 안에 끝난 내전을 찾지 못했습니다. 경기 직후라면 1~2분 뒤 다시 시도해 보세요.'); return; }
+
+      setQuickMsg(`${fresh.length}경기 저장 중…`);
+      const { saved, duplicate, failed } = await saveCustomMatches(fresh);
+      const latest = fresh.reduce((a, b) => (Date.parse(b.startedAt) > Date.parse(a.startedAt) ? b : a));
+      setQuickMsg(`${saved}경기 저장됨 (최근: ${latest.koMap} ${Math.max(latest.redRounds, latest.blueRounds)}:${Math.min(latest.redRounds, latest.blueRounds)})${duplicate ? ` · 이미 저장된 경기 ${duplicate}개` : ''}${failed ? ` · 실패 ${failed}개` : ''}`);
+      if (saved) { setStatView('match'); setMatchSort('newest'); }
+    } catch {
+      setQuickMsg('서버에 연결할 수 없습니다.');
+    } finally {
+      setQuickImporting(false);
+    }
   }
 
   const winrate = (id) => {
@@ -1358,8 +1417,11 @@ export default function Page() {
     statMatches.forEach((m) => { kills += m.kills; deaths += m.deaths; hsSum += m.hsPct || 0; });
     const kd = statMatches.length ? (deaths ? Math.round((kills / deaths) * 100) / 100 : kills) : null;
     const hsPct = statMatches.length ? Math.round(hsSum / statMatches.length) : null;
+    // 어시스트순 ranks by assists per game (not total), so someone with more
+    // imported matches doesn't win just by volume.
+    const assists = statMatches.length ? Math.round((statMatches.reduce((n, m) => n + (m.assists || 0), 0) / statMatches.length) * 10) / 10 : null;
     const realName = roster.find((r) => r.name === id)?.realName || '';
-    return { id, realName, wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct };
+    return { id, realName, wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct, assists };
   }), [records, roster]);
 
   const boardList = useMemo(() => {
@@ -1368,7 +1430,8 @@ export default function Page() {
       rate: (a, b) => b.rate - a.rate || b.games - a.games,
       tier: (a, b) => (b.tier ?? -1) - (a.tier ?? -1) || b.rate - a.rate,
       kd: (a, b) => (b.kd ?? -1) - (a.kd ?? -1) || b.rate - a.rate,
-      hsPct: (a, b) => (b.hsPct ?? -1) - (a.hsPct ?? -1) || b.rate - a.rate
+      hsPct: (a, b) => (b.hsPct ?? -1) - (a.hsPct ?? -1) || b.rate - a.rate,
+      assists: (a, b) => (b.assists ?? -1) - (a.assists ?? -1) || b.rate - a.rate
     };
     const cmp = sorters[statSort];
     const sorted = board.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
@@ -1379,7 +1442,8 @@ export default function Page() {
       rate: (x) => x.rate,
       tier: (x) => x.tier ?? -1,
       kd: (x) => x.kd ?? -1,
-      hsPct: (x) => x.hsPct ?? -1
+      hsPct: (x) => x.hsPct ?? -1,
+      assists: (x) => x.assists ?? -1
     }[statSort];
     // Dense ranking ("1, 1, 2, 3…"): a tie shares one rank, and the next
     // distinct entry just continues from there — a 2-way tie for 1st is
@@ -2061,10 +2125,11 @@ export default function Page() {
                       {finished ? '밴픽 완료' : pendingShow ? '진영 선택' : step ? `${step[0] === 'decider' ? '데사이더' : `${teamName(step[1])} ${step[0] === 'ban' ? '밴' : '픽'}`} 차례` : '밴픽 대기'}
                     </div>
                     <div style={{ fontSize: 13, color: '#8B949E' }}>
-                      {finished ? '전체 전적 탭에서 이 경기를 불러와 저장하세요.' : myTurn ? '내 차례입니다. 맵 또는 진영을 선택하세요.' : '상대 주장의 선택을 기다리는 중 — 관전 모드'}
+                      {finished ? (quickMsg || '경기가 끝나면 오른쪽 버튼으로 결과를 바로 저장하세요.') : myTurn ? '내 차례입니다. 맵 또는 진영을 선택하세요.' : '상대 주장의 선택을 기다리는 중 — 관전 모드'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {finished && <button onClick={quickImportLatest} disabled={quickImporting} style={{ background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: quickImporting ? 'default' : 'pointer', opacity: quickImporting ? .6 : 1, flex: 'none' }}>{quickImporting ? '불러오는 중…' : '내전 결과 불러오기'}</button>}
                     <div style={{ fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '8px 14px', background: myRole ? (myRole === 'A' ? '#FF4B5720' : '#2FD3B720') : '#1B2027', color: myRole ? (myRole === 'A' ? '#FF4B57' : '#2FD3B7') : '#8B949E', border: `1px solid ${myRole ? (myRole === 'A' ? '#FF4B5755' : '#2FD3B755') : '#262C34'}` }}>
                       {myRole ? teamName(myRole) + ' 주장' : '관전자'}
                     </div>
@@ -2246,6 +2311,14 @@ export default function Page() {
                   </div>
                 </div>
 
+                <div style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>방금 끝난 내전 저장</div>
+                    <div style={{ fontSize: 12, color: quickMsg ? '#E5C04C' : '#8B949E', marginTop: 3 }}>{quickMsg || '경기가 끝나면 버튼 한 번으로 최근 12시간 안의 내전 결과를 Riot 기록에서 가져와 저장합니다.'}</div>
+                  </div>
+                  <button onClick={quickImportLatest} disabled={quickImporting} style={{ background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: quickImporting ? 'default' : 'pointer', opacity: quickImporting ? .6 : 1, flex: 'none' }}>{quickImporting ? '불러오는 중…' : '내전 결과 불러오기'}</button>
+                </div>
+
                 {isAdmin && (
                   <div style={{ background: '#14181D', border: '1px dashed #2C333C', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div>
@@ -2295,7 +2368,7 @@ export default function Page() {
                   </div>
                   <div style={{ width: 1, height: 20, background: '#2C333C', flex: 'none' }} />
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순']].map(([k, label]) => (
+                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순'], ['assists', '어시스트순']].map(([k, label]) => (
                       <button key={k} onClick={() => setStatSort(k)} style={{ ...pill(statSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                     {statView === 'match' && [['newest', '최신순'], ['oldest', '오래된순']].map(([k, label]) => (
@@ -2343,7 +2416,7 @@ export default function Page() {
                           >
                             <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: '#F5F7F9', letterSpacing: '-.02em' }}>{mt.score}</div>
                             <div style={{ fontSize: 11, color: '#C6CDD4', fontFamily: "'IBM Plex Mono'" }}>{mt.map} · {fmtDate(mt.date)}</div>
-                            {mvp && <div style={{ fontSize: 11, color: '#FFD166', fontWeight: 600 }}>👑 MVP {mvp.id} · ACS {mvp.acs}</div>}
+                            {mvp && <div style={{ fontSize: 11, color: '#FFD166', fontWeight: 600 }}>👑 MVP {mvp.id} · ACS {mvp.acs} · K/D {mvp.deaths ? (mvp.kills / mvp.deaths).toFixed(2) : mvp.kills}</div>}
                           </div>
                           {expanded && (
                             <div style={{ background: '#14181D', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2394,7 +2467,7 @@ export default function Page() {
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · 최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</div>
+                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
                             </div>
                             <div className="b-tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
