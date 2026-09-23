@@ -1460,7 +1460,7 @@ export default function Page() {
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
   const playerGrid = '44px minmax(0,1.3fr) minmax(0,0.9fr) 108px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
   const rosterGrid = 'minmax(0,1.1fr) 60px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
-  const boardGrid = 'minmax(190px,1.8fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
+  const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
   return (
@@ -2384,8 +2384,8 @@ export default function Page() {
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                                  <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.id}</div>
-                                  {!!x.realName && <div style={{ fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.realName}</div>}
+                                  <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
+                                  {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
                                 </div>
                                 <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · 최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</div>
                               </div>
