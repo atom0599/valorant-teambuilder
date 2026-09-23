@@ -2311,13 +2311,19 @@ export default function Page() {
                     {matchLog.map((mt) => {
                       const expanded = expandedMatch === mt.date;
                       const bg = MAP_IMG[mt.map] || MAP_IMG[String(mt.map).split(',')[0]?.trim()] || null;
+                      // MVP: highest ACS across both teams (K/D breaks ties);
+                      // matches entered by hand without stats have no MVP.
+                      const mvp = [...mt.winners, ...mt.losers].filter((p) => p.acs != null).sort((a, b) => b.acs - a.acs || (b.kills / Math.max(b.deaths, 1)) - (a.kills / Math.max(a.deaths, 1)))[0] || null;
                       const row = (p) => (
                         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {p.agentIcon
                             ? <img src={p.agentIcon} alt={p.agent || ''} title={p.agent || ''} style={{ width: 30, height: 30, borderRadius: 7, flex: 'none' }} />
                             : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34', flex: 'none' }} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.id}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{p.id}</div>
+                              {mvp?.id === p.id && <span title="이 경기 최고 ACS" style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 9, fontWeight: 800, letterSpacing: '.06em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 5, padding: '2px 5px' }}>MVP</span>}
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E' }}>
                               {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13, flex: 'none', marginTop: 1 }} />}
                               <span style={{ wordBreak: 'break-word' }}>{tierPill(p.tier).label}{p.agent ? ` · ${p.agent}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
@@ -2337,6 +2343,7 @@ export default function Page() {
                           >
                             <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: '#F5F7F9', letterSpacing: '-.02em' }}>{mt.score}</div>
                             <div style={{ fontSize: 11, color: '#C6CDD4', fontFamily: "'IBM Plex Mono'" }}>{mt.map} · {fmtDate(mt.date)}</div>
+                            {mvp && <div style={{ fontSize: 11, color: '#FFD166', fontWeight: 600 }}>👑 MVP {mvp.id} · ACS {mvp.acs}</div>}
                           </div>
                           {expanded && (
                             <div style={{ background: '#14181D', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
