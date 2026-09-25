@@ -68,6 +68,8 @@ export default function Page() {
   const [altPick, setAltPick] = useState({}); // roster name -> which of their accounts to register with next
 
   const [records, setRecords] = useState({});
+  // Riot IDs an admin hid from the 선수별 leaderboard (see /api/records PUT).
+  const [excludedIds, setExcludedIds] = useState([]);
   const [statQuery, setStatQuery] = useState('');
   const [statId, setStatId] = useState(null);
   const [statSort, setStatSort] = useState('rate');
@@ -197,7 +199,11 @@ export default function Page() {
     let alive = true;
     const pull = () => {
       fetch('/api/roster').then((r) => r.json()).then((d) => { if (alive && Array.isArray(d.roster)) setRoster(d.roster); }).catch(() => {});
-      fetch('/api/records').then((r) => r.json()).then((d) => { if (alive && d.records) setRecords(d.records); }).catch(() => {});
+      fetch('/api/records').then((r) => r.json()).then((d) => {
+        if (!alive) return;
+        if (d.records) setRecords(d.records);
+        if (Array.isArray(d.excluded)) setExcludedIds(d.excluded);
+      }).catch(() => {});
       fetch('/api/seasonstats').then((r) => r.json()).then((d) => { if (alive && d.stats) setSeasonStats(d.stats); }).catch(() => {});
     };
     pull();
@@ -1142,6 +1148,16 @@ export default function Page() {
     } catch {}
   }
 
+  async function setExcluded(id, excluded) {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch('/api/records', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify({ id, excluded }) });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(d.excluded)) setExcludedIds(d.excluded);
+      else if (res.status === 403) { adminLogout(); window.alert('관리자 인증이 만료되었습니다. 다시 로그인하세요.'); }
+    } catch {}
+  }
+
   function startBanpick() {
     if (pool.length < minPoolSize || !captains.A || !captains.B || !teams || bp) return;
     // Fresh per-session seed so the decider's deterministic "roll" (below)
@@ -1421,8 +1437,11 @@ export default function Page() {
     // imported matches doesn't win just by volume.
     const assists = statMatches.length ? Math.round((statMatches.reduce((n, m) => n + (m.assists || 0), 0) / statMatches.length) * 10) / 10 : null;
     const realName = roster.find((r) => r.name === id)?.realName || '';
-    return { id, realName, wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct, assists };
-  }), [records, roster]);
+    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct, assists };
+  }), [records, roster, excludedIds]);
+  // Everyone the leaderboard actually ranks — excluded players never take a
+  // rank or count toward the summary tiles.
+  const rankedBoard = useMemo(() => board.filter((x) => !x.excluded), [board]);
 
   const boardList = useMemo(() => {
     const q = statQuery.trim().toLowerCase();
@@ -1434,7 +1453,7 @@ export default function Page() {
       assists: (a, b) => (b.assists ?? -1) - (a.assists ?? -1) || b.rate - a.rate
     };
     const cmp = sorters[statSort];
-    const sorted = board.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
+    const sorted = rankedBoard.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
     // A tie is decided by the sort's own value only — the tiebreaker
     // (usually 승률) still orders people *within* a tie for display, but
     // shouldn't split them into separate ranks.
@@ -1454,8 +1473,13 @@ export default function Page() {
       return { ...x, rank };
     });
     const rankCounts = ranked.reduce((m, x) => (m[x.rank] = (m[x.rank] || 0) + 1, m), {});
-    return ranked.map((x) => ({ ...x, tied: rankCounts[x.rank] > 1 }));
-  }, [board, statQuery, statSort]);
+    const out = ranked.map((x) => ({ ...x, tied: rankCounts[x.rank] > 1 }));
+    // Admins still see excluded players (unranked, at the bottom) so they can
+    // be restored; everyone else doesn't see them at all.
+    if (!isAdmin) return out;
+    const hidden = board.filter((x) => x.excluded && (!q || x.id.toLowerCase().includes(q))).sort(cmp).map((x) => ({ ...x, rank: null, tied: false }));
+    return [...out, ...hidden];
+  }, [board, rankedBoard, statQuery, statSort, isAdmin]);
 
   const statRec = statId ? records[statId] : null;
   const statTotal = statRec ? statRec.wins + statRec.losses : 0;
@@ -2298,9 +2322,9 @@ export default function Page() {
                     </div>
                     <div className="statTiles" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       {[
-                        ['등록 선수', `${board.length}명`],
+                        ['등록 선수', `${rankedBoard.length}명`],
                         ['누적 경기', String(totalMatchCount)],
-                        ['최고 승률', `${board.length ? Math.max(...board.map((x) => x.rate)) : 0}%`]
+                        ['최고 승률', `${rankedBoard.length ? Math.max(...rankedBoard.map((x) => x.rate)) : 0}%`]
                       ].map(([label, value], i) => (
                         <div key={label} className="statTile" data-lift="1" style={{ minWidth: 130, background: 'rgba(20,24,29,.72)', border: '1px solid #2C333C', borderRadius: 16, padding: '14px 18px', animation: 'fadeUp .5s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 90 + 120}ms` }}>
                           <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>{label}</div>
@@ -2450,14 +2474,16 @@ export default function Page() {
                     <div className="boardTable" style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {boardList.map((x, i) => {
                         const t = tierPill(x.tier);
-                        const medal = x.rank <= 3 ? [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][x.rank - 1] : null;
+                        const medal = x.rank != null && x.rank <= 3 ? [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][x.rank - 1] : null;
                         const selected = statId === x.id;
                         return (
-                          <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
+                          <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', opacity: x.excluded ? .45 : 1, background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
                             <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', position: 'relative' }}>
                                 {x.rank === 1 && <span style={{ position: 'absolute', top: -15, fontSize: 15, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.5))', animation: 'floaty 2.6s ease-in-out infinite' }}>👑</span>}
-                                {medal
+                                {x.excluded
+                                  ? <div title="순위 제외됨" style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#8B949E' }}>제외</div>
+                                  : medal
                                   ? <div title={x.tied ? `공동 ${x.rank}위` : `${x.rank}위`} style={{ width: 28, height: 28, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 13, color: medal.fg, background: medal.bg, boxShadow: `0 2px 8px ${medal.ring}55` }}>{x.rank}</div>
                                   : <div title={x.tied ? `공동 ${x.rank}위` : `${x.rank}위`} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 15, color: '#5F6872' }}>{String(x.rank).padStart(2, '0')}</div>}
                                 {x.tied && <span style={{ fontSize: 8, fontWeight: 700, color: '#8B949E', letterSpacing: '.03em' }}>공동</span>}
@@ -2503,7 +2529,8 @@ export default function Page() {
                               <div style={{ fontSize: 16, fontWeight: 700, wordBreak: 'break-all' }}>{statId}</div>
                               <div style={{ fontSize: 12, color: '#8B949E' }}>{statTotal}경기 · 최근 {statLast ? fmtDate(statLast.date) : '—'}</div>
                             </div>
-                            {isAdmin && <button onClick={() => deleteRecord({ id: statId }, `${statId}의 전적을 전부 삭제할까요?`)} style={{ marginLeft: 'auto', background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>선수 전적 삭제</button>}
+                            {isAdmin && <button onClick={() => setExcluded(statId, !excludedIds.includes(statId))} style={{ marginLeft: 'auto', flex: 'none', background: 'transparent', color: excludedIds.includes(statId) ? '#C8F24C' : '#E5C04C', border: `1px solid ${excludedIds.includes(statId) ? '#C8F24C66' : '#E5C04C66'}`, borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{excludedIds.includes(statId) ? '순위 복원' : '순위 제외'}</button>}
+                            {isAdmin && <button onClick={() => deleteRecord({ id: statId }, `${statId}의 전적을 전부 삭제할까요?`)} style={{ flex: 'none', background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>선수 전적 삭제</button>}
                           </div>
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 16 }}>
                             <div>

@@ -5,13 +5,17 @@ export const dynamic = 'force-dynamic';
 
 const KEY = 'records:all';
 const KEYS_KEY = 'records:savedKeys';
+// Player ids an admin has hidden from the 선수별 leaderboard. Kept apart from
+// `records:all` so excluding someone never touches their actual record —
+// un-excluding brings them straight back with everything intact.
+const EXCLUDED_KEY = 'records:excluded';
 
 export async function GET(request) {
   const id = new URL(request.url).searchParams.get('id');
   try {
-    const all = (await getJSON(KEY)) || {};
-    if (id) return Response.json({ id, record: all[id] || null, persistent: hasKV });
-    return Response.json({ records: all, persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
+    const [all, excluded] = await Promise.all([getJSON(KEY), getJSON(EXCLUDED_KEY)]);
+    if (id) return Response.json({ id, record: (all || {})[id] || null, persistent: hasKV });
+    return Response.json({ records: all || {}, excluded: excluded || [], persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return Response.json({ error: String(e), records: {} }, { status: 502 });
   }
@@ -115,7 +119,28 @@ export async function PATCH(request) {
     delete all[from];
 
     await setJSON(KEY, all);
+    // An excluded player stays excluded under their new Riot ID.
+    const excluded = (await getJSON(EXCLUDED_KEY)) || [];
+    if (excluded.includes(from)) await setJSON(EXCLUDED_KEY, [...new Set(excluded.map((x) => (x === from ? to : x)))]);
     return Response.json({ records: all, persistent: hasKV });
+  } catch (e) {
+    return Response.json({ error: String(e) }, { status: 502 });
+  }
+}
+
+// Admin only. body: { id, excluded: boolean } hides (or restores) one player
+// on the 선수별 leaderboard without deleting anything from their record.
+export async function PUT(request) {
+  if (!isAdmin(request)) return Response.json({ error: 'admin only' }, { status: 403 });
+  const body = await request.json().catch(() => null);
+  const id = body?.id != null ? String(body.id) : null;
+  if (!id || typeof body.excluded !== 'boolean') return Response.json({ error: 'id and excluded required' }, { status: 400 });
+
+  try {
+    const cur = (await getJSON(EXCLUDED_KEY)) || [];
+    const next = body.excluded ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
+    await setJSON(EXCLUDED_KEY, next);
+    return Response.json({ excluded: next, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
