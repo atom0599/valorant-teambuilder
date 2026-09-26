@@ -19,6 +19,14 @@ const GROUP_COLORS = ['#FF4B57', '#4C9AFF', '#C8F24C', '#E0A64C', '#B478FF'];
 // Groups only make sense with 2+ members — dropping to 1 (someone left, or a
 // re-group moved them elsewhere) leaves a lone tag with nothing to keep them
 // together with, so clear it automatically instead of leaving dead state around.
+// This season's tier index for a looked-up player slot, or null if they
+// haven't placed this season. `tier` on a slot is the peak index (kept for
+// "lookup done" checks); this is what the UI shows.
+function seasonTierIdx(p) {
+  const idx = p.currentTier ? TIERS.findIndex((t) => t.label === p.currentTier) : -1;
+  return idx >= 0 ? idx : null;
+}
+
 function cleanupGroups(arr) {
   const counts = {};
   arr.forEach((p) => { if (p.groupId) counts[p.groupId] = (counts[p.groupId] || 0) + 1; });
@@ -128,6 +136,11 @@ export default function Page() {
 
   const [seasonStats, setSeasonStats] = useState({});
   const [seasonStatsLoading, setSeasonStatsLoading] = useState(false);
+  // Riot ID -> { tier (TIERS index | null), tierIcon, at } — this season's
+  // tier, shared via /api/seasonstats. 전체전적 shows this instead of the tier
+  // snapshot stored on match records.
+  const [currentTiers, setCurrentTiers] = useState({});
+  const tierRefreshTriedRef = useRef(new Set());
   const lookupQueueRef = useRef(Promise.resolve());
   const rebalanceRankRef = useRef(0);
   // Snapshot of `players` as of the last time this client's copy actually
@@ -204,7 +217,17 @@ export default function Page() {
         if (d.records) setRecords(d.records);
         if (Array.isArray(d.excluded)) setExcludedIds(d.excluded);
       }).catch(() => {});
-      fetch('/api/seasonstats').then((r) => r.json()).then((d) => { if (alive && d.stats) setSeasonStats(d.stats); }).catch(() => {});
+      fetch('/api/seasonstats').then((r) => r.json()).then((d) => {
+        if (!alive) return;
+        if (d.stats) setSeasonStats(d.stats);
+        if (d.tiers) setCurrentTiers((cur) => {
+          // Keep a locally-fetched entry if it's newer than what the server has
+          // (its POST may still be in flight).
+          const next = { ...d.tiers };
+          Object.entries(cur).forEach(([id, v]) => { if (!next[id] || (v.at || 0) > (next[id].at || 0)) next[id] = v; });
+          return next;
+        });
+      }).catch(() => {});
     };
     pull();
     const t = setInterval(pull, 1000);
@@ -760,6 +783,7 @@ export default function Page() {
     }
     setApiSource(source);
     if (rankData?.puuid) rememberPuuid(canonicalName(fullName), rankData.puuid);
+    rememberCurrentTier(canonicalName(fullName), rankData);
 
     const currentTier = rankData?.currentTier || null;
     const currentTierIcon = rankData?.currentTierIcon || null;
@@ -788,6 +812,22 @@ export default function Page() {
   }
 
   function lookupAll() { players.forEach((p, i) => { if (p.name.trim()) lookup(i, undefined, true); }); }
+
+  // Caches this season's tier from an /api/rank response. Only a successful
+  // lookup counts — a failed one says nothing about their tier. No current
+  // tier (unplaced this season) is stored as null → "언랭", deliberately NOT
+  // falling back to the peak tier.
+  function rememberCurrentTier(id, rankData) {
+    if (!id || rankData?.source !== 'api') return;
+    const idx = rankData.currentTier ? TIERS.findIndex((t) => t.label === rankData.currentTier) : -1;
+    const entry = { tier: idx >= 0 ? idx : null, tierIcon: idx >= 0 ? rankData.currentTierIcon || null : null, at: Date.now() };
+    setCurrentTiers((c) => ({ ...c, [id]: entry }));
+    fetch('/api/seasonstats', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, tier: entry })
+    }).catch(() => {});
+    return entry;
+  }
 
   /* ---------- season competitive stats (vlr.gg-style table) ---------- */
   async function fetchOneSeasonStats(full) {
@@ -833,9 +873,8 @@ export default function Page() {
   // everyone. The same K:D deviation from 1.0 means more at a higher tier —
   // a tougher lobby, so out-fragging it is a stronger signal — than the
   // exact same K:D would at a lower one, so the nudge scales with tier
-  // index (~1x at Iron up to ~2.7x at Radiant). `tier` itself (peak index)
-  // is kept unchanged for the badges shown on the balance screen — only
-  // `skill` feeds the split.
+  // index (~1x at Iron up to ~2.7x at Radiant). Only `skill` feeds the
+  // split; the balance screen's badges show this season's tier as-is.
   function skillScore(p, i) {
     // No real tier data (never looked up, or lookup failed) gets a fixed
     // lowest-tier baseline for scoring purposes only — never a fabricated,
@@ -859,8 +898,10 @@ export default function Page() {
     const list = players
       .map((p, i) => ({
         i, name: p.name.trim(), pos: p.pos,
-        tier: p.tier, // null stays null — shown as "언랭", never a fabricated tier
-        peakTierIcon: p.peakTierIcon,
+        // This season's tier for display — null (unplaced / no data) is shown
+        // as "언랭", never a fabricated tier or a peak-tier stand-in.
+        tier: seasonTierIdx(p),
+        tierIcon: seasonTierIdx(p) != null ? p.currentTierIcon || null : null,
         skill: skillScore(p, i),
         groupId: p.groupId || null
       }))
@@ -1297,9 +1338,9 @@ export default function Page() {
         const res = await fetch(`/api/rank?name=${encodeURIComponent(full.slice(0, i))}&tag=${encodeURIComponent(full.slice(i + 1))}`);
         const d = await res.json().catch(() => null);
         if (!d) continue;
-        const usingCurrent = !!d.currentTier;
-        const idx = TIERS.findIndex((t) => t.label === (d.currentTier || d.peakTier));
-        if (idx >= 0) out[full] = { tier: idx, tierIcon: (usingCurrent ? d.currentTierIcon : d.peakTierIcon) || null };
+        // Current-season tier only — no peak fallback.
+        const entry = rememberCurrentTier(full, d);
+        if (entry?.tier != null) out[full] = { tier: entry.tier, tierIcon: entry.tierIcon };
       } catch {}
     }
     return out;
@@ -1437,11 +1478,37 @@ export default function Page() {
     // imported matches doesn't win just by volume.
     const assists = statMatches.length ? Math.round((statMatches.reduce((n, m) => n + (m.assists || 0), 0) / statMatches.length) * 10) / 10 : null;
     const realName = roster.find((r) => r.name === id)?.realName || '';
-    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier: last?.tier ?? null, tierIcon: last?.tierIcon ?? null, lastDate: last?.date || 0, kd, hsPct, assists };
-  }), [records, roster, excludedIds]);
+    // This season's tier (see currentTiers) — the per-match snapshot is only
+    // a fallback until that's been fetched.
+    const cur = currentTiers[id];
+    const tier = cur ? cur.tier : last?.tier ?? null;
+    const tierIcon = cur ? cur.tierIcon : last?.tierIcon ?? null;
+    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists };
+  }), [records, roster, excludedIds, currentTiers]);
   // Everyone the leaderboard actually ranks — excluded players never take a
   // rank or count toward the summary tiles.
   const rankedBoard = useMemo(() => board.filter((x) => !x.excluded), [board]);
+
+  // Opening 전체전적 fills in this season's tier for anyone not cached yet (or
+  // cached over 12h ago). Runs through lookupQueueRef, one player at a time,
+  // and tries each id at most once per page load so a failing lookup can't
+  // loop.
+  useEffect(() => {
+    if (screen !== 'stats') return;
+    const stale = Date.now() - 12 * 60 * 60 * 1000;
+    const ids = Object.keys(records).filter((id) => id.includes('#') && !tierRefreshTriedRef.current.has(id) && !((currentTiers[id]?.at || 0) > stale));
+    if (!ids.length) return;
+    ids.forEach((id) => tierRefreshTriedRef.current.add(id));
+    const task = lookupQueueRef.current.then(async () => {
+      for (const full of ids) {
+        const i = full.indexOf('#');
+        const d = await fetch(`/api/rank?name=${encodeURIComponent(full.slice(0, i))}&tag=${encodeURIComponent(full.slice(i + 1))}`).then((r) => r.json()).catch(() => null);
+        rememberCurrentTier(full, d);
+        await new Promise((r) => setTimeout(r, 250)); // spread requests out, avoid HenrikDev rate limit
+      }
+    });
+    lookupQueueRef.current = task.catch(() => {});
+  }, [screen, records, currentTiers]);
 
   const boardList = useMemo(() => {
     const q = statQuery.trim().toLowerCase();
@@ -1488,6 +1555,7 @@ export default function Page() {
   // can add an old match after newer ones already exist — so "most recent"
   // has to be found by actual date, not just array index 0.
   const statLast = (statRec?.matches || []).reduce((a, b) => (!a || b.date > a.date ? b : a), null);
+  const statTier = (statId && currentTiers[statId]) || statLast;
 
   // True count of distinct matches — each match writes one entry per
   // *participant* (up to 10 for a 5v5), so summing everyone's `games` and
@@ -1884,7 +1952,9 @@ export default function Page() {
                   </div>
                   <div style={{ minWidth: 720, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {players.map((p, i) => {
-                      const t = tierPill(p.tier);
+                      const seasonIdx = seasonTierIdx(p);
+                      const t = tierPill(seasonIdx);
+                      const seasonIcon = seasonIdx != null ? p.currentTierIcon : null;
                       // Records are stored under the canonical (main) account
                       // — if today's registration used a 부계정, p.name here
                       // is the alt, which never has its own record entry.
@@ -1923,8 +1993,8 @@ export default function Page() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {p.loading ? (
                               <span style={{ fontSize: 12, color: '#8B949E' }}>조회중…</span>
-                            ) : p.peakTierIcon ? (
-                              <><img src={p.peakTierIcon} alt={t.label} title={t.label} style={{ width: 28, height: 28 }} /><span style={{ fontSize: 12, color: '#C6CDD4' }}>{t.label}</span></>
+                            ) : seasonIcon ? (
+                              <><img src={seasonIcon} alt={t.label} title={t.label} style={{ width: 28, height: 28 }} /><span style={{ fontSize: 12, color: '#C6CDD4' }}>{t.label}</span></>
                             ) : p.source === 'error' ? (
                               <span style={{ fontSize: 11, color: '#E1424F' }} title={p.rankError || ''}>
                                 {p.rankError === 'rate_limited' ? 'API 요청 제한' : p.rankError === 'key_missing' ? 'API 키 미설정' : p.rankError === 'not_found' ? '계정을 찾을 수 없음' : 'API 조회 실패'}
@@ -2003,9 +2073,10 @@ export default function Page() {
                                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                                   <div style={{ fontSize: 11, color: '#8B949E' }}>{p.pos}</div>
                                 </div>
-                                {p.peakTierIcon ? (
+                                {/* peakTierIcon: teams balanced before tiers switched to this season */}
+                                {(p.tierIcon || p.peakTierIcon) ? (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
-                                    <img src={p.peakTierIcon} alt={t.label} title={t.label} style={{ width: 26, height: 26 }} />
+                                    <img src={p.tierIcon || p.peakTierIcon} alt={t.label} title={t.label} style={{ width: 26, height: 26 }} />
                                     <span style={{ fontSize: 12, color: '#C6CDD4', whiteSpace: 'nowrap' }}>{t.label}</span>
                                   </div>
                                 ) : (
@@ -2541,8 +2612,8 @@ export default function Page() {
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B949E' }}>
                                 <span>{statRec.wins}승 {statRec.losses}패</span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  {statLast?.tierIcon && <img src={statLast.tierIcon} alt="" style={{ width: 16, height: 16 }} />}
-                                  {tierPill(statLast?.tier).label}
+                                  {statTier?.tierIcon && <img src={statTier.tierIcon} alt="" style={{ width: 16, height: 16 }} />}
+                                  {tierPill(statTier?.tier).label}
                                 </span>
                               </div>
                               <div style={{ position: 'relative', height: 8, borderRadius: 999, background: '#22282F', overflow: 'hidden' }}>
