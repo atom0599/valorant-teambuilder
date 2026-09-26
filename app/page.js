@@ -369,12 +369,32 @@ export default function Page() {
     // already know about just got a new update" apart from "a different
     // match session started", since a locally-remembered captain claim
     // should survive the former but not outlive the latter.
-    const roomReset = d.createdAt != null && lastSeenCreatedAtRef.current != null && d.createdAt !== lastSeenCreatedAtRef.current;
+    const firstSighting = lastSeenCreatedAtRef.current == null;
+    const roomReset = d.createdAt != null && !firstSighting && d.createdAt !== lastSeenCreatedAtRef.current;
     if (d.createdAt != null) lastSeenCreatedAtRef.current = d.createdAt;
     if (roomReset) {
+      myCaptainTokensRef.current = { A: null, B: null };
       setMyCaptainTokens({ A: null, B: null });
       setMyRole(null);
       try { localStorage.removeItem(`captainTokens:${roomCode}`); } catch {}
+    }
+
+    // Tokens restored from localStorage can predate a "방 초기화" this
+    // browser never saw (tab closed at the time) — on first sighting there's
+    // no lastSeenCreatedAt to compare, so roomReset above can't catch it, and
+    // the reassert below would resurrect the cleared seat for everyone. On
+    // the first room we see, keep only tokens the server still agrees are
+    // ours; after that, still drop any seat the server shows someone else
+    // holding.
+    if (!roomReset && d.captains) {
+      const mine = myCaptainTokensRef.current;
+      const keep = (k) => mine[k] && (firstSighting ? d.captains[k] === mine[k] : !d.captains[k] || d.captains[k] === mine[k]);
+      const pruned = { A: keep('A') ? mine.A : null, B: keep('B') ? mine.B : null };
+      if (pruned.A !== mine.A || pruned.B !== mine.B) {
+        myCaptainTokensRef.current = pruned;
+        setMyCaptainTokens(pruned);
+        setMyRole((r) => (r && !pruned[r] ? null : r));
+      }
     }
 
     if (d.captains) {
