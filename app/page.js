@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
+import ClipsScreen from './ClipsScreen';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
   hashStr, fmtDate, tierPill, seqFor
@@ -9,16 +10,13 @@ import {
 
 const NAV = [
   ['home', '홈'], ['players', '인원'], ['balance', '밸런싱'],
-  ['setup', '매치 설정'], ['banpick', '밴픽'], ['stats', '전체 전적']
+  ['setup', '매치 설정'], ['banpick', '밴픽'], ['stats', '전체 전적'], ['clips', '클립']
 ];
 // Everyone who opens the app without a `?room=` override lands in this same
 // shared room — no link-sharing or random-code mismatch between friends.
 const DEFAULT_ROOM_CODE = 'MAIN';
 const emptyPlayers = () => Array.from({ length: 10 }, () => ({ name: '', pos: '미정', tier: null, source: null, loading: false, realName: '', groupId: null }));
 const GROUP_COLORS = ['#FF4B57', '#4C9AFF', '#C8F24C', '#E0A64C', '#B478FF'];
-// Groups only make sense with 2+ members — dropping to 1 (someone left, or a
-// re-group moved them elsewhere) leaves a lone tag with nothing to keep them
-// together with, so clear it automatically instead of leaving dead state around.
 // This season's tier index for a looked-up player slot, or null if they
 // haven't placed this season. `tier` on a slot is the peak index (kept for
 // "lookup done" checks); this is what the UI shows.
@@ -27,6 +25,9 @@ function seasonTierIdx(p) {
   return idx >= 0 ? idx : null;
 }
 
+// Groups only make sense with 2+ members — dropping to 1 (someone left, or a
+// re-group moved them elsewhere) leaves a lone tag with nothing to keep them
+// together with, so clear it automatically instead of leaving dead state around.
 function cleanupGroups(arr) {
   const counts = {};
   arr.forEach((p) => { if (p.groupId) counts[p.groupId] = (counts[p.groupId] || 0) + 1; });
@@ -2380,6 +2381,8 @@ export default function Page() {
             )}
 
             {/* STATS */}
+            {screen === 'clips' && <ClipsScreen isAdmin={isAdmin} adminHeaders={adminHeaders} input={input} pill={pill} />}
+
             {screen === 'stats' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
                 <div style={{ position: 'relative', overflow: 'hidden', border: '1px solid #262C34', borderRadius: 22, padding: '30px 28px 24px', background: 'radial-gradient(1200px 300px at 12% 0%, #2A1B22 0%, #14181D 62%)' }}>
