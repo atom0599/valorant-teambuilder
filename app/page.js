@@ -2483,8 +2483,8 @@ export default function Page() {
                       // MVP: highest ACS across both teams (K/D breaks ties);
                       // matches entered by hand without stats have no MVP.
                       const mvp = [...mt.winners, ...mt.losers].filter((p) => p.acs != null).sort((a, b) => b.acs - a.acs || (b.kills / Math.max(b.deaths, 1)) - (a.kills / Math.max(a.deaths, 1)))[0] || null;
-                      const row = (p) => (
-                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      const row = (p, idx) => (
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, animation: expanded ? 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both' : 'none', animationDelay: `${120 + idx * 45}ms` }}>
                           {p.agentIcon
                             ? <img src={p.agentIcon} alt={p.agent || ''} title={p.agent || ''} style={{ width: 30, height: 30, borderRadius: 7, flex: 'none' }} />
                             : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34', flex: 'none' }} />}
@@ -2513,9 +2513,13 @@ export default function Page() {
                             <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: '#F5F7F9', letterSpacing: '-.02em' }}>{mt.score}</div>
                             <div style={{ fontSize: 11, color: '#C6CDD4', fontFamily: "'IBM Plex Mono'" }}>{mt.map} · {fmtDate(mt.date)}</div>
                             {mvp && <div style={{ fontSize: 11, color: '#FFD166', fontWeight: 600 }}>👑 MVP {mvp.id} · ACS {mvp.acs} · K/D {mvp.deaths ? (mvp.kills / mvp.deaths).toFixed(2) : mvp.kills}</div>}
+                            <span style={{ position: 'absolute', right: 16, top: '50%', fontSize: 12, color: '#C6CDD4', transform: `translateY(-50%) rotate(${expanded ? 180 : 0}deg)`, transition: 'transform .35s cubic-bezier(.2,.7,.3,1)' }}>▼</span>
                           </div>
-                          {expanded && (
-                            <div style={{ background: '#14181D', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          {/* Always mounted so it can animate both ways: grid rows 0fr ↔ 1fr
+                              slides the panel open/closed to its natural height. */}
+                          <div style={{ display: 'grid', gridTemplateRows: expanded ? '1fr' : '0fr', transition: 'grid-template-rows .4s cubic-bezier(.2,.7,.3,1)' }}>
+                          <div inert={!expanded} style={{ overflow: 'hidden', minHeight: 0 }}>
+                            <div style={{ background: '#14181D', padding: 16, display: 'flex', flexDirection: 'column', gap: 14, opacity: expanded ? 1 : 0, transition: 'opacity .3s ease' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
                                   <div style={{ fontSize: 11, fontWeight: 700, color: '#C8F24C', letterSpacing: '.06em' }}>승리</div>
@@ -2530,7 +2534,8 @@ export default function Page() {
                                 <button onClick={() => deleteRecord({ date: mt.date }, '이 경기를 모든 선수의 전적에서 삭제할까요?')} style={{ alignSelf: 'flex-end', background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>삭제</button>
                               )}
                             </div>
-                          )}
+                          </div>
+                          </div>
                         </div>
                       );
                     })}
