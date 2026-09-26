@@ -2,11 +2,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmtDate } from '../lib/constants';
 
-// 클립 게시판: upload a video file (straight to Supabase Storage via a signed
-// URL) or paste a link, then like/comment. No accounts — a free-text
-// nickname plus a random per-browser id (see /api/clips for what it's used for).
-
-const MAX_MB = 50;
+// 클립 게시판: paste a clip link (YouTube etc.), then like/comment. No
+// accounts — a free-text nickname plus a random per-browser id (see
+// /api/clips for what it's used for).
 
 function getLocal(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function setLocal(key, v) { try { localStorage.setItem(key, v); } catch {} }
@@ -45,7 +43,7 @@ function embedFor(url) {
 
 function Player({ clip }) {
   const frame = { width: '100%', aspectRatio: '16 / 9', border: 0, borderRadius: 12, background: '#0B0D10', display: 'block' };
-  const e = clip.kind === 'file' ? { type: 'video', src: clip.url } : embedFor(clip.url);
+  const e = embedFor(clip.url);
   if (e.type === 'video') return <video src={e.src} controls preload="metadata" playsInline style={frame} />;
   if (e.type === 'iframe') return <iframe src={e.src} title={clip.title} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen loading="lazy" style={frame} />;
   let host = '';
@@ -62,17 +60,14 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [clips, setClips] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [nick, setNick] = useState('');
-  const [mode, setMode] = useState('file');
   const [title, setTitle] = useState('');
   const [link, setLink] = useState('');
-  const [file, setFile] = useState(null);
-  const [progress, setProgress] = useState(null); // 0..1 while uploading
+  const [posting, setPosting] = useState(false);
   const [msg, setMsg] = useState('');
   const [sort, setSort] = useState('new');
   const [openComments, setOpenComments] = useState({});
   const [drafts, setDrafts] = useState({});
   const cidRef = useRef(null);
-  const fileRef = useRef(null);
 
   useEffect(() => {
     cidRef.current = clientId();
@@ -97,51 +92,23 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     return { ok: res.ok, ...d };
   }
 
-  function putWithProgress(url, f) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', url);
-      xhr.setRequestHeader('Content-Type', f.type);
-      xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress(e.loaded / e.total); };
-      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`upload ${xhr.status}`)));
-      xhr.onerror = () => reject(new Error('network'));
-      xhr.send(f);
-    });
-  }
-
   async function submit() {
-    if (progress != null) return;
-    const author = nick.trim(), t = title.trim();
+    if (posting) return;
+    const author = nick.trim(), t = title.trim(), url = link.trim();
     if (!author) return setMsg('닉네임을 먼저 적어주세요.');
     if (!t) return setMsg('제목을 적어주세요.');
+    if (!/^https?:\/\/\S+$/i.test(url)) return setMsg('http(s)로 시작하는 링크를 넣어주세요.');
     setMsg('');
+    setPosting(true);
     try {
-      if (mode === 'file') {
-        if (!file) return setMsg('영상 파일을 골라주세요.');
-        if (!file.type.startsWith('video/')) return setMsg('영상 파일만 올릴 수 있어요.');
-        if (file.size > MAX_MB * 1024 * 1024) return setMsg(`파일이 너무 커요. ${MAX_MB}MB 이하만 올릴 수 있어요. 긴 영상은 유튜브에 올리고 링크로 등록해주세요.`);
-        setProgress(0);
-        const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-        const sign = await fetch('/api/clips/upload', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: file.type, size: file.size, ext })
-        }).then((r) => r.json());
-        if (!sign.uploadUrl) throw new Error(sign.error || 'sign failed');
-        await putWithProgress(sign.uploadUrl, file);
-        const d = await act({ action: 'create', title: t, author, kind: 'file', path: sign.path });
-        if (!d.ok) throw new Error(d.error);
-      } else {
-        if (!/^https?:\/\/\S+$/i.test(link.trim())) return setMsg('http(s)로 시작하는 링크를 넣어주세요.');
-        const d = await act({ action: 'create', title: t, author, kind: 'link', url: link.trim() });
-        if (!d.ok) throw new Error(d.error);
-      }
-      setTitle(''); setLink(''); setFile(null);
-      if (fileRef.current) fileRef.current.value = '';
+      const d = await act({ action: 'create', title: t, author, url });
+      if (!d.ok) throw new Error(d.error);
+      setTitle(''); setLink('');
       setMsg('올렸어요!');
     } catch (e) {
       setMsg(`올리지 못했어요 (${e.message || e}). 다시 시도해주세요.`);
     } finally {
-      setProgress(null);
+      setPosting(false);
     }
   }
 
@@ -158,9 +125,11 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     act({ action: 'delete', id: c.id });
   }
 
-  const list = sort === 'top' ? [...clips].sort((a, b) => b.likeCount - a.likeCount || b.createdAt - a.createdAt) : clips;
+  // Server keeps clips newest-first.
+  const list = sort === 'top' ? [...clips].sort((a, b) => b.likeCount - a.likeCount || b.createdAt - a.createdAt)
+    : sort === 'old' ? [...clips].reverse()
+    : clips;
   const card = { background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16 };
-  const uploading = progress != null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
@@ -169,7 +138,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
         <div style={{ position: 'relative' }}>
           <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: '.14em', color: '#FF4B57', marginBottom: 10 }}>HIGHLIGHTS</div>
           <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(34px,7vw,56px)', lineHeight: 1, letterSpacing: '-.02em' }}>클립</div>
-          <div style={{ fontSize: 13, color: '#A8B0B9', marginTop: 10, maxWidth: 520 }}>내전 하이라이트를 올리고 좋아요와 댓글을 남겨보세요. 영상 파일({MAX_MB}MB 이하)이나 유튜브·스트리머블·트위치 링크를 올릴 수 있어요.</div>
+          <div style={{ fontSize: 13, color: '#A8B0B9', marginTop: 10, maxWidth: 520 }}>내전 하이라이트를 올리고 좋아요와 댓글을 남겨보세요. 유튜브·스트리머블·트위치 링크는 여기서 바로 재생되고, 다른 링크(메달 등)는 해당 사이트로 연결돼요.</div>
         </div>
       </div>
 
@@ -178,23 +147,12 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
           <input value={nick} onChange={(e) => changeNick(e.target.value.slice(0, 20))} placeholder="닉네임" style={{ ...input, flex: '0 1 160px', width: 'auto' }} />
           <input value={title} onChange={(e) => setTitle(e.target.value.slice(0, 80))} placeholder="제목 (예: 바인드 1대4 클러치)" style={{ ...input, flex: '1 1 240px', width: 'auto' }} />
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => setMode('file')} style={pill(mode === 'file')}>파일 업로드</button>
-          <button onClick={() => setMode('link')} style={pill(mode === 'link')}>링크</button>
-        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {mode === 'file'
-            ? <input ref={fileRef} type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ ...input, flex: '1 1 260px', width: 'auto' }} />
-            : <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://youtu.be/..." style={{ ...input, flex: '1 1 260px', width: 'auto' }} />}
-          <button onClick={submit} disabled={uploading} style={{ background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: uploading ? 'default' : 'pointer', opacity: uploading ? .6 : 1, flex: 'none' }}>
-            {uploading ? `업로드 중… ${Math.round(progress * 100)}%` : '올리기'}
+          <input value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submit(); }} placeholder="클립 링크 (https://youtu.be/...)" style={{ ...input, flex: '1 1 260px', width: 'auto' }} />
+          <button onClick={submit} disabled={posting} style={{ background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: posting ? 'default' : 'pointer', opacity: posting ? .6 : 1, flex: 'none' }}>
+            {posting ? '올리는 중…' : '올리기'}
           </button>
         </div>
-        {uploading && (
-          <div style={{ height: 6, borderRadius: 999, background: '#22282F', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: '#C8F24C', transition: 'width .2s' }} />
-          </div>
-        )}
         {!!msg && <div style={{ fontSize: 12, color: '#E5C04C' }}>{msg}</div>}
       </div>
 
@@ -202,6 +160,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
         <div style={{ fontSize: 13, color: '#8B949E' }}>클립 {clips.length}개</div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={() => setSort('new')} style={pill(sort === 'new')}>최신순</button>
+          <button onClick={() => setSort('old')} style={pill(sort === 'old')}>오래된순</button>
           <button onClick={() => setSort('top')} style={pill(sort === 'top')}>좋아요순</button>
         </div>
       </div>

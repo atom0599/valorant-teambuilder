@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto';
 import { getJSON, setJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
-import { publicPrefix, removeObject } from '../../../lib/clipStorage';
 
 export const dynamic = 'force-dynamic';
 
-// Clip board: uploaded videos (Supabase Storage, see /api/clips/upload) or
-// external links, each with likes and comments. There are no accounts —
+// Clip board: external clip links (YouTube etc.), each with likes and
+// comments. There are no accounts —
 // names are free-text nicknames — so each browser carries a random client id
 // (`cid`, kept in localStorage). It decides "one like per browser" and lets
 // whoever posted a clip/comment delete it again. cids are never sent back to
@@ -21,7 +20,7 @@ const validCid = (cid) => typeof cid === 'string' && /^[A-Za-z0-9-]{16,64}$/.tes
 
 function view(clip, cid) {
   return {
-    id: clip.id, title: clip.title, author: clip.author, kind: clip.kind, url: clip.url, createdAt: clip.createdAt,
+    id: clip.id, title: clip.title, author: clip.author, url: clip.url, createdAt: clip.createdAt,
     likeCount: clip.likes.length,
     likedByMe: !!cid && clip.likes.includes(cid),
     mine: !!cid && clip.ownerCid === cid,
@@ -41,7 +40,7 @@ export async function GET(request) {
 }
 
 // body: { action, cid, ... }
-//   create:    { title, author, kind: 'file'|'link', url, path? }
+//   create:    { title, author, url }
 //   like:      { id }                       — toggles this browser's like
 //   comment:   { id, author, text }
 //   uncomment: { id, commentId }            — own comment, or admin
@@ -62,23 +61,11 @@ export async function POST(request) {
         const title = clean(body.title, 80);
         const author = clean(body.author, 20);
         if (!title || !author) return Response.json({ error: 'title and author required' }, { status: 400 });
-        let url, path = null;
-        if (body.kind === 'file') {
-          // Only objects in our own bucket, at a path shape /api/clips/upload hands out.
-          path = String(body.path || '');
-          if (!/^[0-9]{13}-[a-f0-9-]{36}\.[a-z0-9]{2,5}$/.test(path)) return Response.json({ error: 'bad path' }, { status: 400 });
-          url = publicPrefix() + path;
-        } else if (body.kind === 'link') {
-          url = String(body.url || '').trim().slice(0, 500);
-          if (!/^https?:\/\/\S+$/i.test(url)) return Response.json({ error: 'bad url' }, { status: 400 });
-        } else {
-          return Response.json({ error: 'bad kind' }, { status: 400 });
-        }
-        all.unshift({ id: randomUUID(), title, author, kind: body.kind, url, path, ownerCid: cid, createdAt: Date.now(), likes: [], comments: [] });
-        // Oldest clips fall off past the cap; their files go with them.
-        const dropped = all.splice(MAX_CLIPS);
+        const url = String(body.url || '').trim().slice(0, 500);
+        if (!/^https?:\/\/\S+$/i.test(url)) return Response.json({ error: 'bad url' }, { status: 400 });
+        all.unshift({ id: randomUUID(), title, author, url, ownerCid: cid, createdAt: Date.now(), likes: [], comments: [] });
+        all.splice(MAX_CLIPS); // oldest clips fall off past the cap
         await setJSON(KEY, all);
-        await Promise.all(dropped.filter((c) => c.path).map((c) => removeObject(c.path).catch(() => {})));
         break;
       }
       case 'like': {
@@ -107,7 +94,6 @@ export async function POST(request) {
       case 'delete': {
         if (clip.ownerCid !== cid && !admin) return Response.json({ error: 'forbidden' }, { status: 403 });
         await setJSON(KEY, all.filter((c) => c !== clip));
-        if (clip.path) await removeObject(clip.path).catch(() => {});
         return respond(all.filter((c) => c !== clip), cid);
       }
       default:
