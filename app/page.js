@@ -1615,7 +1615,7 @@ export default function Page() {
   const glass = { background: 'rgba(16,20,25,.72)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 22, padding: 18, boxShadow: '0 20px 50px rgba(0,0,0,.4)' };
   const h1 = { fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(26px,5vw,34px)' };
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
-  const playerGrid = '44px minmax(0,1.3fr) minmax(0,0.9fr) 108px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
+  const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
   const rosterGrid = 'minmax(0,1.1fr) 60px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
@@ -1953,9 +1953,7 @@ export default function Page() {
                   </div>
                   <div style={{ minWidth: 720, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {players.map((p, i) => {
-                      const seasonIdx = seasonTierIdx(p);
-                      const t = tierPill(seasonIdx);
-                      const seasonIcon = seasonIdx != null ? p.currentTierIcon : null;
+                      const t = tierPill(p.tier); // 최고 티어 column — 현재 티어 has its own column
                       // Records are stored under the canonical (main) account
                       // — if today's registration used a 부계정, p.name here
                       // is the alt, which never has its own record entry.
@@ -1977,25 +1975,25 @@ export default function Page() {
                               <button onClick={() => { setPlayers((arr) => cleanupGroups(arr.map((x, k) => (k === i ? { name: '', pos: '미정', tier: null, source: null, loading: false, realName: '', groupId: null } : x)))); setGroupPick((g) => g.filter((x) => x !== i)); }} title="참가자에서 제거" style={{ background: 'transparent', border: 'none', color: '#6B737C', fontSize: 14, cursor: 'pointer', padding: '2px 4px', flex: 'none' }}>×</button>
                             )}
                           </div>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
                             {(p.agents || []).map((a) => (
-                              <div key={a.agent} title={`${a.agent} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
+                              <div key={a.agent} title={`${a.agent} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', width: 26 }}>
                                 {a.icon
-                                  ? <img src={a.icon} alt={a.agent} style={{ width: 30, height: 30, borderRadius: 7 }} />
-                                  : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34' }} />}
-                                <span style={{ fontSize: 11, color: '#8B949E' }}>{a.pct}%</span>
+                                  ? <img src={a.icon} alt={a.agent} style={{ width: 24, height: 24, borderRadius: 6 }} />
+                                  : <div style={{ width: 24, height: 24, borderRadius: 6, background: '#252C34' }} />}
+                                <span style={{ fontSize: 10, color: '#8B949E' }}>{a.pct}%</span>
                               </div>
                             ))}
                             {!(p.agents && p.agents.length) && <span style={{ fontSize: 12, color: '#6B737C' }}>—</span>}
                           </div>
-                          <select value={p.pos} onChange={(e) => setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, pos: e.target.value } : x)))} style={{ ...input, padding: '9px 10px', cursor: 'pointer' }}>
+                          <select value={p.pos} onChange={(e) => setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, pos: e.target.value } : x)))} style={{ ...input, padding: '6px 4px', fontSize: 12, cursor: 'pointer' }}>
                             {POSITIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                           </select>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             {p.loading ? (
                               <span style={{ fontSize: 12, color: '#8B949E' }}>조회중…</span>
-                            ) : seasonIcon ? (
-                              <><img src={seasonIcon} alt={t.label} title={t.label} style={{ width: 28, height: 28 }} /><span style={{ fontSize: 12, color: '#C6CDD4' }}>{t.label}</span></>
+                            ) : p.peakTierIcon ? (
+                              <><img src={p.peakTierIcon} alt={t.label} title={t.label} style={{ width: 28, height: 28 }} /><span style={{ fontSize: 12, color: '#C6CDD4' }}>{t.label}</span></>
                             ) : p.source === 'error' ? (
                               <span style={{ fontSize: 11, color: '#E1424F' }} title={p.rankError || ''}>
                                 {p.rankError === 'rate_limited' ? 'API 요청 제한' : p.rankError === 'key_missing' ? 'API 키 미설정' : p.rankError === 'not_found' ? '계정을 찾을 수 없음' : 'API 조회 실패'}
