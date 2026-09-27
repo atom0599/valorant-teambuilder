@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
 import ClipsScreen from './ClipsScreen';
+import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
   hashStr, fmtDate, tierPill, seqFor
@@ -85,6 +86,7 @@ export default function Page() {
   const [statView, setStatView] = useState('player');
   const [matchSort, setMatchSort] = useState('newest');
   const [expandedMatch, setExpandedMatch] = useState(null);
+  const [matchPage, setMatchPage] = useState(0);
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -1612,6 +1614,11 @@ export default function Page() {
       .sort((a, b) => (matchSort === 'oldest' ? a.date - b.date : b.date - a.date));
   }, [records, statQuery, matchSort]);
 
+  const MATCH_PAGE = 5;
+  const matchPageCount = Math.ceil(matchLog.length / MATCH_PAGE);
+  // Clamp in case a deleted match shrank the list under the current page.
+  const curMatchPage = Math.min(matchPage, Math.max(matchPageCount - 1, 0));
+
   const recent = useMemo(() => {
     const flat = [];
     Object.values(records).forEach((r) => (r.matches || []).forEach((m) => flat.push(m)));
@@ -2488,16 +2495,16 @@ export default function Page() {
                       <button key={k} onClick={() => setStatSort(k)} style={{ ...pill(statSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                     {statView === 'match' && [['newest', '최신순'], ['oldest', '오래된순']].map(([k, label]) => (
-                      <button key={k} onClick={() => setMatchSort(k)} style={{ ...pill(matchSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
+                      <button key={k} onClick={() => { setMatchSort(k); setMatchPage(0); }} style={{ ...pill(matchSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                   </div>
                   <div style={{ flex: '1 0 0', minWidth: 0 }} />
-                  <input value={statQuery} onChange={(e) => setStatQuery(e.target.value)} placeholder="Riot ID 검색" style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 999, padding: '11px 18px', color: '#E8EAEC', fontSize: 13, flex: '1 1 160px', minWidth: 0, maxWidth: 230 }} />
+                  <input value={statQuery} onChange={(e) => { setStatQuery(e.target.value); setMatchPage(0); }} placeholder="Riot ID 검색" style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 999, padding: '11px 18px', color: '#E8EAEC', fontSize: 13, flex: '1 1 160px', minWidth: 0, maxWidth: 230 }} />
                 </div>
 
                 {statView === 'match' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {matchLog.map((mt) => {
+                    {matchLog.slice(curMatchPage * MATCH_PAGE, curMatchPage * MATCH_PAGE + MATCH_PAGE).map((mt) => {
                       const expanded = expandedMatch === mt.date;
                       const bg = MAP_IMG[mt.map] || MAP_IMG[String(mt.map).split(',')[0]?.trim()] || null;
                       // MVP: highest ACS across both teams (K/D breaks ties);
@@ -2560,6 +2567,7 @@ export default function Page() {
                       );
                     })}
                     {!matchLog.length && <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 저장된 경기가 없습니다.</div>}
+                    <div style={{ marginTop: 6 }}><Pager page={curMatchPage} pageCount={matchPageCount} onChange={(i) => { setMatchPage(i); setExpandedMatch(null); }} /></div>
                   </div>
                 )}
 

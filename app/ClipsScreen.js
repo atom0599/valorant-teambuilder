@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { fmtDate } from '../lib/constants';
+import Pager from './Pager';
 
 // 클립 게시판: paste a clip link (YouTube etc.), then like/comment. No
 // accounts — a nickname pinned to a random per-browser id (see /api/clips
@@ -76,7 +77,7 @@ function Thumb({ clip }) {
   );
 }
 
-const PAGE = 12;
+const PAGE = 9;
 
 export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [clips, setClips] = useState([]);
@@ -90,7 +91,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [posting, setPosting] = useState(false);
   const [msg, setMsg] = useState('');
   const [sort, setSort] = useState('new');
-  const [shown, setShown] = useState(PAGE);
+  const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState(null);
   const [draft, setDraft] = useState('');
   const cidRef = useRef(null);
@@ -176,6 +177,9 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const list = sort === 'top' ? [...clips].sort((a, b) => b.likeCount - a.likeCount || b.createdAt - a.createdAt)
     : sort === 'old' ? [...clips].reverse()
     : clips;
+  const pageCount = Math.ceil(list.length / PAGE);
+  // Clamp in case a delete (or another viewer's) shrank the list under us.
+  const curPage = Math.min(page, Math.max(pageCount - 1, 0));
   const open = openId ? clips.find((c) => c.id === openId) : null;
   const card = { background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16 };
 
@@ -210,7 +214,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
         <div style={{ fontSize: 13, color: '#8B949E' }}>클립 {clips.length}개</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {[['new', '최신순'], ['old', '오래된순'], ['top', '좋아요순']].map(([k, label]) => (
-            <button key={k} onClick={() => { setSort(k); setShown(PAGE); }} style={pill(sort === k)}>{label}</button>
+            <button key={k} onClick={() => { setSort(k); setPage(0); }} style={pill(sort === k)}>{label}</button>
           ))}
         </div>
       </div>
@@ -218,7 +222,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
       {loaded && !clips.length && <div style={{ ...card, textAlign: 'center', color: '#8B949E', fontSize: 13 }}>아직 올라온 클립이 없어요. 첫 클립을 올려보세요!</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-        {list.slice(0, shown).map((c) => (
+        {list.slice(curPage * PAGE, curPage * PAGE + PAGE).map((c) => (
           <div key={c.id} data-lift="1" onClick={() => { setOpenId(c.id); setDraft(''); }} style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 14, padding: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
             <Thumb clip={c} />
             <div style={{ padding: '0 4px 4px', minWidth: 0 }}>
@@ -232,11 +236,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
         ))}
       </div>
 
-      {list.length > shown && (
-        <button onClick={() => setShown((n) => n + PAGE)} style={{ alignSelf: 'center', background: '#1B2027', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 12, padding: '10px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          더 보기 ({list.length - shown}개 남음)
-        </button>
-      )}
+      <Pager page={curPage} pageCount={pageCount} onChange={setPage} />
 
       {open && (
         <div onClick={() => setOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(5,7,9,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflowY: 'auto' }}>
