@@ -1,4 +1,4 @@
-import { getJSON, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, setJSON, casJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 import { mergeScores } from '../../../lib/scores';
 import { ALL_MAPS, ROTATION } from '../../../lib/constants';
@@ -116,7 +116,19 @@ export async function POST(request) {
 
   const room = { ...body.room, captains, bp, pool, scores, teams, version: (prev?.version ?? 0) + 1, updatedAt: Date.now() };
   try {
-    await setJSON(key, room);
+    // Only land if nobody else wrote since we read `prev` — otherwise two
+    // pushes arriving together both pass the version check above, and the
+    // slower one (often an idle client's stale roster/teams) silently
+    // replaces the other's fresh balance. The loser gets the current room
+    // back as a rejection and retries on its next push.
+    const canCas = !body.force && prev && typeof prev.version === 'number';
+    if (canCas) {
+      if (!(await casJSON(key, room, prev.version))) {
+        return Response.json({ room: await getJSON(key), rejected: true, persistent: hasKV });
+      }
+    } else {
+      await setJSON(key, room);
+    }
     return Response.json({ room, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });

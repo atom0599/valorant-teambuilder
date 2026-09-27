@@ -36,6 +36,22 @@ function cleanupGroups(arr) {
 }
 const teamName = (k) => (k === 'A' ? '팀 A' : '팀 B');
 
+// JSON with sorted keys, so two copies of the same data compare equal no
+// matter which client built them or in what key order.
+function stableJson(v) {
+  if (v === undefined) return 'null';
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(',')}]`;
+  return `{${Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${stableJson(v[k])}`).join(',')}}`;
+}
+
+// The synced part of a room (what a push sends), minus the local-only
+// `loading` flag, for "does local differ from the server" checks.
+function roomSnap(r) {
+  const players = Array.isArray(r.players) ? r.players.map(({ loading, ...p }) => p) : null;
+  return stableJson([r.createdAt, players, r.usePosition, r.teams, r.series, r.pool, r.captains, r.bp, r.scores]);
+}
+
 export default function Page() {
   const [screen, setScreen] = useState('home');
   const [playersTab, setPlayersTab] = useState('register');
@@ -355,8 +371,22 @@ export default function Page() {
     return true;
   }
 
-  function applyRoom(d) {
+  // What the server last told us it holds, as a comparable string. A push
+  // only goes out when local state differs from it — i.e. there's an actual
+  // local edit (or a rejected one to retry). Idle clients used to re-push
+  // their whole room every second, and any of those landing a moment after
+  // someone else's balance overwrote it with the idle client's older roster.
+  const lastServerSnapRef = useRef(null);
+  // True from applyRoom until React has rendered the adopted state into
+  // roomStateRef. A push in that gap would send the pre-apply (stale) local
+  // state stamped with the fresh version, and the server would accept it.
+  const roomStateStaleRef = useRef(false);
+  function noteServerRoom(room) { if (room) lastServerSnapRef.current = roomSnap(room); }
+
+  function applyRoom(d, raw) {
     if (isStaleBeforePendingReset(d.createdAt)) return;
+    noteServerRoom(raw || d);
+    roomStateStaleRef.current = true;
     // Whatever players array we're about to render IS what we're adopting as
     // truth (freshly fetched, or already merged against our own pending
     // edits) — record it as the new "last known in sync" baseline so the
@@ -444,6 +474,9 @@ export default function Page() {
   // current when it was queued.
   const roomStateRef = useRef(roomState);
   useEffect(() => { roomStateRef.current = roomState; }, [roomState]);
+  // No deps: runs after every commit, including the one that renders
+  // whatever applyRoom just set.
+  useEffect(() => { roomStateStaleRef.current = false; });
 
   // `alive` used to be a local `let` inside this effect, torn down and
   // recreated every time `roomState` changed (i.e. on every banpick click).
@@ -464,12 +497,14 @@ export default function Page() {
     const push = () => {
       // Grab-and-clear so this one-shot hint rides only the very next push,
       // not every push afterward.
+      if (roomStateStaleRef.current) return;
+      if (!releaseCaptainRef.current && !clearTeamsRef.current && lastServerSnapRef.current === roomSnap(roomStateRef.current)) return;
       const releaseCaptain = releaseCaptainRef.current;
       releaseCaptainRef.current = null;
       const clearTeams = clearTeamsRef.current;
       clearTeamsRef.current = false;
       pushChainRef.current = pushChainRef.current.then(async () => {
-        if (!pushAliveRef.current) return;
+        if (!pushAliveRef.current || roomStateStaleRef.current) return;
         const sentTeams = roomStateRef.current.teams;
         const sentBp = roomStateRef.current.bp;
         const sentPool = roomStateRef.current.pool;
@@ -492,8 +527,9 @@ export default function Page() {
           if (d.room) {
             version.current = d.room.version;
             if (d.rejected) {
-              applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) });
+              applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) }, d.room);
             } else {
+              noteServerRoom(d.room);
               // Accepted as sent: the server now holds exactly `roomToSend.players`
               // (loading stripped), so that's the new baseline mergePlayers should
               // treat as "in sync" — same choke point applyRoom uses, just without
@@ -570,7 +606,7 @@ export default function Page() {
         .then((d) => {
           if (!alive || !d?.room) return;
           if (typeof d.room.version === 'number' && d.room.version > version.current) {
-            applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) });
+            applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) }, d.room);
           } else if (!isStaleBeforePendingReset(d.room.createdAt) && bpIsAhead(d.room.bp, roomStateRef.current.bp)) {
             setBp(d.room.bp);
           }
