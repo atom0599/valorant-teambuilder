@@ -47,6 +47,11 @@ function stableJson(v) {
 
 // The synced part of a room (what a push sends), minus the local-only
 // `loading` flag, for "does local differ from the server" checks.
+// Sent with every room push; the server rejects pushes without it, so a tab
+// still running an older build (which re-pushed its possibly stale state
+// every second) can't overwrite the room until it's refreshed.
+const SYNC_PROTOCOL = 2;
+
 function roomSnap(r) {
   const players = Array.isArray(r.players) ? r.players.map(({ loading, ...p }) => p) : null;
   return stableJson([r.createdAt, players, r.usePosition, r.teams, r.series, r.pool, r.captains, r.bp, r.scores]);
@@ -491,6 +496,12 @@ export default function Page() {
   // `alive` in a ref that only dies on unmount (not on every state change)
   // means an in-flight push's response always gets applied.
   const pushAliveRef = useRef(true);
+  // Pushes currently awaiting a server response. While one is out, a pull
+  // can come back holding *our own* just-written state at a version newer
+  // than version.current — merged against a baseline that predates it, an
+  // edit made after that push (e.g. removing someone) would look like
+  // "unchanged locally" and get reverted. The push's own response resyncs.
+  const pushInFlightRef = useRef(0);
   const pushFnRef = useRef(() => {});
   useEffect(() => {
     if (!roomCode) return;
@@ -505,7 +516,14 @@ export default function Page() {
       const clearTeams = clearTeamsRef.current;
       clearTeamsRef.current = false;
       pushChainRef.current = pushChainRef.current.then(async () => {
-        if (!pushAliveRef.current || roomStateStaleRef.current) return;
+        if (!pushAliveRef.current) return;
+        if (roomStateStaleRef.current) {
+          // Hand the one-shot hints back for the next push instead of losing them.
+          releaseCaptainRef.current = releaseCaptainRef.current || releaseCaptain;
+          clearTeamsRef.current = clearTeamsRef.current || clearTeams;
+          return;
+        }
+        pushInFlightRef.current += 1;
         const sentTeams = roomStateRef.current.teams;
         const sentBp = roomStateRef.current.bp;
         const sentPool = roomStateRef.current.pool;
@@ -520,7 +538,7 @@ export default function Page() {
           const res = await fetch('/api/room', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...adminHeaders() },
-            body: JSON.stringify({ code: roomCode, room: roomToSend, releaseCaptain, clearTeams })
+            body: JSON.stringify({ code: roomCode, room: roomToSend, releaseCaptain, clearTeams, sync: SYNC_PROTOCOL })
           });
           const d = await res.json();
           if (!pushAliveRef.current) return;
@@ -566,6 +584,7 @@ export default function Page() {
             }
           }
         } catch { if (pushAliveRef.current) setRemoteOk(false); }
+        finally { pushInFlightRef.current -= 1; }
       });
     };
     pushFnRef.current = push;
@@ -605,7 +624,7 @@ export default function Page() {
       fetch(`/api/room?code=${encodeURIComponent(roomCode)}`)
         .then((r) => r.json())
         .then((d) => {
-          if (!alive || !d?.room) return;
+          if (!alive || !d?.room || pushInFlightRef.current) return;
           if (typeof d.room.version === 'number' && d.room.version > version.current) {
             applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) }, d.room);
           } else if (!isStaleBeforePendingReset(d.room.createdAt) && bpIsAhead(d.room.bp, roomStateRef.current.bp)) {
@@ -772,7 +791,11 @@ export default function Page() {
     const fullName = nameOverride ?? players[i]?.name;
     if (!fullName?.trim()) return Promise.resolve();
     if (players[i]?.loading) return Promise.resolve();
-    setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, loading: true } : x)));
+    // Lookups are queued, so by the time one runs (or finishes) its slot may
+    // hold someone else — 넣었다 뺐다 quickly. Only ever touch the slot while
+    // it still holds the person being looked up.
+    const same = (x, n) => x.name.trim() === String(n).trim();
+    setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullName) ? { ...x, loading: true } : x)));
     const task = lookupQueueRef.current
       .then(() => runLookup(i, fullName, skipStats))
       .catch(() => {
@@ -781,7 +804,7 @@ export default function Page() {
         // — and since lookup() now refuses to re-queue a slot that's already
         // loading, a single failure here would permanently wedge that player
         // at "조회중…" with no way to retry.
-        setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, loading: false, source: 'error', rankError: 'network' } : x)));
+        setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullName) ? { ...x, loading: false, source: 'error', rankError: 'network' } : x)));
       })
       .then(() => new Promise((r) => setTimeout(r, 200)));
     lookupQueueRef.current = task.catch(() => {});
@@ -789,7 +812,8 @@ export default function Page() {
   }
 
   async function runLookup(i, fullNameArg, skipStats) {
-    setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, loading: true } : x)));
+    const same = (x, n) => x.name.trim() === String(n).trim();
+    setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullNameArg) ? { ...x, loading: true } : x)));
     let fullName = fullNameArg;
     const [name, tag] = fullName.split('#');
 
@@ -827,7 +851,7 @@ export default function Page() {
     }
     if (renamedFrom) {
       relinkRosterName(renamedFrom, fullName);
-      setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, name: fullName } : x)));
+      setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullNameArg) ? { ...x, name: fullName } : x)));
       window.alert(`"${renamedFrom}"의 Riot ID가 "${fullName}"로 바뀐 것을 감지해서 자동으로 연결했습니다.`);
     }
 
@@ -851,7 +875,7 @@ export default function Page() {
     const inferredPos = roleData?.role || null;
     const agents = roleData?.topAgents || [];
     setPlayers((arr) => arr.map((x, k) => {
-      if (k !== i) return x;
+      if (k !== i || !same(x, fullName)) return x;
       const pos = inferredPos && x.pos === '미정' ? inferredPos : x.pos;
       return { ...x, tier, source, rankError, pos, agents, currentTier, currentTierIcon, peakTierIcon, loading: false };
     }));

@@ -40,6 +40,13 @@ export async function POST(request) {
     return Response.json({ room: prev, rejected: true });
   }
 
+  // Tabs still running an older build re-push their whole (often stale)
+  // room every second and would keep reverting everyone's roster. Current
+  // clients send `sync: 2`; anything else is read-only until refreshed.
+  if (!body.force && body.sync !== 2) {
+    return Response.json({ room: prev, rejected: true, persistent: hasKV });
+  }
+
   // A push from before a "방 초기화" (older createdAt) must not land: its
   // captains/bp would be merged against the freshly-cleared room below and
   // resurrect the seats that were just reset. Bounce it; the client adopts
