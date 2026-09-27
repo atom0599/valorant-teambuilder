@@ -387,11 +387,12 @@ export default function Page() {
     if (isStaleBeforePendingReset(d.createdAt)) return;
     noteServerRoom(raw || d);
     roomStateStaleRef.current = true;
-    // Whatever players array we're about to render IS what we're adopting as
-    // truth (freshly fetched, or already merged against our own pending
-    // edits) — record it as the new "last known in sync" baseline so the
-    // next mergePlayers call only protects edits made after this point.
-    if (d.players) { setPlayers(d.players); lastSyncedPlayersRef.current = d.players; }
+    // The baseline is what the *server* holds (`raw`), not the merged array
+    // we render: a merged-in local edit (e.g. a just-registered player) that
+    // hasn't landed yet must keep differing from the baseline, or the next
+    // rejected push would treat it as "already synced" and adopt the
+    // server's empty slot over it — the "등록하자마자 해제" bug.
+    if (d.players) { setPlayers(d.players); lastSyncedPlayersRef.current = (raw || d).players; }
     if (typeof d.usePosition === 'boolean') setUsePosition(d.usePosition);
     if (!teamsDirtyRef.current) setTeams(d.teams ?? null);
     if (d.series) setSeries(d.series);
