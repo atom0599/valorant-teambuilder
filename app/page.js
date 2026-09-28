@@ -108,6 +108,7 @@ export default function Page() {
   const [matchSort, setMatchSort] = useState('newest');
   const [expandedMatch, setExpandedMatch] = useState(null);
   const [matchPage, setMatchPage] = useState(0);
+  const [statMatchPage, setStatMatchPage] = useState(0);
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -1680,6 +1681,11 @@ export default function Page() {
   // Clamp in case a deleted match shrank the list under the current page.
   const curMatchPage = Math.min(matchPage, Math.max(matchPageCount - 1, 0));
 
+  // Selected player's 최근 경기, newest first, 5 per page.
+  const statMatchList = useMemo(() => (statRec?.matches || []).slice().sort((a, b) => b.date - a.date), [statRec]);
+  const statMatchPageCount = Math.ceil(statMatchList.length / MATCH_PAGE);
+  const curStatMatchPage = Math.min(statMatchPage, Math.max(statMatchPageCount - 1, 0));
+
   const recent = useMemo(() => {
     const flat = [];
     Object.values(records).forEach((r) => (r.matches || []).forEach((m) => flat.push(m)));
@@ -1791,9 +1797,8 @@ export default function Page() {
                 <span>밴픽중</span>
               </button>
             )}
-            <div className={remoteOk === false ? 'syncPill syncPill--error' : 'syncPill'} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '6px 12px', fontSize: 12, color: '#A8B0B9' }}>
+            <div className={remoteOk === false ? 'syncPill syncPill--error' : 'syncPill'} title={remoteOk === false ? '동기화 오류' : '동기화 정상'} style={{ display: 'flex', alignItems: 'center', background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '9px 10px' }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: remoteOk === false ? '#E1424F' : '#C8F24C', animation: 'pulseDot 1.6s infinite' }} />
-              <span>{remoteOk === false ? '동기화 오류' : remoteOk ? '서버 동기화 · 1초' : '폴링 동기화 · 1초'}</span>
             </div>
             <div className="roomTag" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#A8B0B9' }}>ROOM {roomCode}</div>
             <button className="adminBtn" onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -2642,7 +2647,7 @@ export default function Page() {
                         const medal = x.rank != null && x.rank <= 3 ? [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][x.rank - 1] : null;
                         const selected = statId === x.id;
                         return (
-                          <div key={x.id} data-row="1" className="boardRow" onClick={() => setStatId(x.id)} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', opacity: x.excluded ? .45 : 1, background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
+                          <div key={x.id} data-row="1" className="boardRow" onClick={() => { setStatId(x.id); setStatMatchPage(0); }} style={{ display: 'grid', gridTemplateColumns: boardGrid, gap: 8, alignItems: 'center', cursor: 'pointer', opacity: x.excluded ? .45 : 1, background: selected ? '#242B34' : '#1B2027', border: `1px solid ${selected ? '#FF4B5766' : medal ? medal.ring + '55' : '#262C34'}`, borderRadius: 14, padding: '12px 16px', animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 55}ms` }}>
                             <div className="b-player" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', position: 'relative' }}>
                                 {x.rank === 1 && <span style={{ position: 'absolute', top: -15, fontSize: 15, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.5))', animation: 'floaty 2.6s ease-in-out infinite' }}>👑</span>}
@@ -2719,7 +2724,7 @@ export default function Page() {
                         <div style={{ ...card, borderRadius: 20, padding: 16 }}>
                           <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>최근 경기</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                            {(statRec.matches || []).slice().sort((a, b) => b.date - a.date).map((m, i) => (
+                            {statMatchList.slice(curStatMatchPage * MATCH_PAGE, (curStatMatchPage + 1) * MATCH_PAGE).map((m, i) => (
                               <div key={i} data-row="1" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#1B2027', border: '1px solid #262C34', borderRadius: 12, padding: '11px 13px', animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 50}ms` }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: '1 1 140px' }}>
                                   <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.map}</div>
@@ -2738,6 +2743,7 @@ export default function Page() {
                               </div>
                             ))}
                           </div>
+                          <div style={{ marginTop: 12 }}><Pager page={curStatMatchPage} pageCount={statMatchPageCount} onChange={setStatMatchPage} /></div>
                         </div>
                       </>
                     ) : (
@@ -2750,7 +2756,7 @@ export default function Page() {
           </div>
 
           {/* right rail */}
-          <div className={screen === 'clips' ? 'rightRail hideOnPhone' : 'rightRail'} style={{ flex: '1 1 330px', minWidth: 270, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
+          <div className="rightRail hideOnPhone" style={{ flex: '1 1 330px', minWidth: 270, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
             <div data-lift="1" style={{ ...glass, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: -50, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,75,87,.13)', filter: 'blur(8px)', animation: 'floaty 7s ease-in-out infinite' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>

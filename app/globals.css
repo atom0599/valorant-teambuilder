@@ -41,10 +41,10 @@ button:active { transform: scale(.97); }
   .topControls { order: 1; gap: 8px !important; }
   .navRow { order: 2; flex: 1 1 100% !important; }
   .roomTag { display: none; }
-  .syncPill { padding: 6px 10px !important; white-space: nowrap; }
+  .syncPill { padding: 9px 9px !important; }
   .adminBtn, .resetBtn { padding: 7px 9px !important; }
-  /* 클립: the right rail (오늘의 내전 / 맵 밴픽 현황) is just noise under
-     the clip grid on a phone. */
+  /* The right rail (오늘의 내전 / 맵 밴픽 현황) is hidden on phones on
+     every tab — it's just noise under the main content there. */
   .rightRail.hideOnPhone { display: none !important; }
   .adminBtn .btnLabel, .resetBtn .btnLabel { display: none; }
   .adminBtn .btnIcon, .resetBtn .btnIcon { display: inline; }
