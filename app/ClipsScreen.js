@@ -78,6 +78,10 @@ function Thumb({ clip }) {
 }
 
 const PAGE = 9;
+// A narrow window (rail stacked under the grid, 1–2 columns) shows fewer
+// clips per page so a page doesn't turn into a long scroll.
+const PAGE_SMALL = 4;
+const SMALL_QUERY = '(max-width: 1100px)';
 
 export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [clips, setClips] = useState([]);
@@ -93,6 +97,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [sort, setSort] = useState('new');
   const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState(null);
+  const [small, setSmall] = useState(false);
   const [draft, setDraft] = useState('');
   const cidRef = useRef(null);
 
@@ -110,6 +115,14 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     pull();
     const t = setInterval(pull, 5000);
     return () => { alive = false; clearInterval(t); };
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia(SMALL_QUERY);
+    const sync = () => setSmall(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   useEffect(() => {
@@ -177,7 +190,8 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const list = sort === 'top' ? [...clips].sort((a, b) => b.likeCount - a.likeCount || b.createdAt - a.createdAt)
     : sort === 'old' ? [...clips].reverse()
     : clips;
-  const pageCount = Math.ceil(list.length / PAGE);
+  const perPage = small ? PAGE_SMALL : PAGE;
+  const pageCount = Math.ceil(list.length / perPage);
   // Clamp in case a delete (or another viewer's) shrank the list under us.
   const curPage = Math.min(page, Math.max(pageCount - 1, 0));
   const open = openId ? clips.find((c) => c.id === openId) : null;
@@ -222,7 +236,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
       {loaded && !clips.length && <div style={{ ...card, textAlign: 'center', color: '#8B949E', fontSize: 13 }}>아직 올라온 클립이 없어요. 첫 클립을 올려보세요!</div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-        {list.slice(curPage * PAGE, curPage * PAGE + PAGE).map((c) => (
+        {list.slice(curPage * perPage, curPage * perPage + perPage).map((c) => (
           <div key={c.id} data-lift="1" onClick={() => { setOpenId(c.id); setDraft(''); }} style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 14, padding: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
             <Thumb clip={c} />
             <div style={{ padding: '0 4px 4px', minWidth: 0 }}>
@@ -239,8 +253,8 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
       <Pager page={curPage} pageCount={pageCount} onChange={setPage} />
 
       {open && (
-        <div onClick={() => setOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(5,7,9,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflowY: 'auto' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 860, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 30px 80px rgba(0,0,0,.6)' }}>
+        <div onClick={() => setOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(5,7,9,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2vh 12px', overflowY: 'auto' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 'min(1600px, calc((100vh - 4vh - 34px) * 16 / 9))', padding: 12, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 30px 80px rgba(0,0,0,.6)' }}>
             <Player key={open.id} clip={open} />
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ minWidth: 0 }}>

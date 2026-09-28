@@ -33,17 +33,6 @@ button { transition: transform .16s ease, filter .16s ease, background .2s ease,
 button:hover { filter: brightness(1.12); }
 button:active { transform: scale(.97); }
 
-.brandWord {
-  overflow: hidden;
-  max-width: 180px;
-  opacity: 1;
-  transition: max-width .45s cubic-bezier(.2,.7,.3,1), opacity .3s ease, margin-left .45s cubic-bezier(.2,.7,.3,1), transform .45s cubic-bezier(.2,.7,.3,1);
-}
-
-@media (max-width: 760px) {
-  .brandWord { max-width: 0; opacity: 0; margin-left: -10px; transform: translateX(-6px); }
-}
-
 @media (max-width: 640px) {
   /* Two rows on a phone: logo + sync status + admin/reset icon buttons
      sit together on the first row, and the nav tabs get the full second
@@ -54,6 +43,9 @@ button:active { transform: scale(.97); }
   .roomTag { display: none; }
   .syncPill { padding: 6px 10px !important; white-space: nowrap; }
   .adminBtn, .resetBtn { padding: 7px 9px !important; }
+  /* 클립: the right rail (오늘의 내전 / 맵 밴픽 현황) is just noise under
+     the clip grid on a phone. */
+  .rightRail.hideOnPhone { display: none !important; }
   .adminBtn .btnLabel, .resetBtn .btnLabel { display: none; }
   .adminBtn .btnIcon, .resetBtn .btnIcon { display: inline; }
 

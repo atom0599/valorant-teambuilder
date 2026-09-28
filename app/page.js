@@ -1776,7 +1776,6 @@ export default function Page() {
             <div style={{ width: 26, height: 26, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <img src="/logo.png" alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             </div>
-            <div className="brandWord" style={{ fontFamily: "'Archivo'", fontWeight: 700, fontSize: 15, letterSpacing: '.02em', whiteSpace: 'nowrap' }}>SCRIM MANAGER</div>
           </div>
           <div data-scrollx="1" className="navRow" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 380px', minWidth: 0, paddingBottom: 2 }}>
             {NAV.map(([k, label]) => (
@@ -2751,7 +2750,7 @@ export default function Page() {
           </div>
 
           {/* right rail */}
-          <div style={{ flex: '1 1 330px', minWidth: 270, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
+          <div className={screen === 'clips' ? 'rightRail hideOnPhone' : 'rightRail'} style={{ flex: '1 1 330px', minWidth: 270, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
             <div data-lift="1" style={{ ...glass, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: -50, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,75,87,.13)', filter: 'blur(8px)', animation: 'floaty 7s ease-in-out infinite' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
