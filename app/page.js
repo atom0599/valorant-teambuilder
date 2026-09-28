@@ -2750,8 +2750,7 @@ export default function Page() {
           </div>
 
           {/* right rail */}
-          {/* 클립 탭은 오른쪽 패널 없이 전체 폭을 씀 */}
-          <div className="rightRail" style={{ flex: '1 1 330px', minWidth: 270, display: screen === 'clips' ? 'none' : 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
+          <div className={screen === 'clips' ? 'rightRail hideOnPhone' : 'rightRail'} style={{ flex: '1 1 330px', minWidth: 270, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
             <div data-lift="1" style={{ ...glass, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: -50, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,75,87,.13)', filter: 'blur(8px)', animation: 'floaty 7s ease-in-out infinite' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>

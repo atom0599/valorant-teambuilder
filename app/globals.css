@@ -43,6 +43,9 @@ button:active { transform: scale(.97); }
   .roomTag { display: none; }
   .syncPill { padding: 6px 10px !important; white-space: nowrap; }
   .adminBtn, .resetBtn { padding: 7px 9px !important; }
+  /* 클립: the right rail (오늘의 내전 / 맵 밴픽 현황) is just noise under
+     the clip grid on a phone. */
+  .rightRail.hideOnPhone { display: none !important; }
   .adminBtn .btnLabel, .resetBtn .btnLabel { display: none; }
   .adminBtn .btnIcon, .resetBtn .btnIcon { display: inline; }
 
