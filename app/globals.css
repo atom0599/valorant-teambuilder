@@ -40,7 +40,6 @@ button:active { transform: scale(.97); }
   .topBar { flex-wrap: wrap; row-gap: 10px !important; }
   .topControls { order: 1; gap: 8px !important; }
   .navRow { order: 2; flex: 1 1 100% !important; }
-  .roomTag { display: none; }
   .syncPill { padding: 9px 9px !important; }
   .adminBtn, .resetBtn { padding: 7px 9px !important; }
   /* The right rail (오늘의 내전 / 맵 밴픽 현황) is hidden on phones on

@@ -1800,7 +1800,6 @@ export default function Page() {
             <div className={remoteOk === false ? 'syncPill syncPill--error' : 'syncPill'} title={remoteOk === false ? '동기화 오류' : '동기화 정상'} style={{ display: 'flex', alignItems: 'center', background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '9px 10px' }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: remoteOk === false ? '#E1424F' : '#C8F24C', animation: 'pulseDot 1.6s infinite' }} />
             </div>
-            <div className="roomTag" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#A8B0B9' }}>ROOM {roomCode}</div>
             <button className="adminBtn" onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <span className="btnIcon">⚙{isAdmin ? '✓' : ''}</span>
               <span className="btnLabel">{isAdmin ? '관리자 ✓ 로그아웃' : '관리자'}</span>

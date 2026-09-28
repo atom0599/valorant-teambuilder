@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: '발로란트 내전 매니저',
+  title: '행복방 발로란트 플랫폼',
   description: 'Riot ID 티어 조회, 5:5 자동 밸런싱, e스포츠 방식 맵 밴픽, 전적 누적 — made by 이현'
 };
 
