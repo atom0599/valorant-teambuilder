@@ -257,8 +257,8 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
           fadeUp animation, which would make position:fixed size itself to the
           left column instead of the whole browser window. */}
       {open && createPortal(
-        <div onClick={() => setOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(5,7,9,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2vh 12px', overflowY: 'auto' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 'calc((100vh - 4vh - 34px) * 16 / 9)', padding: 12, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 30px 80px rgba(0,0,0,.6)' }}>
+        <div onClick={() => setOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(5,7,9,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 12px', overflowY: 'auto', color: '#E8EAEC' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 'min(88vw, calc((82vh - 34px) * 16 / 9))', padding: 12, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 30px 80px rgba(0,0,0,.6)' }}>
             <Player key={open.id} clip={open} />
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
               <div style={{ minWidth: 0 }}>
