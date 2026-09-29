@@ -48,6 +48,16 @@ function embedFor(url, autoplay) {
   return { type: 'link' };
 }
 
+// Eye glyph for view counts (an emoji eye renders inconsistently across OSes).
+function EyeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-1px', marginRight: 3 }}>
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\.|^m\./, ''); } catch { return ''; } };
 
 function Player({ clip }) {
@@ -101,6 +111,9 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [small, setSmall] = useState(false);
   const [draft, setDraft] = useState('');
   const cidRef = useRef(null);
+  // Clips already counted as viewed in this page session, so reopening the
+  // same clip doesn't keep bumping its count.
+  const viewedRef = useRef(new Set());
 
   function applyData(d) {
     if (Array.isArray(d.clips)) setClips(d.clips);
@@ -181,6 +194,14 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     if (d.ok) setDraft('');
   }
 
+  function openClip(id) {
+    setOpenId(id);
+    setDraft('');
+    if (viewedRef.current.has(id)) return;
+    viewedRef.current.add(id);
+    act({ action: 'view', id });
+  }
+
   function removeClip(c) {
     if (!window.confirm(`"${c.title}" 클립을 삭제할까요?`)) return;
     act({ action: 'delete', id: c.id });
@@ -189,6 +210,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
 
   // Server keeps clips newest-first.
   const list = sort === 'top' ? [...clips].sort((a, b) => b.likeCount - a.likeCount || b.createdAt - a.createdAt)
+    : sort === 'views' ? [...clips].sort((a, b) => b.views - a.views || b.createdAt - a.createdAt)
     : sort === 'old' ? [...clips].reverse()
     : clips;
   const perPage = small ? PAGE_SMALL : PAGE;
@@ -228,7 +250,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 13, color: '#8B949E' }}>클립 {clips.length}개</div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {[['new', '최신순'], ['old', '오래된순'], ['top', '좋아요순']].map(([k, label]) => (
+          {[['new', '최신순'], ['old', '오래된순'], ['top', '좋아요순'], ['views', '조회수순']].map(([k, label]) => (
             <button key={k} onClick={() => { setSort(k); setPage(0); }} style={pill(sort === k)}>{label}</button>
           ))}
         </div>
@@ -238,13 +260,13 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
         {list.slice(curPage * perPage, curPage * perPage + perPage).map((c) => (
-          <div key={c.id} data-lift="1" onClick={() => { setOpenId(c.id); setDraft(''); }} style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 14, padding: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div key={c.id} data-lift="1" onClick={() => openClip(c.id)} style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 14, padding: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
             <Thumb clip={c} />
             <div style={{ padding: '0 4px 4px', minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.title}</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 11, color: '#8B949E', marginTop: 4 }}>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.author} · {fmtDate(c.createdAt)}</span>
-                <span style={{ flex: 'none' }}><span style={{ color: c.likedByMe ? '#FF4B57' : undefined }}>♥ {c.likeCount}</span> · 💬 {c.comments.length}</span>
+                <span style={{ flex: 'none' }}><EyeIcon />{c.views} · <span style={{ color: c.likedByMe ? '#FF4B57' : undefined }}>♥ {c.likeCount}</span> · 💬 {c.comments.length}</span>
               </div>
             </div>
           </div>
@@ -270,7 +292,8 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
                 <button onClick={() => setOpenId(null)} title="닫기 (Esc)" style={{ background: 'transparent', border: '1px solid #333B45', color: '#C8D0D8', borderRadius: 8, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}>✕</button>
               </div>
             </div>
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 13, color: '#8B949E' }}><EyeIcon />조회 {open.views}</span>
               <button onClick={() => act({ action: 'like', id: open.id })} style={{ display: 'flex', alignItems: 'center', gap: 6, background: open.likedByMe ? 'rgba(255,75,87,.14)' : 'transparent', border: `1px solid ${open.likedByMe ? 'rgba(255,75,87,.5)' : '#333B45'}`, color: open.likedByMe ? '#FF4B57' : '#C8D0D8', borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 {open.likedByMe ? '♥' : '♡'} {open.likeCount}
               </button>

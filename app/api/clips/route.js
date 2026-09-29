@@ -27,6 +27,7 @@ function view(clip, cid) {
   return {
     id: clip.id, title: clip.title, author: clip.author, url: clip.url, createdAt: clip.createdAt,
     likeCount: clip.likes.length,
+    views: clip.views || 0,
     likedByMe: !!cid && clip.likes.includes(cid),
     mine: !!cid && clip.ownerCid === cid,
     comments: clip.comments.map((c) => ({ id: c.id, author: c.author, text: c.text, at: c.at, mine: !!cid && c.cid === cid }))
@@ -61,6 +62,7 @@ export async function GET(request) {
 // body: { action, cid, ... }
 //   create:    { title, author, url }     — author only counts on a browser's first post/comment
 //   like:      { id }                       — toggles this browser's like
+//   view:      { id }                       — +1 view count (clip opened)
 //   comment:   { id, author, text }
 //   uncomment: { id, commentId }            — own comment, or admin
 //   delete:    { id }                       — own clip, or admin
@@ -91,6 +93,11 @@ export async function POST(request) {
       case 'like': {
         const i = clip.likes.indexOf(cid);
         if (i >= 0) clip.likes.splice(i, 1); else clip.likes.push(cid);
+        await setJSON(KEY, all);
+        break;
+      }
+      case 'view': {
+        clip.views = (clip.views || 0) + 1;
         await setJSON(KEY, all);
         break;
       }
