@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
 import ClipsScreen from './ClipsScreen';
+import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
@@ -11,7 +12,7 @@ import {
 
 const NAV = [
   ['home', '홈'], ['players', '인원'], ['balance', '밸런싱'],
-  ['setup', '매치 설정'], ['banpick', '밴픽'], ['stats', '전체 전적'], ['clips', '클립']
+  ['setup', '매치 설정'], ['banpick', '밴픽'], ['stats', '전체 전적'], ['clips', '클립'], ['patch', '패치내역']
 ];
 // Everyone who opens the app without a `?room=` override lands in this same
 // shared room — no link-sharing or random-code mismatch between friends.
@@ -2471,6 +2472,7 @@ export default function Page() {
 
             {/* STATS */}
             {screen === 'clips' && <ClipsScreen isAdmin={isAdmin} adminHeaders={adminHeaders} input={input} pill={pill} />}
+            {screen === 'patch' && <PatchNotesScreen />}
 
             {screen === 'stats' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
