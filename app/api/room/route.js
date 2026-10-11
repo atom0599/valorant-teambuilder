@@ -1,7 +1,7 @@
 import { getJSON, setJSON, casJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 import { mergeScores } from '../../../lib/scores';
-import { ALL_MAPS, ROTATION } from '../../../lib/constants';
+import { ALL_MAPS, ROTATION, normalizePool } from '../../../lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,7 @@ export async function GET(request) {
   if (!code) return Response.json({ error: 'code required' }, { status: 400 });
   try {
     const room = await getJSON(`room:${code}`);
+    if (room?.pool) room.pool = normalizePool(room.pool);
     return Response.json({ room, persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return Response.json({ error: String(e), room: null }, { status: 502 });
@@ -25,12 +26,14 @@ export async function POST(request) {
   if (!body?.code || !body?.room) return Response.json({ error: 'code and room required' }, { status: 400 });
 
   const key = `room:${body.code}`;
+  if (body.room.pool) body.room.pool = normalizePool(body.room.pool);
   let prev;
   try {
     prev = await getJSON(key);
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  if (prev?.pool) prev.pool = normalizePool(prev.pool);
 
   // last-write-wins with a monotonic version guard so stale pollers can't clobber
   // each other — except `force` (used by "방 초기화"): that reset always starts
