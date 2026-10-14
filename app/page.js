@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
@@ -113,6 +113,8 @@ export default function Page() {
   const [expandedMatch, setExpandedMatch] = useState(null);
   const [matchPage, setMatchPage] = useState(0);
   const [statMatchPage, setStatMatchPage] = useState(0);
+  const [mateView, setMateView] = useState('mate');
+  const [mateExpanded, setMateExpanded] = useState(false);
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -1761,6 +1763,33 @@ export default function Page() {
   // Clamp in case a deleted match shrank the list under the current page.
   const curMatchPage = Math.min(matchPage, Math.max(matchPageCount - 1, 0));
 
+  // 함께한 팀원 / 상대 전적: every participant of a match shares its `date`
+  // (see matchLog above), and their own `result` says which side they were
+  // on — same result as the selected player = teammate, different = opponent.
+  // Only covers the matches still stored (newest 20 per player).
+  const statMates = useMemo(() => {
+    if (!statRec) return null;
+    const mine = new Map((statRec.matches || []).map((m) => [m.date, m.result]));
+    const mates = new Map(), foes = new Map();
+    Object.entries(records).forEach(([id, r]) => {
+      if (id === statId) return;
+      (r.matches || []).forEach((m) => {
+        const myResult = mine.get(m.date);
+        if (!myResult) return;
+        const bucket = m.result === myResult ? mates : foes;
+        const e = bucket.get(id) || { id, games: 0, wins: 0 };
+        e.games += 1;
+        if (myResult === '승') e.wins += 1; // wins from the selected player's side
+        bucket.set(id, e);
+      });
+    });
+    const total = mine.size;
+    const list = (b) => [...b.values()]
+      .map((e) => ({ ...e, losses: e.games - e.wins, share: total ? Math.round((e.games / total) * 100) : 0, rate: Math.round((e.wins / e.games) * 100) }))
+      .sort((a, b) => b.games - a.games || b.rate - a.rate || a.id.localeCompare(b.id));
+    return { total, mates: list(mates), foes: list(foes) };
+  }, [records, statId, statRec]);
+
   // Selected player's 최근 경기, newest first, 5 per page.
   const statMatchList = useMemo(() => (statRec?.matches || []).slice().sort((a, b) => b.date - a.date), [statRec]);
   const statMatchPageCount = Math.ceil(statMatchList.length / MATCH_PAGE);
@@ -2817,6 +2846,41 @@ export default function Page() {
                             </div>
                           </div>
                         </div>
+                        {!!statMates && (statMates.mates.length > 0 || statMates.foes.length > 0) && (() => {
+                          const list = mateView === 'foe' ? statMates.foes : statMates.mates;
+                          const shown = mateExpanded ? list : list.slice(0, 6);
+                          return (
+                            <div style={{ ...card, borderRadius: 20, padding: 16 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em' }}>{mateView === 'foe' ? '상대 전적' : '함께한 팀원'}</div>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  {[['mate', '같은 팀'], ['foe', '상대 팀']].map(([k, label]) => (
+                                    <button key={k} onClick={() => { setMateView(k); setMateExpanded(false); }} style={{ ...pill(mateView === k, '#C8F24C'), padding: '5px 12px', fontSize: 11 }}>{label}</button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto auto auto', columnGap: 12, rowGap: 0, alignItems: 'center' }}>
+                                <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6 }}>{mateView === 'foe' ? '상대' : '팀원'}</div>
+                                <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6, textAlign: 'right' }}>판수</div>
+                                <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6, textAlign: 'right' }} title={`${statId}의 전체 ${statMates.total}경기 중 비율`}>비율</div>
+                                <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6, textAlign: 'right' }}>{mateView === 'foe' ? '내 승률' : '같이 승률'}</div>
+                                {shown.map((e, i) => (
+                                  <Fragment key={e.id}>
+                                    <button onClick={() => { setStatId(e.id); setStatMatchPage(0); }} title={`${e.id} 전적 보기`} style={{ minWidth: 0, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? '1px solid #20262E' : 'none', color: '#E8EAEC', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.id}</button>
+                                    <div style={{ borderTop: i ? '1px solid #20262E' : 'none', padding: '8px 0', textAlign: 'right', fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C8D0D8', whiteSpace: 'nowrap' }}>{e.games}판 <span style={{ color: '#6B737C' }}>{e.wins}승{e.losses}패</span></div>
+                                    <div style={{ borderTop: i ? '1px solid #20262E' : 'none', padding: '8px 0', textAlign: 'right', fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>{e.share}%</div>
+                                    <div style={{ borderTop: i ? '1px solid #20262E' : 'none', padding: '8px 0', textAlign: 'right', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 700, color: e.rate >= 50 ? '#C8F24C' : '#E1424F' }}>{e.rate}%</div>
+                                  </Fragment>
+                                ))}
+                              </div>
+                              {!list.length && <div style={{ fontSize: 12, color: '#6B737C', padding: '6px 0' }}>기록이 없습니다.</div>}
+                              {list.length > 6 && (
+                                <button onClick={() => setMateExpanded((v) => !v)} style={{ marginTop: 10, width: '100%', background: 'transparent', border: '1px dashed #333B45', borderRadius: 10, padding: '7px 0', color: '#8B949E', fontSize: 11, cursor: 'pointer' }}>{mateExpanded ? '접기' : `${list.length - 6}명 더 보기`}</button>
+                              )}
+                              <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>비율 = 저장된 {statId}의 {statMates.total}경기 중 {mateView === 'foe' ? '상대로 만난' : '같은 팀이었던'} 비율{statTotal > statMates.total ? ` (선수당 최근 ${statMates.total}경기까지만 저장돼 있어 그 기준으로 계산)` : ''}</div>
+                            </div>
+                          );
+                        })()}
                         <div style={{ ...card, borderRadius: 20, padding: 16 }}>
                           <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>최근 경기</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
