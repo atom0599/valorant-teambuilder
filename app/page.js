@@ -1181,6 +1181,28 @@ export default function Page() {
     if (!a) return;
     persistRoster(roster.map((r) => (r.name === name && !r.alts?.includes(a) ? { ...r, alts: [...(r.alts || []), a] } : r)));
   }
+  // Records are keyed by the name a match was saved under, so a 부계정's
+  // matches saved *before* it was registered sat in their own separate
+  // record (a second leaderboard row) — the alias only applied to later
+  // saves. Fold any such record into its main account: right after addAlt,
+  // and for alts registered earlier, as soon as roster + records are loaded.
+  // PATCH /api/records merges (deduping a match saved under both).
+  const altMergeTriedRef = useRef(new Set());
+  useEffect(() => {
+    const keys = Object.keys(records);
+    if (!keys.length || !roster.length) return;
+    roster.forEach((r) => (r.alts || []).forEach((a) => {
+      const from = keys.find((k) => k.trim().toLowerCase() === a.trim().toLowerCase());
+      if (!from || from === r.name) return;
+      const tag = `${from}=>${r.name}`;
+      if (altMergeTriedRef.current.has(tag)) return;
+      altMergeTriedRef.current.add(tag);
+      fetch('/api/records', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to: r.name })
+      }).then((res) => res.json()).then((d) => { if (d.records) setRecords(d.records); }).catch(() => {});
+    }));
+  }, [records, roster]);
   function removeAlt(name, alt) {
     persistRoster(roster.map((r) => (r.name === name ? { ...r, alts: (r.alts || []).filter((a) => a !== alt) } : r)));
   }
