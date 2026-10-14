@@ -114,7 +114,6 @@ export default function Page() {
   const [matchPage, setMatchPage] = useState(0);
   const [statMatchPage, setStatMatchPage] = useState(0);
   const [mateView, setMateView] = useState('mate');
-  const [mateExpanded, setMateExpanded] = useState(false);
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -2883,9 +2882,13 @@ export default function Page() {
                               <div style={{ fontSize: 16, fontWeight: 700, wordBreak: 'break-all' }}>{statId}</div>
                               <div style={{ fontSize: 12, color: '#8B949E' }}>{statTotal}경기 · 최근 {statLast ? fmtDate(statLast.date) : '—'}</div>
                             </div>
-                            {isAdmin && <button onClick={() => setExcluded(statId, !excludedIds.includes(statId))} style={{ marginLeft: 'auto', flex: 'none', background: 'transparent', color: excludedIds.includes(statId) ? '#C8F24C' : '#E5C04C', border: `1px solid ${excludedIds.includes(statId) ? '#C8F24C66' : '#E5C04C66'}`, borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{excludedIds.includes(statId) ? '순위 복원' : '순위 제외'}</button>}
-                            {isAdmin && <button onClick={() => deleteRecord({ id: statId }, `${statId}의 전적을 전부 삭제할까요?`)} style={{ flex: 'none', background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>선수 전적 삭제</button>}
                           </div>
+                          {isAdmin && (
+                            <div style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -8, marginBottom: 16 }}>
+                              <button onClick={() => setExcluded(statId, !excludedIds.includes(statId))} style={{ flex: 'none', background: 'transparent', color: excludedIds.includes(statId) ? '#C8F24C' : '#E5C04C', border: `1px solid ${excludedIds.includes(statId) ? '#C8F24C66' : '#E5C04C66'}`, borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{excludedIds.includes(statId) ? '순위 복원' : '순위 제외'}</button>
+                              <button onClick={() => deleteRecord({ id: statId }, `${statId}의 전적을 전부 삭제할까요?`)} style={{ flex: 'none', background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>선수 전적 삭제</button>
+                            </div>
+                          )}
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 16 }}>
                             <div>
                               <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>승률</div>
@@ -2907,14 +2910,13 @@ export default function Page() {
                         </div>
                         {!!statMates && (statMates.mates.length > 0 || statMates.foes.length > 0) && (() => {
                           const list = mateView === 'foe' ? statMates.foes : statMates.mates;
-                          const shown = mateExpanded ? list : list.slice(0, 6);
                           return (
                             <div style={{ ...card, borderRadius: 20, padding: 16 }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                                 <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em' }}>{mateView === 'foe' ? '상대 전적' : '함께한 팀원'}</div>
                                 <div style={{ display: 'flex', gap: 6 }}>
                                   {[['mate', '같은 팀'], ['foe', '상대 팀']].map(([k, label]) => (
-                                    <button key={k} onClick={() => { setMateView(k); setMateExpanded(false); }} style={{ ...pill(mateView === k, '#C8F24C'), padding: '5px 12px', fontSize: 11 }}>{label}</button>
+                                    <button key={k} onClick={() => setMateView(k)} style={{ ...pill(mateView === k, '#C8F24C'), padding: '5px 12px', fontSize: 11 }}>{label}</button>
                                   ))}
                                 </div>
                               </div>
@@ -2923,7 +2925,7 @@ export default function Page() {
                                 <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6, textAlign: 'right' }}>판수</div>
                                 <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6, textAlign: 'right' }} title={`${statId}의 전체 ${statMates.total}경기 중 비율`}>비율</div>
                                 <div style={{ fontSize: 10, color: '#6B737C', paddingBottom: 6, textAlign: 'right' }}>{mateView === 'foe' ? '내 승률' : '같이 승률'}</div>
-                                {shown.map((e, i) => (
+                                {list.map((e, i) => (
                                   <Fragment key={e.id}>
                                     <button onClick={() => { setStatId(e.id); setStatMatchPage(0); }} title={`${e.id} 전적 보기`} style={{ minWidth: 0, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? '1px solid #20262E' : 'none', color: '#E8EAEC', fontSize: 12, fontWeight: 600, padding: '8px 0', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.id}</button>
                                     <div style={{ borderTop: i ? '1px solid #20262E' : 'none', padding: '8px 0', textAlign: 'right', fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C8D0D8', whiteSpace: 'nowrap' }}>{e.games}판 <span style={{ color: '#6B737C' }}>{e.wins}승{e.losses}패</span></div>
@@ -2933,9 +2935,6 @@ export default function Page() {
                                 ))}
                               </div>
                               {!list.length && <div style={{ fontSize: 12, color: '#6B737C', padding: '6px 0' }}>기록이 없습니다.</div>}
-                              {list.length > 6 && (
-                                <button onClick={() => setMateExpanded((v) => !v)} style={{ marginTop: 10, width: '100%', background: 'transparent', border: '1px dashed #333B45', borderRadius: 10, padding: '7px 0', color: '#8B949E', fontSize: 11, cursor: 'pointer' }}>{mateExpanded ? '접기' : `${list.length - 6}명 더 보기`}</button>
-                              )}
                               <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>비율 = {statId}의 전체 내전 {statMates.total}경기 중 {mateView === 'foe' ? '상대로 만난' : '같은 팀이었던'} 비율</div>
                             </div>
                           );
