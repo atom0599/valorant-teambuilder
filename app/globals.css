@@ -83,6 +83,10 @@ button:active { transform: scale(.97); }
   .boardRow .b-player { flex: 1 1 100%; }
   .boardRow .b-tier, .boardRow .b-wl, .boardRow .b-games, .boardRow .b-kd, .boardRow .b-hs { flex: 0 1 auto; }
   .boardRow .b-rate { flex: 1 1 130px; }
+  /* 전적 always takes its own line, so 경기/K/D/HS start on the next one
+     for everyone. Without this the wrap point depended on how long the
+     tier label was (플래티넘/다이아몬드 pushed 경기 down, 실버/초월자 didn't). */
+  .boardRow .b-wl { flex: 1 1 100%; }
   .boardRow .b-wl::before { content: '전적 '; color: #5F6872; }
   .boardRow .b-games::before { content: '경기 '; color: #5F6872; }
   .boardRow .b-kd::before { content: 'K/D '; color: #5F6872; }
