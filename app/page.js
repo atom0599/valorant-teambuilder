@@ -1829,8 +1829,11 @@ export default function Page() {
     if (!statRec) return null;
     const mine = new Map((statRec.matches || []).map((m) => [m.date, m.result]));
     const mates = new Map(), foes = new Map();
+    // 순위 제외(숨김)된 사람은 여기서도 빠진다. 전적 삭제된 사람은 이미
+    // records에 없으므로 따로 처리할 필요 없음.
+    const hidden = new Set(excludedIds);
     Object.entries(records).forEach(([id, r]) => {
-      if (id === statId) return;
+      if (id === statId || hidden.has(id)) return;
       (r.matches || []).forEach((m) => {
         const myResult = mine.get(m.date);
         if (!myResult) return;
@@ -1846,7 +1849,7 @@ export default function Page() {
       .map((e) => ({ ...e, losses: e.games - e.wins, share: total ? Math.round((e.games / total) * 100) : 0, rate: Math.round((e.wins / e.games) * 100) }))
       .sort((a, b) => b.games - a.games || b.rate - a.rate || a.id.localeCompare(b.id));
     return { total, mates: list(mates), foes: list(foes) };
-  }, [records, statId, statRec]);
+  }, [records, statId, statRec, excludedIds]);
 
   // Selected player's 최근 경기, newest first, 5 per page.
   const statMatchList = useMemo(() => (statRec?.matches || []).slice().sort((a, b) => b.date - a.date), [statRec]);
