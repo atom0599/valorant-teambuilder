@@ -2820,7 +2820,7 @@ export default function Page() {
                   </div>
                 )}
 
-                {statView === 'player' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
+                {statView === 'player' && <div className="playerSplit" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
                   <div data-scrollx="1" className="boardContainer" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
                     <div className="boardHeader boardTable" style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
                       <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div>
@@ -2872,7 +2872,7 @@ export default function Page() {
                     {!boardList.length && <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 누적된 전적이 없습니다. 밴픽 후 결과를 입력하면 여기에 쌓입니다.</div>}
                   </div>
 
-                  <div style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .5s cubic-bezier(.2,.7,.3,1) both' }}>
+                  <div className="playerDetail" style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .5s cubic-bezier(.2,.7,.3,1) both' }}>
                     {statRec ? (
                       <>
                         <div data-lift="1" style={{ position: 'relative', overflow: 'hidden', background: '#14181D', border: '1px solid #FF4B5735', borderRadius: 20, padding: 20 }}>

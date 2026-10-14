@@ -88,3 +88,14 @@ button:active { transform: scale(.97); }
   .boardRow .b-kd::before { content: 'K/D '; color: #5F6872; }
   .boardRow .b-hs::before { content: 'HS '; color: #5F6872; }
 }
+
+/* PC: 선수별 순위표와 선수 상세를 항상 나란히 — wrapping put the detail
+   under a long leaderboard, so clicking a player meant scrolling down to
+   see it. The board narrows instead (its container query above turns rows
+   into compact cards when needed), and the detail stays in view while the
+   list scrolls. Phones keep the stacked layout. */
+@media (min-width: 900px) {
+  .playerSplit { flex-wrap: nowrap !important; }
+  .playerSplit > .boardContainer { flex: 1 1 0 !important; }
+  .playerSplit > .playerDetail { flex: 0 0 360px !important; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+}
