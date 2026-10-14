@@ -1826,7 +1826,6 @@ export default function Page() {
   // 함께한 팀원 / 상대 전적: every participant of a match shares its `date`
   // (see matchLog above), and their own `result` says which side they were
   // on — same result as the selected player = teammate, different = opponent.
-  // Only covers the matches still stored (newest 20 per player).
   const statMates = useMemo(() => {
     if (!statRec) return null;
     const mine = new Map((statRec.matches || []).map((m) => [m.date, m.result]));
@@ -2937,7 +2936,7 @@ export default function Page() {
                               {list.length > 6 && (
                                 <button onClick={() => setMateExpanded((v) => !v)} style={{ marginTop: 10, width: '100%', background: 'transparent', border: '1px dashed #333B45', borderRadius: 10, padding: '7px 0', color: '#8B949E', fontSize: 11, cursor: 'pointer' }}>{mateExpanded ? '접기' : `${list.length - 6}명 더 보기`}</button>
                               )}
-                              <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>비율 = 저장된 {statId}의 {statMates.total}경기 중 {mateView === 'foe' ? '상대로 만난' : '같은 팀이었던'} 비율{statTotal > statMates.total ? ` (선수당 최근 ${statMates.total}경기까지만 저장돼 있어 그 기준으로 계산)` : ''}</div>
+                              <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>비율 = {statId}의 전체 내전 {statMates.total}경기 중 {mateView === 'foe' ? '상대로 만난' : '같은 팀이었던'} 비율</div>
                             </div>
                           );
                         })()}

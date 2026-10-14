@@ -27,7 +27,7 @@ function mergeRecords(dst, src) {
   });
   matches.sort((x, y) => y.date - x.date);
   const puuids = [...new Set([...(dst?.puuids || []), ...(src?.puuids || [])])];
-  return { wins: Math.max(0, wins), losses: Math.max(0, losses), matches: matches.slice(0, 20), ...(puuids.length ? { puuids } : {}) };
+  return { wins: Math.max(0, wins), losses: Math.max(0, losses), matches, ...(puuids.length ? { puuids } : {}) };
 }
 
 async function renameExcluded(from, to) {
@@ -95,6 +95,9 @@ export async function POST(request) {
         // kills/deaths/assists/acs/hsPct are only present for matches
         // imported from real HenrikDev data (과거 내전 불러오기) — a regular
         // in-app save has no per-player combat stats, so these stay null.
+        // Every match is kept (no per-player cap) — 함께한 팀원 and 경기별
+        // 기록 are rebuilt from these lists, so a cap silently dropped older
+        // matches from them while the win/loss counters still had them.
         // matchKey rides along on the entry itself so a later delete-by-date
         // (see DELETE below) can free it back up in `records:savedKeys` —
         // otherwise a deleted match could never be re-imported, since its
@@ -105,7 +108,7 @@ export async function POST(request) {
           kills: p.kills ?? null, deaths: p.deaths ?? null, assists: p.assists ?? null, acs: p.acs ?? null, hsPct: p.hsPct ?? null,
           combat: p.combat ?? null, mvp: p.mvp ?? null,
           matchKey
-        }, ...(r.matches || [])].slice(0, 20);
+        }, ...(r.matches || [])];
         all[p.name] = r;
         wrote++;
       });
@@ -119,7 +122,7 @@ export async function POST(request) {
     // letting a genuinely empty submission be retried.
     if (wrote) await setJSON(KEY, all);
     for (const [from, to] of renamed) await renameExcluded(from, to);
-    if (matchKey && wrote) await setJSON(KEYS_KEY, [matchKey, ...savedKeys].slice(0, 100));
+    if (matchKey && wrote) await setJSON(KEYS_KEY, [matchKey, ...savedKeys].slice(0, 5000));
     return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
