@@ -1227,23 +1227,37 @@ export default function Page() {
   // onto the new name server-side so history keeps counting toward the same
   // person. If they were already re-added under the new name as a separate
   // entry, that duplicate is folded into the original instead of left beside it.
-  function relinkRosterName(oldName, newName) {
-    const old = roster.find((r) => r.name === oldName);
-    if (!old || !newName?.trim()) return;
-    const lowerNew = newName.trim().toLowerCase();
-    const dup = roster.find((r) => r !== old && r.name.trim().toLowerCase() === lowerNew);
-    const merged = {
-      ...old,
-      name: newName.trim(),
-      realName: old.realName || dup?.realName || '',
-      pos: old.pos && old.pos !== '미정' ? old.pos : (dup?.pos || '미정'),
-      alts: [...new Set([...(old.alts || []), ...(dup?.alts || [])])].filter((a) => a.trim().toLowerCase() !== lowerNew),
-      puuid: old.puuid || dup?.puuid || null
-    };
-    persistRoster(roster.filter((r) => r !== dup).map((r) => (r === old ? merged : r)));
-    const moves = [[oldName, merged.name]];
-    if (dup && dup.name !== merged.name) moves.push([dup.name, merged.name]);
-    moves.reduce((chain, [from, to]) => chain.then(() => fetch('/api/records', {
+  function relinkRosterName(oldName, newName) { relinkRosterNames([[oldName, newName]]); }
+  // Several at once (one customs import can reveal more than one rename) —
+  // built off one roster snapshot, since separate persistRoster calls from
+  // the same stale `roster` would each overwrite the previous one's rename.
+  function relinkRosterNames(pairs) {
+    let list = roster;
+    const moves = [];
+    pairs.forEach(([oldName, newName]) => {
+      const old = list.find((r) => r.name === oldName);
+      if (!old || !newName?.trim()) return;
+      const lowerNew = newName.trim().toLowerCase();
+      const dup = list.find((r) => r !== old && r.name.trim().toLowerCase() === lowerNew);
+      const merged = {
+        ...old,
+        name: newName.trim(),
+        realName: old.realName || dup?.realName || '',
+        pos: old.pos && old.pos !== '미정' ? old.pos : (dup?.pos || '미정'),
+        alts: [...new Set([...(old.alts || []), ...(dup?.alts || [])])].filter((x) => x.trim().toLowerCase() !== lowerNew),
+        puuid: old.puuid || dup?.puuid || null
+      };
+      list = list.filter((r) => r !== dup).map((r) => (r === old ? merged : r));
+      moves.push([oldName, merged.name]);
+      if (dup && dup.name !== merged.name) moves.push([dup.name, merged.name]);
+    });
+    if (!moves.length) return Promise.resolve();
+    persistRoster(list);
+    setPlayers((arr) => arr.map((x) => {
+      const mv = moves.find(([from]) => from === x.name.trim());
+      return mv ? { ...x, name: mv[1] } : x;
+    }));
+    return moves.reduce((chain, [from, to]) => chain.then(() => fetch('/api/records', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from, to })
     }).then((r) => r.json()).then((d) => { if (d.records) setRecords(d.records); }).catch(() => {})), Promise.resolve());
@@ -1253,7 +1267,6 @@ export default function Page() {
 기존 전적은 새 이름으로 그대로 옮겨집니다.`, oldName);
     if (!next || !next.includes('#') || next.trim() === oldName) return;
     relinkRosterName(oldName, next.trim());
-    setPlayers((arr) => arr.map((x) => (x.name.trim() === oldName ? { ...x, name: next.trim() } : x)));
   }
   // Puuid -> roster main name. A puuid is per Riot *account* and survives a
   // rename, so match data from HenrikDev can be tied to the right person
@@ -1480,6 +1493,31 @@ export default function Page() {
       const engToKo = {};
       ALL_MAPS.forEach((ko) => { engToKo[(MAP_IMG[ko] || '').split('/').pop().replace('.png', '')] = ko; });
 
+      // A roster member whose newest match shows a different Riot ID than
+      // the roster has (same puuid) renamed since — switch the roster entry
+      // and their saved 전적 over to the new name now, and save these
+      // matches under it, instead of waiting for someone to re-run 티어 조회.
+      const newest = new Map(); // puuid -> { at, name }
+      (d.matches || []).forEach((mt) => {
+        const at = Date.parse(mt.startedAt) || 0;
+        [...mt.red.players, ...mt.blue.players].forEach((p) => {
+          if (!p.puuid || !puuidAlias.has(p.puuid)) return;
+          const cur = newest.get(p.puuid);
+          if (!cur || at > cur.at) newest.set(p.puuid, { at, name: p.name });
+        });
+      });
+      const renamedTo = new Map();
+      const renames = [];
+      newest.forEach(({ name }, puuid) => {
+        const entry = roster.find((r) => r.puuid === puuid);
+        const lower = name.trim().toLowerCase();
+        if (!entry || !name.includes('#') || entry.name.trim().toLowerCase() === lower) return;
+        if ((entry.alts || []).some((x) => x.trim().toLowerCase() === lower)) return;
+        renamedTo.set(puuid, name.trim());
+        renames.push([entry.name, name.trim()]);
+      });
+      if (renames.length) await relinkRosterNames(renames);
+
       const list = (d.matches || [])
         .map((mt) => {
           // Show and save EVERYONE who was actually in the match, not just
@@ -1492,7 +1530,7 @@ export default function Page() {
           // match straight from HenrikDev (see app/api/customs/route.js).
           // Puuid first: a roster member who changed their Riot ID shows
           // up in HenrikDev under a name the roster no longer knows.
-          const who = (p) => (p.puuid && puuidAlias.get(p.puuid)) || canonicalName(p.name);
+          const who = (p) => (p.puuid && (renamedTo.get(p.puuid) || puuidAlias.get(p.puuid))) || canonicalName(p.name);
           const inRoster = (p) => (p.puuid && puuidAlias.has(p.puuid)) || rosterAlias.has(p.name.trim().toLowerCase());
           const redPlayers = mt.red.players.map((p) => ({ ...p, name: who(p) }));
           const bluePlayers = mt.blue.players.map((p) => ({ ...p, name: who(p) }));
