@@ -17,17 +17,26 @@ const norm = (p) => `${String(p?.name || '').trim()}#${String(p?.tag || '').trim
 // ACS needs the match's total rounds (both teams' rounds-won summed, since
 // every round has exactly one winner) which isn't known until both sides'
 // round counts are read, so it's computed by the caller and passed in.
-const statFor = (p, totalRounds) => {
+const statFor = (p, totalRounds, mvpOf) => {
   const st = p?.stats || {};
   const hsTotal = (st.headshots || 0) + (st.bodyshots || 0) + (st.legshots || 0);
   return {
     name: norm(p),
+    // Riot's stable account id — survives a Riot ID rename, so the client
+    // can still tie this player back to the right roster entry / record.
+    puuid: p?.puuid || null,
     agent: p?.agent?.name || null,
     agentIcon: p?.agent?.id ? `https://media.valorant-api.com/agents/${p.agent.id}/displayicon.png` : null,
     kills: st.kills || 0,
     deaths: st.deaths || 0,
     assists: st.assists || 0,
     acs: totalRounds ? Math.round((st.score || 0) / totalRounds) : 0,
+    // Raw match combat score — what the in-game scoreboard ranks by when it
+    // hands out Match MVP / Team MVP. ACS above is rounded, so two players
+    // can tie on it while the game still picked one of them.
+    combat: st.score || 0,
+    // The game's own award: 'match' = 경기 MVP, 'team' = 팀 MVP (losing side).
+    mvp: mvpOf(p),
     hsPct: hsTotal ? Math.round(((st.headshots || 0) / hsTotal) * 100) : 0
   };
 };
@@ -71,12 +80,19 @@ export async function GET(request) {
         const redRounds = byId.Red.rounds?.won ?? 0;
         const blueRounds = byId.Blue.rounds?.won ?? 0;
         const totalRounds = redRounds + blueRounds;
+        // HenrikDev passes through the real in-game awards (since Riot moved
+        // MVP to its undisclosed Performance Score, combat score alone no
+        // longer reproduces them): metadata.mvp is the Match MVP and each
+        // team's own mvp is its Team MVP.
+        const matchMvp = m.metadata?.mvp?.puuid || null;
+        const teamMvps = new Set((m.teams || []).map((t) => t?.mvp?.puuid).filter(Boolean));
+        const mvpOf = (p) => (!p?.puuid ? null : p.puuid === matchMvp ? 'match' : teamMvps.has(p.puuid) ? 'team' : null);
         out.push({
           id: m.metadata.match_id,
           startedAt: m.metadata.started_at,
           map: m.metadata.map?.name || '',
-          red: { rounds: redRounds, players: players.filter((p) => p.team_id === 'Red').map((p) => statFor(p, totalRounds)) },
-          blue: { rounds: blueRounds, players: players.filter((p) => p.team_id === 'Blue').map((p) => statFor(p, totalRounds)) }
+          red: { rounds: redRounds, players: players.filter((p) => p.team_id === 'Red').map((p) => statFor(p, totalRounds, mvpOf)) },
+          blue: { rounds: blueRounds, players: players.filter((p) => p.team_id === 'Blue').map((p) => statFor(p, totalRounds, mvpOf)) }
         });
       }
       if (pastSince || matches.length < PAGE_SIZE) break;

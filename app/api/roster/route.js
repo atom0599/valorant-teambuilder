@@ -43,8 +43,11 @@ export async function POST(request) {
     // name, or by puuid when the name itself changed (a detected Riot ID
     // rename, see relinkRosterName in app/page.js, still needs to go
     // through even for non-admin callers; only the *alts list* is protected).
-    const prev = prevByName.get(name) || (puuid && prevByPuuid.get(puuid));
-    const finalAlts = (prev && !admin && !sameSet(alts, prev.alts)) ? (prev.alts || []) : alts;
+    // When a rename folds a duplicate entry (already re-added under the new
+    // name) into the original, both previous entries' alts carry over.
+    const prevs = [prevByName.get(name), puuid && prevByPuuid.get(puuid)].filter(Boolean);
+    const prevAlts = [...new Set(prevs.flatMap((x) => x.alts || []))].filter((a) => a.toLowerCase() !== name.toLowerCase());
+    const finalAlts = (prevs.length && !admin && !sameSet(alts, prevAlts)) ? prevAlts : alts;
     map.set(name, { name, pos: r.pos || '미정', realName: String(r?.realName || '').trim(), alts: finalAlts, puuid });
   });
   const roster = [...map.values()];

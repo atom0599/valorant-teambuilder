@@ -1,7 +1,8 @@
 import { getJSON, setJSON, casJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 import { mergeScores } from '../../../lib/scores';
-import { ALL_MAPS, ROTATION, normalizePool } from '../../../lib/constants';
+import { ALL_MAPS, normalizePool } from '../../../lib/constants';
+import { loadRotation } from '../../../lib/mappool';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,8 +106,10 @@ export async function POST(request) {
   // two presets ("전체 맵" / "맵풀") is allowed for everyone, since that's
   // choosing *which set to play from*, not editing what's in either set.
   const samePool = (x, y) => JSON.stringify([...(x || [])].sort()) === JSON.stringify([...(y || [])].sort());
-  const isPreset = (arr) => samePool(arr, ALL_MAPS) || samePool(arr, ROTATION);
-  const pool = (prev?.pool && body.room.pool && !samePool(prev.pool, body.room.pool) && !isAdmin(request) && !isPreset(body.room.pool))
+  // "맵풀" is the admin's saved rotation (lib/mappool.js), only read when a
+  // non-admin push actually tries to change the pool.
+  const isPreset = async (arr) => samePool(arr, ALL_MAPS) || samePool(arr, await loadRotation().catch(() => []));
+  const pool = (prev?.pool && body.room.pool && !samePool(prev.pool, body.room.pool) && !isAdmin(request) && !(await isPreset(body.room.pool)))
     ? prev.pool
     : body.room.pool;
 

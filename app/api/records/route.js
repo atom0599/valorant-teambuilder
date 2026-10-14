@@ -10,6 +10,31 @@ const KEYS_KEY = 'records:savedKeys';
 // un-excluding brings them straight back with everything intact.
 const EXCLUDED_KEY = 'records:excluded';
 
+// Folds record `src` into `dst` (same person under two keys). Matches are
+// deduped by matchKey (falling back to date) in case the same match ended
+// up saved under both; a duplicate's win/loss is taken back out of the
+// summed counters so it can't count twice.
+function mergeRecords(dst, src) {
+  const seen = new Set((dst?.matches || []).map((m) => m.matchKey || String(m.date)));
+  let wins = (dst?.wins || 0) + (src?.wins || 0);
+  let losses = (dst?.losses || 0) + (src?.losses || 0);
+  const matches = [...(dst?.matches || [])];
+  (src?.matches || []).forEach((m) => {
+    const k = m.matchKey || String(m.date);
+    if (seen.has(k)) { if (m.result === '승') wins--; else losses--; return; }
+    seen.add(k);
+    matches.push(m);
+  });
+  matches.sort((x, y) => y.date - x.date);
+  const puuids = [...new Set([...(dst?.puuids || []), ...(src?.puuids || [])])];
+  return { wins: Math.max(0, wins), losses: Math.max(0, losses), matches: matches.slice(0, 20), ...(puuids.length ? { puuids } : {}) };
+}
+
+async function renameExcluded(from, to) {
+  const excluded = (await getJSON(EXCLUDED_KEY)) || [];
+  if (excluded.includes(from)) await setJSON(EXCLUDED_KEY, [...new Set(excluded.map((x) => (x === from ? to : x)))]);
+}
+
 export async function GET(request) {
   const id = new URL(request.url).searchParams.get('id');
   try {
@@ -47,10 +72,24 @@ export async function POST(request) {
     const mapLabel = (body.maps || []).join(', ');
 
     let wrote = 0;
+    const renamed = [];
     ['A', 'B'].forEach((side) => {
       (body.teams[side] || []).forEach((p) => {
         if (!p?.name) return;
+        // Same Riot account already recorded under another key = they
+        // changed their Riot ID since. Move that history onto the name
+        // this match is being saved under so it stays one person.
+        const puuid = p.puuid ? String(p.puuid) : null;
+        if (puuid) {
+          Object.keys(all).forEach((k) => {
+            if (k === p.name || !(all[k].puuids || []).includes(puuid)) return;
+            all[p.name] = mergeRecords(all[p.name], all[k]);
+            delete all[k];
+            renamed.push([k, p.name]);
+          });
+        }
         const r = all[p.name] || { wins: 0, losses: 0, matches: [] };
+        if (puuid && !(r.puuids || []).includes(puuid)) r.puuids = [...(r.puuids || []), puuid];
         const win = side === body.winner;
         r[win ? 'wins' : 'losses'] += 1;
         // kills/deaths/assists/acs/hsPct are only present for matches
@@ -64,6 +103,7 @@ export async function POST(request) {
           date, map: mapLabel, score: body.score || '', result: win ? '승' : '패', tier: p.tier ?? null, tierIcon: p.tierIcon ?? null,
           agent: p.agent ?? null, agentIcon: p.agentIcon ?? null,
           kills: p.kills ?? null, deaths: p.deaths ?? null, assists: p.assists ?? null, acs: p.acs ?? null, hsPct: p.hsPct ?? null,
+          combat: p.combat ?? null, mvp: p.mvp ?? null,
           matchKey
         }, ...(r.matches || [])].slice(0, 20);
         all[p.name] = r;
@@ -78,6 +118,7 @@ export async function POST(request) {
     // again while leaving it recorded nowhere, which is worse than just
     // letting a genuinely empty submission be retried.
     if (wrote) await setJSON(KEY, all);
+    for (const [from, to] of renamed) await renameExcluded(from, to);
     if (matchKey && wrote) await setJSON(KEYS_KEY, [matchKey, ...savedKeys].slice(0, 100));
     return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
@@ -89,10 +130,9 @@ export async function POST(request) {
 // a Riot ID rename (via the by-puuid fallback) so a name change migrates
 // existing history onto the new name instead of fragmenting it into two
 // separate leaderboard entries. body: { from, to }. If `to` already has its
-// own record (rare — they were manually re-registered under the new name
-// before the auto-detection caught up), the two get merged rather than one
-// clobbering the other; matches are deduped by matchKey (falling back to
-// date) in case the same match somehow ended up saved under both.
+// own record (they were re-registered under the new name before the
+// rename was noticed), the two get merged via mergeRecords rather than
+// one clobbering the other.
 export async function PATCH(request) {
   const body = await request.json().catch(() => null);
   const from = body?.from ? String(body.from).trim() : null;
@@ -104,24 +144,12 @@ export async function PATCH(request) {
     const src = all[from];
     if (!src) return Response.json({ records: all, persistent: hasKV });
 
-    const dst = all[to] || { wins: 0, losses: 0, matches: [] };
-    const seenKeys = new Set((dst.matches || []).map((m) => m.matchKey || String(m.date)));
-    const mergedMatches = [...(dst.matches || [])];
-    (src.matches || []).forEach((m) => {
-      const k = m.matchKey || String(m.date);
-      if (seenKeys.has(k)) return;
-      seenKeys.add(k);
-      mergedMatches.push(m);
-    });
-    mergedMatches.sort((a, b) => b.date - a.date);
-
-    all[to] = { wins: (dst.wins || 0) + (src.wins || 0), losses: (dst.losses || 0) + (src.losses || 0), matches: mergedMatches.slice(0, 20) };
+    all[to] = mergeRecords(all[to], src);
     delete all[from];
 
     await setJSON(KEY, all);
     // An excluded player stays excluded under their new Riot ID.
-    const excluded = (await getJSON(EXCLUDED_KEY)) || [];
-    if (excluded.includes(from)) await setJSON(EXCLUDED_KEY, [...new Set(excluded.map((x) => (x === from ? to : x)))]);
+    await renameExcluded(from, to);
     return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });

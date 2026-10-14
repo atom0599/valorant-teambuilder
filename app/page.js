@@ -73,6 +73,9 @@ export default function Page() {
 
   const [series, setSeries] = useState('BO3');
   const [pool, setPool] = useState(ROTATION);
+  // The admin's saved 맵풀 (see lib/mappool.js) — what "맵풀로 설정" and
+  // 방 초기화 go back to. ROTATION is only the default until one is saved.
+  const [rotation, setRotation] = useState(ROTATION);
   const [poolPickerOpen, setPoolPickerOpen] = useState(false);
   const [captains, setCaptains] = useState({ A: null, B: null });
   const [myRole, setMyRole] = useState(null);
@@ -212,7 +215,17 @@ export default function Page() {
     if (!roomCode) return;
     try {
       const raw = localStorage.getItem(`captainTokens:${roomCode}`);
-      if (raw) setMyCaptainTokens(JSON.parse(raw));
+      if (raw) {
+        const saved = JSON.parse(raw);
+        myCaptainTokensRef.current = saved;
+        setMyCaptainTokens(saved);
+        // The seat came back but which side we're playing didn't, so after a
+        // refresh both captains sat in 관전 모드 ("상대 주장의 선택을 기다리는
+        // 중") until someone re-clicked 참가. applyRoom's pruning still drops
+        // this if the server no longer agrees the seat is ours.
+        const side = saved?.A ? 'A' : saved?.B ? 'B' : null;
+        if (side) setMyRole((r) => r || side);
+      }
     } catch {}
   }, [roomCode]);
 
@@ -238,6 +251,7 @@ export default function Page() {
     let alive = true;
     const pull = () => {
       fetch('/api/roster').then((r) => r.json()).then((d) => { if (alive && Array.isArray(d.roster)) setRoster(d.roster); }).catch(() => {});
+      fetch('/api/mappool').then((r) => r.json()).then((d) => { if (alive && Array.isArray(d.rotation) && d.rotation.length) setRotation(d.rotation); }).catch(() => {});
       fetch('/api/records').then((r) => r.json()).then((d) => {
         if (!alive) return;
         if (d.records) setRecords(d.records);
@@ -650,10 +664,20 @@ export default function Page() {
   // scores) — participants stay registered, since re-entering them is the
   // annoying part and "참가자 입력란 비우기" in 인원 관리 already covers wiping
   // the roster if that's ever actually wanted.
+  // Admin picking individual maps edits the 맵풀 itself, so it's saved
+  // server-side — otherwise the next "맵풀로 설정" / 방 초기화 would put the
+  // old default rotation right back.
+  function saveRotation(next) {
+    if (!isAdmin || !next.length) return;
+    setRotation(next);
+    fetch('/api/mappool', { method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify({ rotation: next }) })
+      .then((r) => r.json()).then((d) => { if (Array.isArray(d.rotation)) setRotation(d.rotation); }).catch(() => {});
+  }
+
   function resetRoom() {
     const fresh = {
       code: roomCode, createdAt: Date.now(), players, usePosition,
-      teams: null, series: 'BO3', pool: isAdmin ? ROTATION : pool,
+      teams: null, series: 'BO3', pool: isAdmin ? rotation : pool,
       captains: { A: null, B: null }, bp: null, scores: {}
     };
     version.current = 0;
@@ -842,13 +866,26 @@ export default function Page() {
       const entry = roster.find((r) => r.name === fullName || (r.alts || []).includes(fullName));
       if (entry?.puuid) {
         const byPuuid = await fetch(`/api/rank?puuid=${encodeURIComponent(entry.puuid)}`).then((r) => r.json()).catch(() => null);
-        if (byPuuid?.account && byPuuid.account.trim().toLowerCase() !== fullName.trim().toLowerCase()) {
+        const isOwnAlt = (entry.alts || []).some((a) => a.trim().toLowerCase() === String(byPuuid?.account || '').trim().toLowerCase());
+        if (byPuuid?.account && !isOwnAlt && byPuuid.account.trim().toLowerCase() !== fullName.trim().toLowerCase()) {
           rankData = byPuuid;
           renamedFrom = entry.name;
           fullName = byPuuid.account;
           const [n2, t2] = fullName.split('#');
           roleData = await fetch(`/api/role?name=${encodeURIComponent(n2 || '')}&tag=${encodeURIComponent(t2 || '')}`).then((r) => r.json()).catch(() => null);
         }
+      }
+    }
+    // The other direction: someone was looked up (or newly registered)
+    // under their *new* Riot ID. It resolves fine, but the puuid it comes
+    // back with already belongs to an existing roster entry under the old
+    // name — same account, so relink instead of treating them as a new
+    // person with an empty 전적.
+    if (!renamedFrom && rankData?.puuid) {
+      const lower = fullName.trim().toLowerCase();
+      const owner = roster.find((r) => r.puuid === rankData.puuid);
+      if (owner && owner.name.trim().toLowerCase() !== lower && !(owner.alts || []).some((a) => a.trim().toLowerCase() === lower)) {
+        renamedFrom = owner.name;
       }
     }
     if (renamedFrom) {
@@ -868,7 +905,7 @@ export default function Page() {
         : rankData?.error ? 'api_error' : 'network';
     }
     setApiSource(source);
-    if (rankData?.puuid) rememberPuuid(canonicalName(fullName), rankData.puuid);
+    if (rankData?.puuid && !renamedFrom) rememberPuuid(fullName, rankData.puuid);
     rememberCurrentTier(canonicalName(fullName), rankData);
 
     const currentTier = rankData?.currentTier || null;
@@ -1113,7 +1150,11 @@ export default function Page() {
   async function persistRoster(list) {
     setRoster(list);
     try {
-      await fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roster: list }) });
+      // Admin token rides along: the server only accepts 부계정 add/remove
+      // from an admin, and without it every addAlt was silently reverted.
+      const res = await fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify({ roster: list }) });
+      const d = await res.json().catch(() => null);
+      if (Array.isArray(d?.roster)) setRoster(d.roster);
     } catch {}
   }
   function addMember() {
@@ -1155,26 +1196,60 @@ export default function Page() {
   function canonicalName(name) {
     return rosterAlias.get(String(name).trim().toLowerCase()) || name;
   }
-  // Called when runLookup's by-puuid fallback detects someone's Riot ID
-  // changed. Renames the roster entry outright (no 부계정 kept for the old
-  // name — that's reserved for someone who genuinely plays multiple
-  // accounts, not a one-time rename) and migrates their saved 전적 onto the
-  // new name server-side so history keeps counting toward the same person.
+  // Called when runLookup detects someone's Riot ID changed (by puuid), or
+  // from the 닉변 button. Renames the roster entry outright (no 부계정 kept
+  // for the old name — that's reserved for someone who genuinely plays
+  // multiple accounts, not a one-time rename) and migrates their saved 전적
+  // onto the new name server-side so history keeps counting toward the same
+  // person. If they were already re-added under the new name as a separate
+  // entry, that duplicate is folded into the original instead of left beside it.
   function relinkRosterName(oldName, newName) {
-    if (!roster.some((r) => r.name === oldName)) return;
-    persistRoster(roster.map((r) => (r.name === oldName ? { ...r, name: newName } : r)));
-    fetch('/api/records', {
+    const old = roster.find((r) => r.name === oldName);
+    if (!old || !newName?.trim()) return;
+    const lowerNew = newName.trim().toLowerCase();
+    const dup = roster.find((r) => r !== old && r.name.trim().toLowerCase() === lowerNew);
+    const merged = {
+      ...old,
+      name: newName.trim(),
+      realName: old.realName || dup?.realName || '',
+      pos: old.pos && old.pos !== '미정' ? old.pos : (dup?.pos || '미정'),
+      alts: [...new Set([...(old.alts || []), ...(dup?.alts || [])])].filter((a) => a.trim().toLowerCase() !== lowerNew),
+      puuid: old.puuid || dup?.puuid || null
+    };
+    persistRoster(roster.filter((r) => r !== dup).map((r) => (r === old ? merged : r)));
+    const moves = [[oldName, merged.name]];
+    if (dup && dup.name !== merged.name) moves.push([dup.name, merged.name]);
+    moves.reduce((chain, [from, to]) => chain.then(() => fetch('/api/records', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: oldName, to: newName })
-    }).then((r) => r.json()).then((d) => { if (d.records) setRecords(d.records); }).catch(() => {});
+      body: JSON.stringify({ from, to })
+    }).then((r) => r.json()).then((d) => { if (d.records) setRecords(d.records); }).catch(() => {})), Promise.resolve());
   }
-  // Caches the Riot puuid behind whichever name currently resolves to it —
-  // the one thing that keeps working after a rename — so a future lookup
-  // that 404s under the (by-then-stale) name can recover via relinkRosterName.
+  function renameMember(oldName) {
+    const next = window.prompt(`${oldName}의 바뀐 Riot ID (예: 새닉네임#KR1)
+기존 전적은 새 이름으로 그대로 옮겨집니다.`, oldName);
+    if (!next || !next.includes('#') || next.trim() === oldName) return;
+    relinkRosterName(oldName, next.trim());
+    setPlayers((arr) => arr.map((x) => (x.name.trim() === oldName ? { ...x, name: next.trim() } : x)));
+  }
+  // Puuid -> roster main name. A puuid is per Riot *account* and survives a
+  // rename, so match data from HenrikDev can be tied to the right person
+  // even when the Riot ID in it no longer matches the roster.
+  const puuidAlias = useMemo(() => {
+    const m = new Map();
+    roster.forEach((r) => { if (r.puuid) m.set(r.puuid, r.name); });
+    return m;
+  }, [roster]);
+  // Caches the Riot puuid behind the roster entry whose *main* name it was
+  // looked up under — the one thing that keeps working after a rename — so
+  // a future lookup can recover via relinkRosterName. A lookup made under a
+  // 부계정 must not store that alt's puuid on the main entry (it used to,
+  // which later made the main look "renamed" to its own alt).
   function rememberPuuid(name, puuid) {
-    const entry = roster.find((r) => r.name === name);
+    const lower = String(name).trim().toLowerCase();
+    const entry = roster.find((r) => r.name.trim().toLowerCase() === lower);
     if (!entry || entry.puuid === puuid) return;
-    persistRoster(roster.map((r) => (r.name === name ? { ...r, puuid } : r)));
+    if (roster.some((r) => r !== entry && r.puuid === puuid)) return;
+    persistRoster(roster.map((r) => (r === entry ? { ...r, puuid } : r)));
   }
   function pickMember(name, pos, realName) {
     // Block registering the same person twice under two different accounts
@@ -1391,10 +1466,14 @@ export default function Page() {
           // via rosterAlias); everyone else keeps HenrikDev's Riot ID as-is.
           // Each player also carries their real K/D/A·ACS·HS% for this
           // match straight from HenrikDev (see app/api/customs/route.js).
-          const redPlayers = mt.red.players.map((p) => ({ ...p, name: canonicalName(p.name) }));
-          const bluePlayers = mt.blue.players.map((p) => ({ ...p, name: canonicalName(p.name) }));
-          const redRosterHits = mt.red.players.filter((p) => rosterAlias.has(p.name.trim().toLowerCase())).length;
-          const blueRosterHits = mt.blue.players.filter((p) => rosterAlias.has(p.name.trim().toLowerCase())).length;
+          // Puuid first: a roster member who changed their Riot ID shows
+          // up in HenrikDev under a name the roster no longer knows.
+          const who = (p) => (p.puuid && puuidAlias.get(p.puuid)) || canonicalName(p.name);
+          const inRoster = (p) => (p.puuid && puuidAlias.has(p.puuid)) || rosterAlias.has(p.name.trim().toLowerCase());
+          const redPlayers = mt.red.players.map((p) => ({ ...p, name: who(p) }));
+          const bluePlayers = mt.blue.players.map((p) => ({ ...p, name: who(p) }));
+          const redRosterHits = mt.red.players.filter(inRoster).length;
+          const blueRosterHits = mt.blue.players.filter(inRoster).length;
           const koMap = engToKo[String(mt.map).toLowerCase()];
           return { id: mt.id, startedAt: mt.startedAt, koMap, redRounds: mt.red.rounds, blueRounds: mt.blue.rounds, redPlayers, bluePlayers, redRosterHits, blueRosterHits };
         })
@@ -1461,8 +1540,8 @@ export default function Page() {
             date: Date.parse(m.startedAt) || undefined,
             matchKey: `customs:${m.id}`,
             teams: {
-              A: m.redPlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct })),
-              B: m.bluePlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct }))
+              A: m.redPlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, puuid: p.puuid })),
+              B: m.bluePlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, puuid: p.puuid }))
             }
           })
         });
@@ -1666,7 +1745,7 @@ export default function Page() {
       (r.matches || []).forEach((m) => {
         let entry = byDate.get(m.date);
         if (!entry) { entry = { date: m.date, map: m.map, score: m.score, winners: [], losers: [] }; byDate.set(m.date, entry); }
-        (m.result === '승' ? entry.winners : entry.losers).push({ id, tier: m.tier, tierIcon: m.tierIcon, agent: m.agent, agentIcon: m.agentIcon, kills: m.kills, deaths: m.deaths, assists: m.assists, acs: m.acs, hsPct: m.hsPct });
+        (m.result === '승' ? entry.winners : entry.losers).push({ id, tier: m.tier, tierIcon: m.tierIcon, agent: m.agent, agentIcon: m.agentIcon, kills: m.kills, deaths: m.deaths, assists: m.assists, acs: m.acs, hsPct: m.hsPct, combat: m.combat ?? null, mvp: m.mvp ?? null });
       });
     });
     const byName = (a, b) => a.id.localeCompare(b.id);
@@ -1943,6 +2022,9 @@ export default function Page() {
                                   ))}
                                   {isAdmin && (
                                     <button onClick={() => { const a = window.prompt(`${r.name}의 부계정 Riot ID (예: 닉네임#KR1)`); if (a) addAlt(r.name, a); }} title="같은 사람이 쓰는 다른 계정을 등록해두면, 그 계정으로 참가해도 전적이 합산됩니다." style={{ fontSize: 10, color: '#8B949E', background: 'transparent', border: '1px dashed #333B45', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}>+ 부계정</button>
+                                  )}
+                                  {isAdmin && (
+                                    <button onClick={() => renameMember(r.name)} title="Riot ID를 바꾼 경우 새 이름으로 바꾸면, 기존 전적이 새 이름으로 옮겨져 같은 사람으로 이어집니다." style={{ fontSize: 10, color: '#8B949E', background: 'transparent', border: '1px dashed #333B45', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}>닉변</button>
                                   )}
                                 </div>
                               </div>
@@ -2226,7 +2308,7 @@ export default function Page() {
                     {poolPickerOpen && !bp && (
                       <div style={{ border: '1px solid #262C34', borderRadius: 12, padding: 12, marginTop: 10, background: '#14181D' }}>
                         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                          <button onClick={() => { setPoolLocal(ROTATION); setBp(null); }} style={boxBtn(false)}>맵풀로 설정</button>
+                          <button onClick={() => { setPoolLocal(rotation); setBp(null); }} style={boxBtn(false)}>맵풀로 설정</button>
                           <button onClick={() => { setPoolLocal(ALL_MAPS); setBp(null); }} style={boxBtn(false)}>전체 맵으로 설정</button>
                         </div>
                         {isAdmin ? (
@@ -2234,9 +2316,10 @@ export default function Page() {
                             {ALL_MAPS.map((m) => {
                               const active = pool.includes(m);
                               return (
-                                <button key={m} onClick={() => { setPoolLocal((p) => active ? p.filter((x) => x !== m) : [...p, m]); setBp(null); }} style={boxBtn(active)}>{m}</button>
+                                <button key={m} onClick={() => { const next = active ? pool.filter((x) => x !== m) : [...pool, m]; setPoolLocal(next); saveRotation(next); setBp(null); }} style={boxBtn(active)}>{m}</button>
                               );
                             })}
+                            <div style={{ width: '100%', fontSize: 11, color: '#6B737C' }}>여기서 고른 구성이 맵풀로 저장되어, 이후 "맵풀로 설정"이나 방 초기화 때도 그대로 유지됩니다.</div>
                           </div>
                         ) : (
                           <div style={{ fontSize: 11, color: '#6B737C' }}>맵풀에 어떤 맵을 넣을지는 관리자만 세부적으로 바꿀 수 있어요. 위 두 버튼으로 이번 매치에 전체 맵을 쓸지 맵풀을 쓸지는 누구나 고를 수 있습니다.</div>
@@ -2573,9 +2656,20 @@ export default function Page() {
                     {matchLog.slice(curMatchPage * MATCH_PAGE, curMatchPage * MATCH_PAGE + MATCH_PAGE).map((mt) => {
                       const expanded = expandedMatch === mt.date;
                       const bg = MAP_IMG[mt.map] || MAP_IMG[String(mt.map).split(',')[0]?.trim()] || null;
-                      // MVP: highest ACS across both teams (K/D breaks ties);
-                      // matches entered by hand without stats have no MVP.
-                      const mvp = [...mt.winners, ...mt.losers].filter((p) => p.acs != null).sort((a, b) => b.acs - a.acs || (b.kills / Math.max(b.deaths, 1)) - (a.kills / Math.max(a.deaths, 1)))[0] || null;
+                      // The real in-game awards, saved from HenrikDev at import
+                      // (see app/api/customs/route.js): 경기 MVP + the other
+                      // side's 팀 MVP. Matches imported before that was saved
+                      // fall back to top combat score (ACS for even older ones),
+                      // which is what the game used before Performance Score.
+                      // Matches entered by hand without stats have no MVP.
+                      const all = [...mt.winners, ...mt.losers];
+                      const cs = (p) => p.combat ?? p.acs;
+                      const best = (list) => list.filter((p) => cs(p) != null).sort((a, b) => cs(b) - cs(a) || b.kills - a.kills)[0] || null;
+                      const realAwards = all.some((p) => p.mvp);
+                      const mvp = realAwards ? all.find((p) => p.mvp === 'match') || null : best(all);
+                      const teamMvp = realAwards
+                        ? all.find((p) => p.mvp === 'team' && !(mvp && mt.winners.includes(mvp) === mt.winners.includes(p))) || null
+                        : best(mvp && mt.winners.includes(mvp) ? mt.losers : mt.winners);
                       const row = (p, idx) => (
                         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, animation: expanded ? 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both' : 'none', animationDelay: `${120 + idx * 45}ms` }}>
                           {p.agentIcon
@@ -2584,7 +2678,8 @@ export default function Page() {
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{p.id}</div>
-                              {mvp?.id === p.id && <span title="이 경기 최고 ACS" style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 9, fontWeight: 800, letterSpacing: '.06em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 5, padding: '2px 5px' }}>MVP</span>}
+                              {mvp?.id === p.id && <span title="경기 MVP (인게임 기준)" style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 9, fontWeight: 800, letterSpacing: '.06em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 5, padding: '2px 5px' }}>MVP</span>}
+                              {teamMvp?.id === p.id && <span title="팀 MVP (인게임 기준)" style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 9, fontWeight: 800, letterSpacing: '.06em', color: '#1E2630', background: 'linear-gradient(145deg,#E4EAF0,#A9B4BF)', borderRadius: 5, padding: '2px 5px' }}>팀 MVP</span>}
                             </div>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E' }}>
                               {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13, flex: 'none', marginTop: 1 }} />}
@@ -2605,7 +2700,7 @@ export default function Page() {
                           >
                             <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: '#F5F7F9', letterSpacing: '-.02em' }}>{mt.score}</div>
                             <div style={{ fontSize: 11, color: '#C6CDD4', fontFamily: "'IBM Plex Mono'" }}>{mt.map} · {fmtDate(mt.date)}</div>
-                            {mvp && <div style={{ fontSize: 11, color: '#FFD166', fontWeight: 600 }}>👑 MVP {mvp.id} · ACS {mvp.acs} · K/D {mvp.deaths ? (mvp.kills / mvp.deaths).toFixed(2) : mvp.kills}</div>}
+                            {mvp && <div style={{ fontSize: 11, color: '#FFD166', fontWeight: 600 }}>👑 MVP {mvp.id} · ACS {mvp.acs} · {mvp.kills}/{mvp.deaths}/{mvp.assists}</div>}
                             <span style={{ position: 'absolute', right: 16, top: '50%', fontSize: 12, color: '#C6CDD4', transform: `translateY(-50%) rotate(${expanded ? 180 : 0}deg)`, transition: 'transform .35s cubic-bezier(.2,.7,.3,1)' }}>▼</span>
                           </div>
                           {/* Always mounted so it can animate both ways: grid rows 0fr ↔ 1fr
