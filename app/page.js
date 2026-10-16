@@ -7,7 +7,7 @@ import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
-  hashStr, fmtDate, tierPill, seqFor
+  hashStr, fmtDate, tierPill, seqFor, agentKo
 } from '../lib/constants';
 
 const NAV = [
@@ -114,7 +114,7 @@ export default function Page() {
   const [matchPage, setMatchPage] = useState(0);
   const [statMatchPage, setStatMatchPage] = useState(0);
   const [mateView, setMateView] = useState('mate');
-  const [playView, setPlayView] = useState('agent');
+  const [detailTab, setDetailTab] = useState('recent');
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -2161,8 +2161,8 @@ export default function Page() {
                               </div>
                               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 {(st?.topAgents || []).map((a) => (
-                                  <div key={a.agent} title={`${a.agent} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
-                                    {a.icon ? <img src={a.icon} alt={a.agent} style={{ width: 26, height: 26, borderRadius: 6 }} /> : <div style={{ width: 26, height: 26, borderRadius: 6, background: '#252C34' }} />}
+                                  <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
+                                    {a.icon ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 26, height: 26, borderRadius: 6 }} /> : <div style={{ width: 26, height: 26, borderRadius: 6, background: '#252C34' }} />}
                                     <span style={{ fontSize: 9, color: '#8B949E' }}>{a.pct}%</span>
                                   </div>
                                 ))}
@@ -2277,9 +2277,9 @@ export default function Page() {
                           </div>
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
                             {(p.agents || []).map((a) => (
-                              <div key={a.agent} title={`${a.agent} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', width: 26 }}>
+                              <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', width: 26 }}>
                                 {a.icon
-                                  ? <img src={a.icon} alt={a.agent} style={{ width: 24, height: 24, borderRadius: 6 }} />
+                                  ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 24, height: 24, borderRadius: 6 }} />
                                   : <div style={{ width: 24, height: 24, borderRadius: 6, background: '#252C34' }} />}
                                 <span style={{ fontSize: 10, color: '#8B949E' }}>{a.pct}%</span>
                               </div>
@@ -2799,7 +2799,7 @@ export default function Page() {
                       const row = (p, idx) => (
                         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, animation: expanded ? 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both' : 'none', animationDelay: `${120 + idx * 45}ms` }}>
                           {p.agentIcon
-                            ? <img src={p.agentIcon} alt={p.agent || ''} title={p.agent || ''} style={{ width: 30, height: 30, borderRadius: 7, flex: 'none' }} />
+                            ? <img src={p.agentIcon} alt={agentKo(p.agent) || ''} title={agentKo(p.agent) || ''} style={{ width: 30, height: 30, borderRadius: 7, flex: 'none' }} />
                             : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34', flex: 'none' }} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -2809,7 +2809,7 @@ export default function Page() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E' }}>
                               {p.tierIcon && <img src={p.tierIcon} alt="" style={{ width: 13, height: 13, flex: 'none', marginTop: 1 }} />}
-                              <span style={{ wordBreak: 'break-word' }}>{tierPill(p.tier).label}{p.agent ? ` · ${p.agent}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
+                              <span style={{ wordBreak: 'break-word' }}>{tierPill(p.tier).label}{p.agent ? ` · ${agentKo(p.agent)}` : ''}{p.kills != null ? ` · ${p.kills}/${p.deaths}/${p.assists} · ACS ${p.acs} · HS ${p.hsPct}%` : ''}</span>
                             </div>
                           </div>
                         </div>
@@ -2947,31 +2947,29 @@ export default function Page() {
                             </div>
                           </div>
                         </div>
-                        {!!statPlay && statPlay.total > 0 && (() => {
-                          const isMap = playView === 'map';
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {[['recent', '최근 경기'], ['agent', '요원'], ['map', '맵'], ['mate', '팀원']].map(([k, label]) => (
+                            <button key={k} onClick={() => setDetailTab(k)} style={{ ...pill(detailTab === k), flex: '1 1 0', padding: '8px 10px', fontSize: 12 }}>{label}</button>
+                          ))}
+                        </div>
+                        {(detailTab === 'agent' || detailTab === 'map') && !!statPlay && (() => {
+                          const isMap = detailTab === 'map';
                           const list = isMap ? statPlay.maps : statPlay.agents;
                           const top = list[0]?.games || 1;
                           return (
                             <div style={{ ...card, borderRadius: 20, padding: 16 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                                <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em' }}>{isMap ? '맵별 전적' : '요원별 전적'} <span style={{ color: '#6B737C' }}>· {list.length}{isMap ? '개 맵' : '명'}</span></div>
-                                <div style={{ display: 'flex', gap: 6 }}>
-                                  {[['agent', '요원'], ['map', '맵']].map(([k, label]) => (
-                                    <button key={k} onClick={() => setPlayView(k)} style={{ ...pill(playView === k, '#C8F24C'), padding: '5px 12px', fontSize: 11 }}>{label}</button>
-                                  ))}
-                                </div>
-                              </div>
+                              <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>{isMap ? '맵별 전적' : '요원별 전적'} <span style={{ color: '#6B737C' }}>· {list.length}{isMap ? '개 맵' : '명'}</span></div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {list.map((e, i) => (
                                   <div key={e.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: i ? '1px solid #20262E' : 'none' }}>
                                     {isMap
                                       ? <div style={{ width: 44, height: 28, flex: 'none', borderRadius: 7, backgroundImage: `url(${MAP_IMG[e.key] || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
                                       : e.icon
-                                        ? <img src={e.icon} alt={e.key} style={{ width: 28, height: 28, flex: 'none', borderRadius: 7 }} />
+                                        ? <img src={e.icon} alt={agentKo(e.key)} style={{ width: 28, height: 28, flex: 'none', borderRadius: 7 }} />
                                         : <div style={{ width: 28, height: 28, flex: 'none', borderRadius: 7, background: '#252C34' }} />}
                                     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{e.key}</div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{isMap ? e.key : agentKo(e.key)}</div>
                                         <div style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C8D0D8', whiteSpace: 'nowrap' }}>{e.games}판 <span style={{ color: '#6B737C' }}>{e.wins}승{e.losses}패 · {e.share}%</span></div>
                                       </div>
                                       <div style={{ position: 'relative', height: 5, borderRadius: 999, background: '#22282F', overflow: 'hidden' }}>
@@ -2988,7 +2986,7 @@ export default function Page() {
                             </div>
                           );
                         })()}
-                        {!!statMates && (statMates.mates.length > 0 || statMates.foes.length > 0) && (() => {
+                        {detailTab === 'mate' && !!statMates && (() => {
                           const list = mateView === 'foe' ? statMates.foes : statMates.mates;
                           return (
                             <div style={{ ...card, borderRadius: 20, padding: 16 }}>
@@ -3019,6 +3017,7 @@ export default function Page() {
                             </div>
                           );
                         })()}
+                        {detailTab === 'recent' && (
                         <div style={{ ...card, borderRadius: 20, padding: 16 }}>
                           <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>최근 경기</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -3043,6 +3042,7 @@ export default function Page() {
                           </div>
                           <div style={{ marginTop: 12 }}><Pager page={curStatMatchPage} pageCount={statMatchPageCount} onChange={setStatMatchPage} /></div>
                         </div>
+                        )}
                       </>
                     ) : (
                       <div style={{ background: '#14181D', border: '1px dashed #2C333C', borderRadius: 20, padding: '30px 22px', fontSize: 13, color: '#8B949E', textWrap: 'pretty' }}>왼쪽 순위표에서 선수를 선택하면 상세 전적이 표시됩니다.</div>
