@@ -114,6 +114,7 @@ export default function Page() {
   const [matchPage, setMatchPage] = useState(0);
   const [statMatchPage, setStatMatchPage] = useState(0);
   const [mateView, setMateView] = useState('mate');
+  const [playView, setPlayView] = useState('agent');
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -1851,6 +1852,41 @@ export default function Page() {
     return { total, mates: list(mates), foes: list(foes) };
   }, [records, statId, statRec, excludedIds]);
 
+  // 요원별 / 맵별 전적: the selected player's own match entries already carry
+  // agent + map + result (+ K/D/A, ACS), so this is a plain group-by.
+  // Old manually-entered matches have no agent — those are just counted
+  // as "기록 없음" so the 요원 tab doesn't silently drop games.
+  const statPlay = useMemo(() => {
+    if (!statRec) return null;
+    const agents = new Map(), maps = new Map();
+    let noAgent = 0;
+    const add = (bucket, key, m, extra) => {
+      const e = bucket.get(key) || { key, games: 0, wins: 0, kills: 0, deaths: 0, acsSum: 0, acsN: 0, ...extra };
+      e.games += 1;
+      if (m.result === '승') e.wins += 1;
+      if (m.kills != null) { e.kills += m.kills; e.deaths += m.deaths || 0; }
+      if (m.acs != null) { e.acsSum += m.acs; e.acsN += 1; }
+      if (extra?.icon && !e.icon) e.icon = extra.icon;
+      bucket.set(key, e);
+    };
+    (statRec.matches || []).forEach((m) => {
+      if (m.agent) add(agents, m.agent, m, { icon: m.agentIcon || null });
+      else noAgent += 1;
+      if (m.map) add(maps, m.map, m);
+    });
+    const total = (statRec.matches || []).length;
+    const list = (b) => [...b.values()]
+      .map((e) => ({
+        ...e, losses: e.games - e.wins,
+        share: total ? Math.round((e.games / total) * 100) : 0,
+        rate: Math.round((e.wins / e.games) * 100),
+        kd: e.deaths ? (e.kills / e.deaths).toFixed(2) : (e.kills ? e.kills.toFixed(2) : null),
+        acs: e.acsN ? Math.round(e.acsSum / e.acsN) : null
+      }))
+      .sort((a, b) => b.games - a.games || b.rate - a.rate || a.key.localeCompare(b.key));
+    return { total, noAgent, agents: list(agents), maps: list(maps) };
+  }, [statRec]);
+
   // Selected player's 최근 경기, newest first, 5 per page.
   const statMatchList = useMemo(() => (statRec?.matches || []).slice().sort((a, b) => b.date - a.date), [statRec]);
   const statMatchPageCount = Math.ceil(statMatchList.length / MATCH_PAGE);
@@ -2911,6 +2947,47 @@ export default function Page() {
                             </div>
                           </div>
                         </div>
+                        {!!statPlay && statPlay.total > 0 && (() => {
+                          const isMap = playView === 'map';
+                          const list = isMap ? statPlay.maps : statPlay.agents;
+                          const top = list[0]?.games || 1;
+                          return (
+                            <div style={{ ...card, borderRadius: 20, padding: 16 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em' }}>{isMap ? '맵별 전적' : '요원별 전적'} <span style={{ color: '#6B737C' }}>· {list.length}{isMap ? '개 맵' : '명'}</span></div>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  {[['agent', '요원'], ['map', '맵']].map(([k, label]) => (
+                                    <button key={k} onClick={() => setPlayView(k)} style={{ ...pill(playView === k, '#C8F24C'), padding: '5px 12px', fontSize: 11 }}>{label}</button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {list.map((e, i) => (
+                                  <div key={e.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: i ? '1px solid #20262E' : 'none' }}>
+                                    {isMap
+                                      ? <div style={{ width: 44, height: 28, flex: 'none', borderRadius: 7, backgroundImage: `url(${MAP_IMG[e.key] || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                                      : e.icon
+                                        ? <img src={e.icon} alt={e.key} style={{ width: 28, height: 28, flex: 'none', borderRadius: 7 }} />
+                                        : <div style={{ width: 28, height: 28, flex: 'none', borderRadius: 7, background: '#252C34' }} />}
+                                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{e.key}</div>
+                                        <div style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C8D0D8', whiteSpace: 'nowrap' }}>{e.games}판 <span style={{ color: '#6B737C' }}>{e.wins}승{e.losses}패 · {e.share}%</span></div>
+                                      </div>
+                                      <div style={{ position: 'relative', height: 5, borderRadius: 999, background: '#22282F', overflow: 'hidden' }}>
+                                        <div style={{ position: 'absolute', inset: 0, width: `${Math.round((e.games / top) * 100)}%`, borderRadius: 999, transformOrigin: 'left', background: '#4C9AFF', opacity: .75, animation: 'growBar .6s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${i * 40}ms` }} />
+                                      </div>
+                                      {(e.kd != null || e.acs != null) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#6B737C' }}>{e.kd != null ? `K/D ${e.kd}` : ''}{e.kd != null && e.acs != null ? ' · ' : ''}{e.acs != null ? `ACS ${e.acs}` : ''}</div>}
+                                    </div>
+                                    <div style={{ flex: 'none', width: 42, textAlign: 'right', fontFamily: "'IBM Plex Mono'", fontSize: 13, fontWeight: 700, color: e.rate >= 50 ? '#C8F24C' : '#E1424F' }}>{e.rate}%</div>
+                                  </div>
+                                ))}
+                              </div>
+                              {!list.length && <div style={{ fontSize: 12, color: '#6B737C', padding: '6px 0' }}>기록이 없습니다.</div>}
+                              <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>{statId}의 전체 내전 {statPlay.total}경기 기준 · %는 그중 플레이 비율, 오른쪽은 승률{!isMap && statPlay.noAgent > 0 ? ` · 요원 기록 없는 ${statPlay.noAgent}경기 제외` : ''}</div>
+                            </div>
+                          );
+                        })()}
                         {!!statMates && (statMates.mates.length > 0 || statMates.foes.length > 0) && (() => {
                           const list = mateView === 'foe' ? statMates.foes : statMates.mates;
                           return (
