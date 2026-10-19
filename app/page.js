@@ -3049,7 +3049,7 @@ export default function Page() {
                       {!!fameBoard.shame.length && section('불명예의 전당', fameBoard.shame, '#E1424F')}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 18 }}>칭호 도감</div>
-                        <div style={{ fontSize: 12, color: '#8B949E', marginTop: -4 }}>내전 기록으로 자동으로 붙는 칭호입니다. 기록이 바뀌면 칭호도 같이 바뀌고, 순위표에는 가장 위에 있는 칭호 하나가 이름 옆에 보입니다.</div>
+                        <div style={{ fontSize: 12, color: '#8B949E', marginTop: -4 }}>내전 기록으로 자동으로 붙는 칭호입니다. 기록이 바뀌면 칭호도 같이 바뀌고, 선수별 순위표에서 선수를 누르면 그 선수의 칭호가 보입니다.</div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
                           {TITLE_DEFS.map((d) => {
                             const holders = Object.entries(titlesById).filter(([id, list]) => !excludedIds.includes(id) && list.some((t) => t.id === d.id)).map(([id, list]) => ({ id, name: list.find((t) => t.id === d.id).name }));
@@ -3103,7 +3103,6 @@ export default function Page() {
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
-                                  {!!titlesById[x.id] && <div title={`${titlesById[x.id][0].name} — ${titlesById[x.id][0].desc}`} style={{ flex: 'none', fontSize: 10, color: '#C6CDD4', background: '#252C34', borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap' }}>{titlesById[x.id][0].icon} {titlesById[x.id][0].name}</div>}
                                 </div>
                                 <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> · <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
