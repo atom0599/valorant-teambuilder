@@ -90,6 +90,7 @@ export default function Page() {
   // 'skill': 실력(티어 + K:D) 차이만 최소화. 'customs': 티어에 내전 스탯
   // (ACS·K/D·승률)을 반영한 점수로 최소화. 'fresh': 실력 차이가 최선과
   // 거의 같은 배분들 중에서 같은 팀을 자주 해본 사람끼리 덜 묶이는 쪽을 고른다.
+  // 'customsFresh': 'customs' 점수로 'fresh'와 같은 방식.
   const [balanceMode, setBalanceMode] = useState('skill');
   const [teams, setTeams] = useState(null);
   const [sel, setSel] = useState(null);
@@ -439,7 +440,7 @@ export default function Page() {
     // server's empty slot over it — the "등록하자마자 해제" bug.
     if (d.players) { setPlayers(d.players); lastSyncedPlayersRef.current = (raw || d).players; }
     if (typeof d.usePosition === 'boolean') setUsePosition(d.usePosition);
-    if (['skill', 'customs', 'fresh'].includes(d.balanceMode)) setBalanceMode(d.balanceMode);
+    if (['skill', 'customs', 'fresh', 'customsFresh'].includes(d.balanceMode)) setBalanceMode(d.balanceMode);
     if (!teamsDirtyRef.current) setTeams(d.teams ?? null);
     if (d.series) setSeries(d.series);
     if (d.pool && !poolDirtyRef.current) setPool(d.pool);
@@ -1122,7 +1123,7 @@ export default function Page() {
         // as "언랭", never a fabricated tier or a peak-tier stand-in.
         tier: seasonTierIdx(p),
         tierIcon: seasonTierIdx(p) != null ? p.currentTierIcon || null : null,
-        skill: balanceMode === 'customs' ? customsSkill(p) : skillScore(p, i),
+        skill: balanceMode === 'customs' || balanceMode === 'customsFresh' ? customsSkill(p) : skillScore(p, i),
         groupId: p.groupId || null
       }))
       .filter((p) => p.name);
@@ -1198,7 +1199,7 @@ export default function Page() {
     // 자주 같이 한 사람끼리 갈라 놓으려고 실력 차이가 크게 벌어지지는 않는다.
     // 허용 범위 밖의 배분은 기존처럼 실력 순으로 뒤에 붙어 "다시 배분"이
     // 끝까지 돌 수 있다.
-    if (balanceMode === 'fresh' && candidates.length) {
+    if ((balanceMode === 'fresh' || balanceMode === 'customsFresh') && candidates.length) {
       const limit = candidates[0].score + FRESH_TOLERANCE;
       const near = candidates.filter((c) => c.score <= limit);
       const far = candidates.filter((c) => c.score > limit);
@@ -2366,13 +2367,15 @@ export default function Page() {
                   <div style={{ flexBasis: '100%', height: 0 }} />
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13 }}>밸런싱 방식</span>
-                    {[['skill', '실력만'], ['customs', '내전 스탯'], ['fresh', '실력 + 새 조합']].map(([k, label]) => (
+                    {[['skill', '실력만'], ['customs', '내전 스탯'], ['fresh', '실력 + 새 조합'], ['customsFresh', '내전 스탯 + 새 조합']].map(([k, label]) => (
                       <button key={k} onClick={() => setBalanceMode(k)} style={{ ...pill(balanceMode === k, '#FF4B57'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                   </div>
                   <div style={{ fontSize: 12, color: '#8B949E', lineHeight: 1.6 }}>
                     {(balanceMode === 'fresh'
                       ? ['실력 차이는 최선과 거의 같게 맞추고,', '그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.']
+                      : balanceMode === 'customsFresh'
+                      ? ['티어에 우리 내전 성적(ACS · K/D · 승률)을 더한 실력으로,', '실력 차이는 최선과 거의 같게 맞추고,', '그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.']
                       : balanceMode === 'customs'
                       ? ['티어를 기준으로 우리 내전 성적(ACS · K/D · 승률)을 더해서,', '내전에서 잘하는 사람은 높게, 못하는 사람은 낮게 쳐서 배분합니다.', '내전을 적게 한 사람은 티어 쪽에 더 가깝게 봅니다.']
                       : ['실력(티어 + 랭크 K:D) 차이가 가장 적은 배분을 고릅니다.']
@@ -2499,8 +2502,8 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>팀 밸런싱</div>
-                    <div style={sub}>{teams ? `이번 시즌 티어(없으면 최고 티어) + ${balanceMode === 'customs' ? '내전 스탯' : 'K:D'} 반영 배분${usePosition ? ' + 포지션 분산' : ''}${balanceMode === 'fresh' ? ' + 새 조합' : ''} 결과입니다.` : '먼저 참가자를 등록하세요.'}</div>
-                    {!!teams && balanceMode === 'fresh' && <div style={{ fontSize: 12, color: '#8B949E', marginTop: 4 }}>팀 안에서 같은 팀으로 해본 판수 합 · 팀 A {teamFamiliarity(teams.A || [])}판 · 팀 B {teamFamiliarity(teams.B || [])}판</div>}
+                    <div style={sub}>{teams ? `이번 시즌 티어(없으면 최고 티어) + ${balanceMode === 'customs' || balanceMode === 'customsFresh' ? '내전 스탯' : 'K:D'} 반영 배분${usePosition ? ' + 포지션 분산' : ''}${balanceMode === 'fresh' || balanceMode === 'customsFresh' ? ' + 새 조합' : ''} 결과입니다.` : '먼저 참가자를 등록하세요.'}</div>
+                    {!!teams && (balanceMode === 'fresh' || balanceMode === 'customsFresh') && <div style={{ fontSize: 12, color: '#8B949E', marginTop: 4 }}>팀 안에서 같은 팀으로 해본 판수 합 · 팀 A {teamFamiliarity(teams.A || [])}판 · 팀 B {teamFamiliarity(teams.B || [])}판</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button onClick={rebalance} style={{ background: '#1B2027', color: '#E8EAEC', border: '1px solid #333B45', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>다시 배분</button>
