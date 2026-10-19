@@ -1072,10 +1072,11 @@ export default function Page() {
   // 우리 내전에서의 성적을 티어 칸 단위 보정치로 더한다. 스탯만으로는 티어와
   // 같은 척도가 안 나오고, 내전을 몇 판 안 한 사람은 기준이 없어서 티어를
   // 기준점으로 쓴다.
-  //   ACS: 내전 전체 평균 대비 +10%마다 +0.5칸
-  //   K/D: 1.0에서 +0.1마다 +0.15칸
-  //   승률: 50%에서 +10%p마다 +0.5칸
-  // 판수가 적으면 우연이 크니 n/(n+5)로 줄이고(5판이면 절반만 반영), ±3칸으로
+  //   ACS: 내전 전체 평균 대비 +10%마다 +0.75칸
+  //   K/D: 1.0에서 +0.1마다 +0.2칸
+  //   승률: 50%에서 +10%p마다 +0.25칸 — 승률은 어느 팀에 배정됐는지에 크게
+  //         좌우돼서 본인 실력을 덜 보여 주므로 비중을 낮게 둔다.
+  // 판수가 적으면 우연이 크니 n/(n+10)으로 줄이고(10판이면 절반만 반영), ±3칸으로
   // 자른다. 내전 기록이 없으면 보정 0 = 티어만. (처음엔 이 두 배였는데, 내전
   // 판수가 적을 때 성적이 너무 크게 반영돼서 비슷한 티어끼리 바꿔도 승리
   // 확률이 크게 흔들렸다.)
@@ -1090,16 +1091,16 @@ export default function Page() {
       const games = ms.length;
       const wins = ms.filter((m) => m.result === '승').length;
       const st = ms.filter((m) => m.kills != null);
-      let adj = ((wins / games) * 100 - 50) / 20;
+      let adj = ((wins / games) * 100 - 50) / 40;
       if (st.length) {
         const kills = st.reduce((n, m) => n + m.kills, 0);
         const deaths = st.reduce((n, m) => n + m.deaths, 0);
         const kd = deaths ? kills / deaths : kills;
-        adj += (kd - 1) * 1.5;
+        adj += (kd - 1) * 2;
         const acsList = st.filter((m) => m.acs != null);
-        if (avgAcs && acsList.length) adj += ((acsList.reduce((n, m) => n + m.acs, 0) / acsList.length) / avgAcs - 1) * 5;
+        if (avgAcs && acsList.length) adj += ((acsList.reduce((n, m) => n + m.acs, 0) / acsList.length) / avgAcs - 1) * 7.5;
       }
-      adj *= games / (games + 5);
+      adj *= games / (games + 10);
       out[id] = { adj: Math.max(-3, Math.min(3, adj)), games };
     });
     return out;
@@ -2408,7 +2409,7 @@ export default function Page() {
                       : balanceMode === 'customsFresh'
                       ? ['티어에 우리 내전 성적(ACS · K/D · 승률)을 더한 실력으로,', '실력 차이는 최선과 거의 같게 맞추고,', '그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.']
                       : balanceMode === 'customs'
-                      ? ['티어를 기준으로 우리 내전 성적(ACS · K/D · 승률)을 더해서,', '내전에서 잘하는 사람은 높게, 못하는 사람은 낮게 쳐서 배분합니다.', '내전을 적게 한 사람은 티어 쪽에 더 가깝게 봅니다.']
+                      ? ['티어를 기준으로 우리 내전 성적(ACS · K/D · 승률)을 더해서,', '내전에서 잘하는 사람은 높게, 못하는 사람은 낮게 쳐서 배분합니다.', '승률보다 ACS · K/D를 더 크게 보고, 내전을 적게 한 사람은 티어 쪽에 더 가깝게 봅니다.']
                       : ['실력(티어 + 랭크 K:D) 차이가 가장 적은 배분을 고릅니다.']
                     ).map((line) => <div key={line}>{line}</div>)}
                   </div>
