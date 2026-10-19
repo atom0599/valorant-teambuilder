@@ -1238,11 +1238,13 @@ export default function Page() {
   }
   // 승리 확률: 두 팀 실력 점수 합의 차이(티어 칸 단위, 밸런싱에 쓴 바로 그
   // 점수)를 로지스틱 곡선에 넣는다. 합이 5칸 차이(5명 평균으로 1칸)면 약
-  // 65 : 35, 10칸이면 약 77 : 23. 실제 결과로 맞춘 값이 아니라 대략적인 추정.
+  // 56 : 44, 10칸이면 약 62 : 38. 처음엔 0.12로 잡았더니 한 명만 바꿔도
+  // 50 → 80%대로 튀어서 완만하게 줄였고, 내전은 변수가 많으니 15~85%로 자른다.
+  // 실제 결과로 맞춘 값이 아니라 대략적인 추정.
   function winChance(t) {
     const sum = (list) => (list || []).reduce((s, p) => s + (p.skill ?? p.tier ?? 0), 0);
     const diff = sum(t?.A) - sum(t?.B);
-    const a = Math.round(100 / (1 + Math.exp(-0.12 * diff)));
+    const a = Math.min(85, Math.max(15, Math.round(100 / (1 + Math.exp(-0.05 * diff)))));
     return { A: a, B: 100 - a };
   }
   function balance() { rebalanceRankRef.current = 0; runBalance(0); }
