@@ -36,6 +36,22 @@ function cleanupGroups(arr) {
   return arr.map((p) => (p.groupId && counts[p.groupId] < 2 ? { ...p, groupId: null } : p));
 }
 const teamName = (k) => (k === 'A' ? '팀 A' : '팀 B');
+// 한 경기의 경기 MVP / 팀 MVP. HenrikDev가 준 실제 인게임 수상(see
+// app/api/customs/route.js) — 경기 MVP + 반대편 팀의 팀 MVP. 그 정보가
+// 저장되기 전에 불러온 경기는 전투 점수(더 예전 건 ACS) 1위로 대신한다.
+// 직접 입력해서 스탯이 없는 경기는 MVP 없음. 경기별 보기 배지와 전체 전적의
+// MVP 횟수가 같은 기준을 쓰도록 여기 한 곳에 둔다.
+function matchAwards(mt) {
+  const all = [...mt.winners, ...mt.losers];
+  const cs = (p) => p.combat ?? p.acs;
+  const best = (list) => list.filter((p) => cs(p) != null).sort((a, b) => cs(b) - cs(a) || b.kills - a.kills)[0] || null;
+  const realAwards = all.some((p) => p.mvp);
+  const mvp = realAwards ? all.find((p) => p.mvp === 'match') || null : best(all);
+  const teamMvp = realAwards
+    ? all.find((p) => p.mvp === 'team' && !(mvp && mt.winners.includes(mvp) === mt.winners.includes(p))) || null
+    : best(mvp && mt.winners.includes(mvp) ? mt.losers : mt.winners);
+  return { mvp, teamMvp };
+}
 
 // JSON with sorted keys, so two copies of the same data compare equal no
 // matter which client built them or in what key order.
@@ -105,7 +121,6 @@ export default function Page() {
   const [records, setRecords] = useState({});
   // Riot IDs an admin hid from the 선수별 leaderboard (see /api/records PUT).
   const [excludedIds, setExcludedIds] = useState([]);
-  const [statQuery, setStatQuery] = useState('');
   const [statId, setStatId] = useState(null);
   const [statSort, setStatSort] = useState('rate');
   const [statView, setStatView] = useState('player');
@@ -908,7 +923,9 @@ export default function Page() {
     }
     setApiSource(source);
     if (rankData?.puuid && !renamedFrom) rememberPuuid(fullName, rankData.puuid);
-    rememberCurrentTier(canonicalName(fullName), rankData);
+    // 계정별로 저장 — 부계정 티어가 본계정 칸을 덮어쓰지 않게. 전체 전적은
+    // personTier로 그중 가장 높은 티어를 쓴다.
+    rememberCurrentTier(fullName, rankData);
 
     const currentTier = rankData?.currentTier || null;
     const currentTierIcon = rankData?.currentTierIcon || null;
@@ -1683,6 +1700,38 @@ export default function Page() {
   const finished = !!bp && bp.index >= steps.length && !bp.pending;
   const bpInProgress = !!bp && !finished;
 
+  // 전체 경기에서 각 선수가 받은 경기 MVP / 팀 MVP 횟수. 경기별 보기와 같은
+  // 방식(같은 date = 같은 경기)으로 경기를 다시 묶어서 matchAwards로 센다.
+  const mvpCounts = useMemo(() => {
+    const byDate = new Map();
+    Object.entries(records).forEach(([id, r]) => (r.matches || []).forEach((m) => {
+      let e = byDate.get(m.date);
+      if (!e) { e = { winners: [], losers: [] }; byDate.set(m.date, e); }
+      (m.result === '승' ? e.winners : e.losers).push({ id, kills: m.kills, acs: m.acs, combat: m.combat ?? null, mvp: m.mvp ?? null });
+    }));
+    const out = {};
+    byDate.forEach((mt) => {
+      const { mvp, teamMvp } = matchAwards(mt);
+      if (mvp) (out[mvp.id] ||= { mvp: 0, teamMvp: 0 }).mvp += 1;
+      if (teamMvp) (out[teamMvp.id] ||= { mvp: 0, teamMvp: 0 }).teamMvp += 1;
+    });
+    return out;
+  }, [records]);
+
+  // 본계정 + 부계정 중 이번 시즌 티어가 가장 높은 계정을 그 사람의 티어로.
+  // currentTiers는 계정(Riot ID)별로 따로 저장되니 여기서 합친다. 어느
+  // 계정도 조회된 적 없으면 null (호출하는 쪽이 경기 스냅샷으로 대신).
+  function personTier(id) {
+    const entry = roster.find((r) => r.name === id);
+    let best = null;
+    [id, ...(entry?.alts || [])].forEach((a) => {
+      const t = currentTiers[a.trim()];
+      if (!t) return;
+      if (!best || (t.tier ?? -1) > (best.tier ?? -1)) best = t;
+    });
+    return best;
+  }
+
   const board = useMemo(() => Object.entries(records).map(([id, r]) => {
     const g = r.wins + r.losses;
     // Not necessarily matches[0] — a 과거 내전 불러오기 import can add an
@@ -1707,11 +1756,13 @@ export default function Page() {
     const realName = roster.find((r) => r.name === id)?.realName || '';
     // This season's tier (see currentTiers) — the per-match snapshot is only
     // a fallback until that's been fetched.
-    const cur = currentTiers[id];
+    const cur = personTier(id);
     const tier = cur ? cur.tier : last?.tier ?? null;
     const tierIcon = cur ? cur.tierIcon : last?.tierIcon ?? null;
-    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists };
-  }), [records, roster, excludedIds, currentTiers]);
+    const mvp = mvpCounts[id]?.mvp || 0;
+    const teamMvp = mvpCounts[id]?.teamMvp || 0;
+    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists, mvp, teamMvp };
+  }), [records, roster, excludedIds, currentTiers, mvpCounts]);
   // Everyone the leaderboard actually ranks — excluded players never take a
   // rank or count toward the summary tiles.
   const rankedBoard = useMemo(() => board.filter((x) => !x.excluded), [board]);
@@ -1723,7 +1774,10 @@ export default function Page() {
   useEffect(() => {
     if (screen !== 'stats') return;
     const stale = Date.now() - 12 * 60 * 60 * 1000;
-    const ids = Object.keys(records).filter((id) => id.includes('#') && !tierRefreshTriedRef.current.has(id) && !((currentTiers[id]?.at || 0) > stale));
+    // 부계정도 같이 조회해야 본계정/부계정 중 높은 티어를 고를 수 있다.
+    const accounts = new Set(Object.keys(records));
+    roster.forEach((r) => { if (records[r.name]) (r.alts || []).forEach((a) => accounts.add(a.trim())); });
+    const ids = [...accounts].filter((id) => id.includes('#') && !tierRefreshTriedRef.current.has(id) && !((currentTiers[id]?.at || 0) > stale));
     if (!ids.length) return;
     ids.forEach((id) => tierRefreshTriedRef.current.add(id));
     const task = lookupQueueRef.current.then(async () => {
@@ -1735,19 +1789,19 @@ export default function Page() {
       }
     });
     lookupQueueRef.current = task.catch(() => {});
-  }, [screen, records, currentTiers]);
+  }, [screen, records, roster, currentTiers]);
 
   const boardList = useMemo(() => {
-    const q = statQuery.trim().toLowerCase();
     const sorters = {
       rate: (a, b) => b.rate - a.rate || b.games - a.games,
       tier: (a, b) => (b.tier ?? -1) - (a.tier ?? -1) || b.rate - a.rate,
       kd: (a, b) => (b.kd ?? -1) - (a.kd ?? -1) || b.rate - a.rate,
       hsPct: (a, b) => (b.hsPct ?? -1) - (a.hsPct ?? -1) || b.rate - a.rate,
-      assists: (a, b) => (b.assists ?? -1) - (a.assists ?? -1) || b.rate - a.rate
+      assists: (a, b) => (b.assists ?? -1) - (a.assists ?? -1) || b.rate - a.rate,
+      mvp: (a, b) => b.mvp - a.mvp || b.teamMvp - a.teamMvp || b.rate - a.rate
     };
     const cmp = sorters[statSort];
-    const sorted = rankedBoard.filter((x) => !q || x.id.toLowerCase().includes(q)).sort(cmp);
+    const sorted = [...rankedBoard].sort(cmp);
     // A tie is decided by the sort's own value only — the tiebreaker
     // (usually 승률) still orders people *within* a tie for display, but
     // shouldn't split them into separate ranks.
@@ -1756,7 +1810,8 @@ export default function Page() {
       tier: (x) => x.tier ?? -1,
       kd: (x) => x.kd ?? -1,
       hsPct: (x) => x.hsPct ?? -1,
-      assists: (x) => x.assists ?? -1
+      assists: (x) => x.assists ?? -1,
+      mvp: (x) => x.mvp
     }[statSort];
     // Dense ranking ("1, 1, 2, 3…"): a tie shares one rank, and the next
     // distinct entry just continues from there — a 2-way tie for 1st is
@@ -1771,9 +1826,9 @@ export default function Page() {
     // Admins still see excluded players (unranked, at the bottom) so they can
     // be restored; everyone else doesn't see them at all.
     if (!isAdmin) return out;
-    const hidden = board.filter((x) => x.excluded && (!q || x.id.toLowerCase().includes(q))).sort(cmp).map((x) => ({ ...x, rank: null, tied: false }));
+    const hidden = board.filter((x) => x.excluded).sort(cmp).map((x) => ({ ...x, rank: null, tied: false }));
     return [...out, ...hidden];
-  }, [board, rankedBoard, statQuery, statSort, isAdmin]);
+  }, [board, rankedBoard, statSort, isAdmin]);
 
   const statRec = statId ? records[statId] : null;
   const statTotal = statRec ? statRec.wins + statRec.losses : 0;
@@ -1782,7 +1837,8 @@ export default function Page() {
   // can add an old match after newer ones already exist — so "most recent"
   // has to be found by actual date, not just array index 0.
   const statLast = (statRec?.matches || []).reduce((a, b) => (!a || b.date > a.date ? b : a), null);
-  const statTier = (statId && currentTiers[statId]) || statLast;
+  const statTier = (statId && personTier(statId)) || statLast;
+  const statMvp = (statId && mvpCounts[statId]) || { mvp: 0, teamMvp: 0 };
 
   // True count of distinct matches — each match writes one entry per
   // *participant* (up to 10 for a 5v5), so summing everyone's `games` and
@@ -1812,11 +1868,9 @@ export default function Page() {
     });
     const byName = (a, b) => a.id.localeCompare(b.id);
     byDate.forEach((e) => { e.winners.sort(byName); e.losers.sort(byName); });
-    const q = statQuery.trim().toLowerCase();
     return [...byDate.values()]
-      .filter((e) => !q || e.winners.some((p) => p.id.toLowerCase().includes(q)) || e.losers.some((p) => p.id.toLowerCase().includes(q)))
       .sort((a, b) => (matchSort === 'oldest' ? a.date - b.date : b.date - a.date));
-  }, [records, statQuery, matchSort]);
+  }, [records, matchSort]);
 
   const MATCH_PAGE = 5;
   const matchPageCount = Math.ceil(matchLog.length / MATCH_PAGE);
@@ -1917,7 +1971,7 @@ export default function Page() {
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
   const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
   const rosterGrid = 'minmax(0,1.1fr) 60px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
-  const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
+  const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px 56px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
   return (
@@ -2766,15 +2820,13 @@ export default function Page() {
                   </div>
                   <div style={{ width: 1, height: 20, background: '#2C333C', flex: 'none' }} />
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순'], ['assists', '어시스트순']].map(([k, label]) => (
+                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순'], ['assists', '어시스트순'], ['mvp', 'MVP순']].map(([k, label]) => (
                       <button key={k} onClick={() => setStatSort(k)} style={{ ...pill(statSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                     {statView === 'match' && [['newest', '최신순'], ['oldest', '오래된순']].map(([k, label]) => (
                       <button key={k} onClick={() => { setMatchSort(k); setMatchPage(0); }} style={{ ...pill(matchSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                   </div>
-                  <div style={{ flex: '1 0 0', minWidth: 0 }} />
-                  <input value={statQuery} onChange={(e) => { setStatQuery(e.target.value); setMatchPage(0); }} placeholder="Riot ID 검색" style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 999, padding: '11px 18px', color: '#E8EAEC', fontSize: 13, flex: '1 1 160px', minWidth: 0, maxWidth: 230 }} />
                 </div>
 
                 {statView === 'match' && (
@@ -2782,20 +2834,7 @@ export default function Page() {
                     {matchLog.slice(curMatchPage * MATCH_PAGE, curMatchPage * MATCH_PAGE + MATCH_PAGE).map((mt) => {
                       const expanded = expandedMatch === mt.date;
                       const bg = MAP_IMG[mt.map] || MAP_IMG[String(mt.map).split(',')[0]?.trim()] || null;
-                      // The real in-game awards, saved from HenrikDev at import
-                      // (see app/api/customs/route.js): 경기 MVP + the other
-                      // side's 팀 MVP. Matches imported before that was saved
-                      // fall back to top combat score (ACS for even older ones),
-                      // which is what the game used before Performance Score.
-                      // Matches entered by hand without stats have no MVP.
-                      const all = [...mt.winners, ...mt.losers];
-                      const cs = (p) => p.combat ?? p.acs;
-                      const best = (list) => list.filter((p) => cs(p) != null).sort((a, b) => cs(b) - cs(a) || b.kills - a.kills)[0] || null;
-                      const realAwards = all.some((p) => p.mvp);
-                      const mvp = realAwards ? all.find((p) => p.mvp === 'match') || null : best(all);
-                      const teamMvp = realAwards
-                        ? all.find((p) => p.mvp === 'team' && !(mvp && mt.winners.includes(mvp) === mt.winners.includes(p))) || null
-                        : best(mvp && mt.winners.includes(mvp) ? mt.losers : mt.winners);
+                      const { mvp, teamMvp } = matchAwards(mt);
                       const row = (p, idx) => (
                         <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, animation: expanded ? 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both' : 'none', animationDelay: `${120 + idx * 45}ms` }}>
                           {p.agentIcon
@@ -2860,10 +2899,10 @@ export default function Page() {
 
                 {statView === 'player' && <div className="playerSplit" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
                   <div data-scrollx="1" className="boardContainer" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
-                    <div className="boardHeader boardTable" style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                      <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div>
+                    <div className="boardHeader boardTable" style={{ minWidth: 660, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                      <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div><div>MVP</div>
                     </div>
-                    <div className="boardTable" style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="boardTable" style={{ minWidth: 660, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {boardList.map((x, i) => {
                         const t = tierPill(x.tier);
                         const medal = x.rank != null && x.rank <= 3 ? [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][x.rank - 1] : null;
@@ -2903,6 +2942,7 @@ export default function Page() {
                             <div className="b-games" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.games}</div>
                             <div className="b-kd" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.kd ?? '—'}</div>
                             <div className="b-hs" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.hsPct != null ? `${x.hsPct}%` : '—'}</div>
+                            <div className="b-mvp" title={`경기 MVP ${x.mvp}회 · 팀 MVP ${x.teamMvp}회`} style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: x.mvp ? '#FFD166' : '#8B949E' }}>{x.mvp}</div>
                           </div>
                         );
                       })}
@@ -2920,6 +2960,10 @@ export default function Page() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 16, fontWeight: 700, wordBreak: 'break-all' }}>{statId}</div>
                               <div style={{ fontSize: 12, color: '#8B949E' }}>{statTotal}경기 · 최근 {statLast ? fmtDate(statLast.date) : '—'}</div>
+                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                                <span title="경기 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 6, padding: '3px 7px' }}>MVP {statMvp.mvp}회</span>
+                                <span title="팀 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#1E2630', background: 'linear-gradient(145deg,#E4EAF0,#A9B4BF)', borderRadius: 6, padding: '3px 7px' }}>팀 MVP {statMvp.teamMvp}회</span>
+                              </div>
                             </div>
                           </div>
                           {isAdmin && (
