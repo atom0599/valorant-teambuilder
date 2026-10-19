@@ -1807,8 +1807,12 @@ export default function Page() {
     const out = {};
     byDate.forEach((mt) => {
       const { mvp, teamMvp } = matchAwards(mt);
-      if (mvp) (out[mvp.id] ||= { mvp: 0, teamMvp: 0 }).mvp += 1;
-      if (teamMvp) (out[teamMvp.id] ||= { mvp: 0, teamMvp: 0 }).teamMvp += 1;
+      const blank = () => ({ mvp: 0, teamMvp: 0, mvpLoss: 0 });
+      if (mvp) {
+        (out[mvp.id] ||= blank()).mvp += 1;
+        if (mt.losers.includes(mvp)) out[mvp.id].mvpLoss += 1;
+      }
+      if (teamMvp) (out[teamMvp.id] ||= blank()).teamMvp += 1;
     });
     return out;
   }, [records]);
