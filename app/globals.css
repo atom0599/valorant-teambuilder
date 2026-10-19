@@ -81,9 +81,9 @@ button:active { transform: scale(.97); }
     column-gap: 12px;
   }
   .boardRow .b-player { flex: 1 1 100%; }
-  .boardRow .b-tier, .boardRow .b-wl, .boardRow .b-games, .boardRow .b-kd, .boardRow .b-hs, .boardRow .b-mvp { flex: 0 1 auto; }
+  .boardRow .b-tier, .boardRow .b-wl, .boardRow .b-games, .boardRow .b-kd, .boardRow .b-hs { flex: 0 1 auto; }
   .boardRow .b-rate { flex: 1 1 130px; }
-  /* 전적 · 경기 · K/D · HS · MVP always share one line of their own, below the
+  /* 전적 · 경기 · K/D · HS always share one line of their own, below the
      tier + 승률 line, for everyone. Without a forced break the wrap point
      depended on how long the tier label was (플래티넘/다이아몬드 pushed
      경기 onto another line, 실버/초월자 didn't). The ::after is a zero-height
@@ -91,12 +91,11 @@ button:active { transform: scale(.97); }
      cancels the extra row-gap it would otherwise add. */
   .boardRow .b-player, .boardRow .b-tier, .boardRow .b-rate { order: 1; }
   .boardRow::after { content: ''; order: 2; flex: 1 1 100%; height: 0; margin-top: -8px; }
-  .boardRow .b-wl, .boardRow .b-games, .boardRow .b-kd, .boardRow .b-hs, .boardRow .b-mvp { order: 3; white-space: nowrap; }
+  .boardRow .b-wl, .boardRow .b-games, .boardRow .b-kd, .boardRow .b-hs { order: 3; white-space: nowrap; }
   .boardRow .b-wl::before { content: '전적 '; color: #5F6872; }
   .boardRow .b-games::before { content: '경기 '; color: #5F6872; }
   .boardRow .b-kd::before { content: 'K/D '; color: #5F6872; }
   .boardRow .b-hs::before { content: 'HS '; color: #5F6872; }
-  .boardRow .b-mvp::before { content: 'MVP '; color: #5F6872; }
 }
 
 /* PC: 선수별 순위표와 선수 상세를 항상 나란히 — wrapping put the detail

@@ -2021,7 +2021,7 @@ export default function Page() {
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
   const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
   const rosterGrid = 'minmax(0,1.1fr) 60px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
-  const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px 56px';
+  const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
   return (
@@ -2958,10 +2958,10 @@ export default function Page() {
 
                 {statView === 'player' && <div className="playerSplit" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
                   <div data-scrollx="1" className="boardContainer" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
-                    <div className="boardHeader boardTable" style={{ minWidth: 660, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                      <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div><div>MVP</div>
+                    <div className="boardHeader boardTable" style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                      <div>PLAYER</div><div>티어</div><div>승률</div><div>승-패</div><div>경기</div><div>K/D</div><div>HS%</div>
                     </div>
-                    <div className="boardTable" style={{ minWidth: 660, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="boardTable" style={{ minWidth: 600, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {boardList.map((x, i) => {
                         const t = tierPill(x.tier);
                         const medal = x.rank != null && x.rank <= 3 ? [{ bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200', ring: '#FFD166' }, { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F', ring: '#C9D2DA' }, { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410', ring: '#CD7F32' }][x.rank - 1] : null;
@@ -2983,7 +2983,7 @@ export default function Page() {
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
+                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <span style={{ color: '#FFD166' }}>MVP {x.mvp}회 · 팀 MVP {x.teamMvp}회</span> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
                             </div>
                             <div className="b-tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3001,7 +3001,6 @@ export default function Page() {
                             <div className="b-games" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.games}</div>
                             <div className="b-kd" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.kd ?? '—'}</div>
                             <div className="b-hs" style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: '#8B949E' }}>{x.hsPct != null ? `${x.hsPct}%` : '—'}</div>
-                            <div className="b-mvp" title={`경기 MVP ${x.mvp}회 · 팀 MVP ${x.teamMvp}회`} style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: x.mvp ? '#FFD166' : '#8B949E' }}>{x.mvp}</div>
                           </div>
                         );
                       })}
@@ -3019,10 +3018,10 @@ export default function Page() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 16, fontWeight: 700, wordBreak: 'break-all' }}>{statId}</div>
                               <div style={{ fontSize: 12, color: '#8B949E' }}>{statTotal}경기 · 최근 {statLast ? fmtDate(statLast.date) : '—'}</div>
-                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                              {statSort === 'mvp' && <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                                 <span title="경기 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 6, padding: '3px 7px' }}>MVP {statMvp.mvp}회</span>
                                 <span title="팀 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#1E2630', background: 'linear-gradient(145deg,#E4EAF0,#A9B4BF)', borderRadius: 6, padding: '3px 7px' }}>팀 MVP {statMvp.teamMvp}회</span>
-                              </div>
+                              </div>}
                             </div>
                           </div>
                           {isAdmin && (
