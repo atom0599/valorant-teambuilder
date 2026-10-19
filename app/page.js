@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
+import { TITLE_DEFS, computeTitles, computeFame } from '../lib/fame';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
@@ -1812,6 +1813,10 @@ export default function Page() {
     return out;
   }, [records]);
 
+  // 자동 칭호 + 명예의 전당 (lib/fame.js) — 저장된 내전 기록만으로 계산.
+  const titlesById = useMemo(() => computeTitles(records, mvpCounts), [records, mvpCounts]);
+  const fameBoard = useMemo(() => computeFame(records, mvpCounts, excludedIds), [records, mvpCounts, excludedIds]);
+
   // 본계정 + 부계정 중 이번 시즌 티어가 가장 높은 계정을 그 사람의 티어로.
   // currentTiers는 계정(Riot ID)별로 따로 저장되니 여기서 합친다. 어느
   // 계정도 조회된 적 없으면 null (호출하는 쪽이 경기 스냅샷으로 대신).
@@ -2926,7 +2931,7 @@ export default function Page() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {[['player', '선수별'], ['match', '경기별']].map(([k, label]) => (
+                    {[['player', '선수별'], ['match', '경기별'], ['fame', '명예의 전당']].map(([k, label]) => (
                       <button key={k} onClick={() => setStatView(k)} style={{ ...pill(statView === k, '#FF4B57'), padding: '10px 18px' }}>{label}</button>
                     ))}
                   </div>
@@ -3009,6 +3014,69 @@ export default function Page() {
                   </div>
                 )}
 
+                {statView === 'fame' && (() => {
+                  const openPlayer = (id) => { setStatView('player'); setStatId(id); setStatMatchPage(0); };
+                  const medalColor = ['#FFD166', '#C9D2DA', '#CD7F32'];
+                  const section = (title, cats, accent) => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 18, color: accent }}>{title}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
+                        {cats.map((c, ci) => (
+                          <div key={c.key} data-lift="1" style={{ ...card, borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 45}ms` }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                              <span style={{ fontSize: 15 }}>{c.icon}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700 }}>{c.label}</span>
+                              {c.note && <span style={{ fontSize: 10, color: '#6B737C' }}>{c.note}</span>}
+                            </div>
+                            {c.rows.map((r, i) => (
+                              <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                                <div style={{ width: 18, flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: i ? 12 : 14, color: medalColor[i] }}>{i + 1}</div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: i ? 12 : 14, fontWeight: i ? 500 : 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</div>
+                                  {(r.date || r.sub) && <div style={{ fontSize: 10, color: '#6B737C', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null, r.score ? `${r.score} ${r.result}` : null].filter(Boolean).join(' · ') : r.sub}</div>}
+                                </div>
+                                <div style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: i ? 12 : 15, fontWeight: 700, color: i ? '#C8D0D8' : accent }}>{r.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                      {fameBoard.fame.length ? section('명예의 전당', fameBoard.fame, '#FFD166') : <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 저장된 경기가 없습니다.</div>}
+                      {!!fameBoard.shame.length && section('불명예의 전당', fameBoard.shame, '#E1424F')}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 18 }}>칭호 도감</div>
+                        <div style={{ fontSize: 12, color: '#8B949E', marginTop: -4 }}>내전 기록으로 자동으로 붙는 칭호입니다. 기록이 바뀌면 칭호도 같이 바뀌고, 순위표에는 가장 위에 있는 칭호 하나가 이름 옆에 보입니다.</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
+                          {TITLE_DEFS.map((d) => {
+                            const holders = Object.entries(titlesById).filter(([id, list]) => !excludedIds.includes(id) && list.some((t) => t.id === d.id)).map(([id, list]) => ({ id, name: list.find((t) => t.id === d.id).name }));
+                            return (
+                              <div key={d.id} style={{ ...card, borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontSize: 18 }}>{d.icon}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 700 }}>{d.name}</span>
+                                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6B737C' }}>{holders.length}명</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: '#8B949E', lineHeight: 1.5 }}>{d.desc}</div>
+                                {!!holders.length && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                    {holders.map((h) => (
+                                      <button key={h.id} onClick={() => openPlayer(h.id)} title={h.name} style={{ fontSize: 10, color: '#C6CDD4', background: '#252C34', border: 'none', borderRadius: 5, padding: '2px 6px', cursor: 'pointer', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.id}{h.name !== d.name ? ` (${h.name})` : ''}</button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {statView === 'player' && <div className="playerSplit" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
                   <div data-scrollx="1" className="boardContainer" style={{ flex: '1 1 560px', minWidth: 0, background: '#0F1318', border: '1px solid #262C34', borderRadius: 20, padding: 10 }}>
                     <div className="boardHeader boardTable" style={{ minWidth: 600, display: 'grid', gridTemplateColumns: boardGrid, gap: 8, padding: '12px 16px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
@@ -3035,6 +3103,7 @@ export default function Page() {
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
+                                  {!!titlesById[x.id] && <div title={`${titlesById[x.id][0].name} — ${titlesById[x.id][0].desc}`} style={{ flex: 'none', fontSize: 10, color: '#C6CDD4', background: '#252C34', borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap' }}>{titlesById[x.id][0].icon} {titlesById[x.id][0].name}</div>}
                                 </div>
                                 <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> · <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
@@ -3075,6 +3144,13 @@ export default function Page() {
                                 <span title="경기 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 6, padding: '3px 7px' }}>MVP {statMvp.mvp}회</span>
                                 <span title="팀 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#1E2630', background: 'linear-gradient(145deg,#E4EAF0,#A9B4BF)', borderRadius: 6, padding: '3px 7px' }}>팀 MVP {statMvp.teamMvp}회</span>
                               </div>
+                              {!!titlesById[statId] && (
+                                <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
+                                  {titlesById[statId].map((t) => (
+                                    <span key={t.id} title={t.desc} onClick={() => setDetailTab('title')} style={{ fontSize: 10, color: '#C6CDD4', background: '#252C34', borderRadius: 5, padding: '2px 6px', cursor: 'pointer', whiteSpace: 'nowrap' }}>{t.icon} {t.name}</span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                           {isAdmin && (
@@ -3103,7 +3179,7 @@ export default function Page() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {[['recent', '최근 경기'], ['agent', '요원'], ['map', '맵'], ['mate', '팀원']].map(([k, label]) => (
+                          {[['recent', '최근 경기'], ['agent', '요원'], ['map', '맵'], ['mate', '팀원'], ['title', '칭호']].map(([k, label]) => (
                             <button key={k} onClick={() => setDetailTab(k)} style={{ ...pill(detailTab === k), flex: '1 1 0', padding: '8px 10px', fontSize: 12 }}>{label}</button>
                           ))}
                         </div>
@@ -3141,6 +3217,24 @@ export default function Page() {
                             </div>
                           );
                         })()}
+                        {detailTab === 'title' && (
+                          <div style={{ ...card, borderRadius: 20, padding: 16 }}>
+                            <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>칭호 <span style={{ color: '#6B737C' }}>· {(titlesById[statId] || []).length}개</span></div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {(titlesById[statId] || []).map((t, i) => (
+                                <div key={t.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderTop: i ? '1px solid #20262E' : 'none' }}>
+                                  <div style={{ fontSize: 20, lineHeight: 1, flex: 'none', width: 24, textAlign: 'center' }}>{t.icon}</div>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700 }}>{t.name}</div>
+                                    <div style={{ fontSize: 11, color: '#8B949E', marginTop: 2 }}>{t.desc}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {!titlesById[statId] && <div style={{ fontSize: 12, color: '#6B737C', padding: '6px 0' }}>아직 받은 칭호가 없습니다. 내전을 더 하면 생길 수 있어요.</div>}
+                            <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>칭호는 내전 기록으로 자동으로 정해지고, 기록이 바뀌면 같이 바뀝니다. 전체 칭호 목록은 "명예의 전당" 탭에 있습니다.</div>
+                          </div>
+                        )}
                         {detailTab === 'mate' && !!statMates && (() => {
                           const list = mateView === 'foe' ? statMates.foes : statMates.mates;
                           return (
