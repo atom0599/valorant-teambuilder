@@ -2983,7 +2983,7 @@ export default function Page() {
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <span style={{ color: '#FFD166' }}>MVP {x.mvp}회 · 팀 MVP {x.teamMvp}회</span> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
+                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
                             </div>
                             <div className="b-tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3018,10 +3018,10 @@ export default function Page() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 16, fontWeight: 700, wordBreak: 'break-all' }}>{statId}</div>
                               <div style={{ fontSize: 12, color: '#8B949E' }}>{statTotal}경기 · 최근 {statLast ? fmtDate(statLast.date) : '—'}</div>
-                              {statSort === 'mvp' && <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                                 <span title="경기 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#4A3200', background: 'linear-gradient(145deg,#FFE29A,#E8B23D)', borderRadius: 6, padding: '3px 7px' }}>MVP {statMvp.mvp}회</span>
                                 <span title="팀 MVP (인게임 기준)" style={{ fontFamily: "'Archivo'", fontSize: 10, fontWeight: 800, letterSpacing: '.04em', color: '#1E2630', background: 'linear-gradient(145deg,#E4EAF0,#A9B4BF)', borderRadius: 6, padding: '3px 7px' }}>팀 MVP {statMvp.teamMvp}회</span>
-                              </div>}
+                              </div>
                             </div>
                           </div>
                           {isAdmin && (
