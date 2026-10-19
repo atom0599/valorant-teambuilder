@@ -1236,6 +1236,15 @@ export default function Page() {
     setSel(null);
     setScreen('balance');
   }
+  // 예상 승률: 두 팀 실력 점수 합의 차이(티어 칸 단위, 밸런싱에 쓴 바로 그
+  // 점수)를 로지스틱 곡선에 넣는다. 합이 5칸 차이(5명 평균으로 1칸)면 약
+  // 65 : 35, 10칸이면 약 77 : 23. 실제 결과로 맞춘 값이 아니라 대략적인 추정.
+  function winChance(t) {
+    const sum = (list) => (list || []).reduce((s, p) => s + (p.skill ?? p.tier ?? 0), 0);
+    const diff = sum(t?.A) - sum(t?.B);
+    const a = Math.round(100 / (1 + Math.exp(-0.12 * diff)));
+    return { A: a, B: 100 - a };
+  }
   function balance() { rebalanceRankRef.current = 0; runBalance(0); }
   function rebalance() { rebalanceRankRef.current += 1; runBalance(rebalanceRankRef.current); }
 
@@ -2520,6 +2529,29 @@ export default function Page() {
                     <button onClick={() => setScreen('setup')} style={{ background: '#FF4B57', color: '#0B0D10', border: 'none', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>매치 설정으로</button>
                   </div>
                 </div>
+                {!!teams?.A?.length && !!teams?.B?.length && (() => {
+                  const wc = winChance(teams);
+                  return (
+                    <div style={{ ...card, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ fontSize: 12, color: '#FF4B57', fontWeight: 700 }}>팀 A</span>
+                          <span style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, lineHeight: 1, color: '#FF4B57' }}>{wc.A}%</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>예상 승률</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, lineHeight: 1, color: '#2FD3B7' }}>{wc.B}%</span>
+                          <span style={{ fontSize: 12, color: '#2FD3B7', fontWeight: 700 }}>팀 B</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', height: 8, borderRadius: 999, overflow: 'hidden', background: '#22282F' }}>
+                        <div style={{ width: `${wc.A}%`, background: 'linear-gradient(90deg,#B8303B,#FF4B57)', transition: 'width .5s cubic-bezier(.2,.7,.3,1)' }} />
+                        <div style={{ width: `${wc.B}%`, background: 'linear-gradient(90deg,#2FD3B7,#1E9C87)', transition: 'width .5s cubic-bezier(.2,.7,.3,1)' }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: '#6B737C' }}>밸런싱에 쓴 실력 점수({balanceMode === 'customs' || balanceMode === 'customsFresh' ? '티어 + 내전 스탯' : '티어 + K:D'}) 차이로 계산한 대략적인 예상입니다. 선수를 바꾸면 바로 다시 계산됩니다.</div>
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize: 12, color: '#8B949E' }}>선수 카드를 두 번 클릭해 수동 스왑할 수 있습니다. {sel ? '선택됨 — 교체할 선수를 클릭하세요.' : ''}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14 }}>
                   {[['A', '팀 A', '#FF4B57'], ['B', '팀 B', '#2FD3B7']].map(([k, label, color]) => {
