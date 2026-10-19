@@ -939,12 +939,11 @@ export default function Page() {
     const currentTier = rankData?.currentTier || null;
     const currentTierIcon = rankData?.currentTierIcon || null;
     const peakTierIcon = rankData?.peakTierIcon || null;
-    const inferredPos = roleData?.role || null;
     const agents = roleData?.topAgents || [];
     setPlayers((arr) => arr.map((x, k) => {
       if (k !== i || !same(x, fullName)) return x;
-      const pos = inferredPos && x.pos === '미정' ? inferredPos : x.pos;
-      return { ...x, tier, source, rankError, pos, agents, currentTier, currentTierIcon, peakTierIcon, loading: false };
+      // 포지션은 자동으로 채우지 않는다 — 등록하면 미정, 직접 고른다.
+      return { ...x, tier, source, rankError, agents, currentTier, currentTierIcon, peakTierIcon, loading: false };
     }));
 
     // Registering someone (fresh lookup, no cached stats yet) auto-loads their
@@ -1406,7 +1405,9 @@ export default function Page() {
     if (players.some((p) => p.name.trim() && canonicalName(p.name.trim()) === canon)) return;
     const i = players.findIndex((p) => !p.name.trim());
     if (i < 0) return;
-    setPlayers((arr) => arr.map((x, k) => (k === i ? { name, pos: pos || '미정', tier: null, source: null, loading: false, realName: realName || '', groupId: null } : x)));
+    // 포지션은 인원 관리에 저장된 값도, 요원 기록도 쓰지 않고 항상 미정으로
+    // 시작한다. 참가자 등록 화면에서 직접 고른다.
+    setPlayers((arr) => arr.map((x, k) => (k === i ? { name, pos: '미정', tier: null, source: null, loading: false, realName: realName || '', groupId: null } : x)));
     lookup(i, name);
   }
   function unpickMember(name) {
@@ -1419,7 +1420,7 @@ export default function Page() {
     const next = players.map((p) => {
       if (p.name.trim() || k >= avail.length) return p;
       const m = avail[k++];
-      return { name: m.name, pos: m.pos || '미정', tier: null, source: null, loading: false, realName: m.realName || '', groupId: null };
+      return { name: m.name, pos: '미정', tier: null, source: null, loading: false, realName: m.realName || '', groupId: null };
     });
     setPlayers(next);
     next.forEach((p, i) => { if (p.name.trim() && p.tier == null) lookup(i, p.name); });
@@ -2350,7 +2351,7 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>참가자 등록</div>
-                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록되면 최근 경쟁전 10경기 사용 요원 통계로 포지션이 자동으로 채워지고, 가장 많이 쓴 요원 3개도 함께 표시됩니다 (포지션은 직접 바꿔도 됩니다).</div>
+                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록하면 최근 경쟁전 10경기에서 가장 많이 쓴 요원 3개가 표시됩니다. 포지션은 모두 미정으로 들어오니 직접 골라 주세요.</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button onClick={lookupAll} disabled={players.some((p) => p.loading)} style={{ background: '#1B2027', color: '#E8EAEC', border: '1px solid #333B45', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 600, cursor: players.some((p) => p.loading) ? 'default' : 'pointer', opacity: players.some((p) => p.loading) ? .6 : 1 }}>전체 티어 조회</button>
