@@ -1,23 +1,7 @@
 import { henrikFetch } from '../../../lib/henrik';
+import { agentRole } from '../../../lib/constants';
 
 export const dynamic = 'force-dynamic';
-
-// Valorant agent -> in-game role, mapped to this app's Korean position labels.
-// New agents ship every few patches — add them here as they release.
-const AGENT_ROLE = {
-  jett: '타격대', phoenix: '타격대', raze: '타격대', reyna: '타격대',
-  yoru: '타격대', neon: '타격대', iso: '타격대', waylay: '타격대',
-  sova: '척후대', breach: '척후대', skye: '척후대', kayo: '척후대',
-  fade: '척후대', gekko: '척후대', tejo: '척후대',
-  brimstone: '전략가', viper: '전략가', omen: '전략가', astra: '전략가',
-  harbor: '전략가', clove: '전략가',
-  cypher: '감시자', killjoy: '감시자', sage: '감시자', chamber: '감시자',
-  deadlock: '감시자', vyse: '감시자'
-};
-
-function normalizeAgent(name) {
-  return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -58,7 +42,7 @@ export async function GET(request) {
         agentCounts[agent] = { count: 0, icon: me.assets?.agent?.small || null, portrait: me.assets?.agent?.bust || null };
       }
       agentCounts[agent].count++;
-      const role = AGENT_ROLE[normalizeAgent(agent)];
+      const role = agentRole(agent);
       if (role) { roleCounts[role] = (roleCounts[role] || 0) + 1; analyzed++; }
     }
 

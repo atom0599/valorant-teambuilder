@@ -3022,53 +3022,67 @@ export default function Page() {
                     { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410' }
                   ];
                   const themes = {
-                    fame: { eyebrow: 'HALL OF FAME', title: '명예의 전당', color: '#FFD166', glow: 'rgba(255,209,102,.16)', line: 'linear-gradient(90deg,#FFE29A,#E8B23D 55%,rgba(232,178,61,0))', text: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', sub: '내전 기록으로 뽑은 부문별 1~3위입니다. 한 사람은 부문마다 자기 최고 기록으로 한 번만 오릅니다.' },
-                    shame: { eyebrow: 'HALL OF SHAME', title: '불명예의 전당', color: '#FF4B57', glow: 'rgba(255,75,87,.14)', line: 'linear-gradient(90deg,#FF7A84,#E1424F 55%,rgba(225,66,79,0))', text: 'linear-gradient(180deg,#FFD0D4 0%,#FF6B76 60%,#C7303D 100%)', sub: '다들 한 번쯤은 있는 날입니다.' }
+                    fame: { eyebrow: 'HALL OF FAME', title: '명예의 전당', color: '#FFD166', glow: 'rgba(255,209,102,.16)', bar: 'linear-gradient(180deg,#FFE29A,#E8B23D)', text: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', sub: '내전 기록으로 뽑은 부문별 1~3위입니다. 기록이 같으면 공동 순위이고, 한 사람은 부문마다 자기 최고 기록으로 한 번만 오릅니다.' },
+                    shame: { eyebrow: 'HALL OF SHAME', title: '불명예의 전당', color: '#FF4B57', glow: 'rgba(255,75,87,.14)', bar: 'linear-gradient(180deg,#FF7A84,#E1424F)', text: 'linear-gradient(180deg,#FFD0D4 0%,#FF6B76 60%,#C7303D 100%)', sub: '다들 한 번쯤은 있는 날입니다.' }
                   };
-                  const fameCard = (c, ci, th) => {
-                    const [top, ...rest] = c.rows;
+                  const rankBadge = (r, size) => (
+                    <span title={r.tied ? `공동 ${r.rank}위` : `${r.rank}위`} style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: size, height: size, padding: r.tied ? '0 5px' : 0, borderRadius: 6, fontFamily: "'Archivo'", fontWeight: 800, fontSize: size > 18 ? 11 : 10, color: medals[r.rank - 1].fg, background: medals[r.rank - 1].bg, whiteSpace: 'nowrap' }}>{r.tied ? `공동 ${r.rank}` : r.rank}</span>
+                  );
+                  const fameRow = (c, ci, th) => {
+                    const leaders = c.rows.filter((r) => r.rank === 1);
+                    const rest = c.rows.filter((r) => r.rank !== 1);
+                    const top = leaders[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
+                    const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null, r.score ? `${r.score} ${r.result}` : null].filter(Boolean).join(' · ') : r.sub);
                     return (
-                      <div key={c.key} data-lift="1" style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid #262C34', background: '#14181D', display: 'flex', flexDirection: 'column', animation: 'popIn .5s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 60}ms` }}>
-                        <div style={{ height: 3, background: th.line }} />
-                        <div onClick={() => openPlayer(top.id)} style={{
-                          position: 'relative', overflow: 'hidden', cursor: 'pointer', padding: '16px 18px 18px',
-                          backgroundImage: mapBg
-                            ? `linear-gradient(180deg,rgba(20,24,29,.72) 0%,rgba(20,24,29,.94) 100%), url(${mapBg})`
-                            : `radial-gradient(420px 180px at 85% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
-                          backgroundSize: 'cover', backgroundPosition: 'center'
-                        }}>
-                          <div style={{ position: 'absolute', top: 0, left: 0, width: '45%', height: '100%', background: 'linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.05) 50%,rgba(255,255,255,0) 100%)', animation: 'sweep 6s linear infinite', animationDelay: `${ci * 400}ms`, pointerEvents: 'none' }} />
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                            <span style={{ fontSize: 15, lineHeight: 1 }}>{c.icon}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#C6CDD4', letterSpacing: '.02em' }}>{c.label}</span>
-                            {c.note && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#6B737C', whiteSpace: 'nowrap' }}>{c.note}</span>}
-                          </div>
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 12 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 42, lineHeight: 1, letterSpacing: '-.02em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 12px ${th.glow})` }}>{top.value}</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12, minWidth: 0 }}>
-                                <span style={{ flex: 'none', width: 20, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 11, color: medals[0].fg, background: medals[0].bg }}>1</span>
-                                <span style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{top.id}</span>
-                              </div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {top.date ? [fmtDate(top.date), top.map, top.agent ? agentKo(top.agent) : null, top.score ? `${top.score} ${top.result}` : null].filter(Boolean).join(' · ') : top.sub || ' '}
-                              </div>
+                      <div key={c.key} data-lift="1" style={{
+                        position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid #262C34',
+                        backgroundColor: '#14181D',
+                        backgroundImage: mapBg
+                          ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.9) 100%), url(${mapBg})`
+                          : `radial-gradient(520px 160px at 30% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
+                        backgroundSize: 'cover', backgroundPosition: 'center',
+                        animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 50}ms`
+                      }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '100%', background: 'linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.04) 50%,rgba(255,255,255,0) 100%)', animation: 'sweep 7s linear infinite', animationDelay: `${ci * 500}ms`, pointerEvents: 'none' }} />
+                        <div style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px 22px', padding: '16px 20px 16px 22px' }}>
+                          <div style={{ flex: '0 0 150px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                              <span style={{ fontSize: 16, lineHeight: 1 }}>{c.icon}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700 }}>{c.label}</span>
                             </div>
-                            {top.agentIcon && <img src={top.agentIcon} alt={agentKo(top.agent) || ''} style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', boxShadow: '0 6px 18px rgba(0,0,0,.4)' }} />}
+                            {c.note && <div style={{ fontSize: 10, color: '#6B737C', marginTop: 4 }}>{c.note}</div>}
                           </div>
+                          <div style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 34, lineHeight: 1, letterSpacing: '-.02em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 10px ${th.glow})`, minWidth: 92 }}>{top.value}</div>
+                            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {leaders.map((r) => (
+                                <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, cursor: 'pointer' }}>
+                                  {r.agentIcon && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,.12)' }} />}
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                                      {rankBadge(r, 20)}
+                                      <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
+                                    </div>
+                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subOf(r)}</div>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {!!rest.length && (
+                            <div style={{ flex: '1 1 220px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 16, borderLeft: '1px solid rgba(255,255,255,.08)' }}>
+                              {rest.map((r) => (
+                                <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minWidth: 0 }}>
+                                  {rankBadge(r, 18)}
+                                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
+                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#A8B0B9' }}>{r.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {!!rest.length && (
-                          <div style={{ display: 'flex', flexDirection: 'column', padding: '4px 18px 10px', borderTop: '1px solid #20262E' }}>
-                            {rest.map((r, i) => (
-                              <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', cursor: 'pointer', borderTop: i ? '1px solid #1C2128' : 'none' }}>
-                                <span style={{ flex: 'none', width: 18, height: 18, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 10, color: medals[i + 1].fg, background: medals[i + 1].bg }}>{i + 2}</span>
-                                <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
-                                <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#A8B0B9' }}>{r.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     );
                   };
@@ -3081,8 +3095,8 @@ export default function Page() {
                         </div>
                         <div style={{ fontSize: 12, color: '#8B949E', paddingBottom: 2 }}>{th.sub}</div>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
-                        {cats.map((c, ci) => fameCard(c, ci, th))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {cats.map((c, ci) => fameRow(c, ci, th))}
                       </div>
                     </div>
                   );
