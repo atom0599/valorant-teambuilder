@@ -3015,7 +3015,6 @@ export default function Page() {
                 )}
 
                 {statView === 'fame' && (() => {
-                  const openPlayer = (id) => { setStatView('player'); setStatId(id); setStatMatchPage(0); };
                   const medals = [
                     { bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200' },
                     { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F' },
@@ -3058,14 +3057,14 @@ export default function Page() {
                             <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 34, lineHeight: 1, letterSpacing: '-.02em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 10px ${th.glow})`, minWidth: 92 }}>{top.value}</div>
                             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                               {leaders.map((r) => (
-                                <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, cursor: 'pointer' }}>
+                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                                   {r.agentIcon && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,.12)' }} />}
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                                       {rankBadge(r, 20)}
                                       <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
                                     </div>
-                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subOf(r)}</div>}
+                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 3, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
                                   </div>
                                 </div>
                               ))}
@@ -3074,7 +3073,7 @@ export default function Page() {
                           {!!rest.length && (
                             <div style={{ flex: '1 1 220px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 16, borderLeft: '1px solid rgba(255,255,255,.08)' }}>
                               {rest.map((r) => (
-                                <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minWidth: 0 }}>
+                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                                   {rankBadge(r, 18)}
                                   <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
                                   <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#A8B0B9' }}>{r.value}</span>
