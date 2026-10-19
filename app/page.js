@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
-import { TITLE_DEFS, computeTitles, computeFame } from '../lib/fame';
+import { computeTitles, computeFame } from '../lib/fame';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
@@ -3016,63 +3016,81 @@ export default function Page() {
 
                 {statView === 'fame' && (() => {
                   const openPlayer = (id) => { setStatView('player'); setStatId(id); setStatMatchPage(0); };
-                  const medalColor = ['#FFD166', '#C9D2DA', '#CD7F32'];
-                  const section = (title, cats, accent) => (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 18, color: accent }}>{title}</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
-                        {cats.map((c, ci) => (
-                          <div key={c.key} data-lift="1" style={{ ...card, borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 10, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 45}ms` }}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                              <span style={{ fontSize: 15 }}>{c.icon}</span>
-                              <span style={{ fontSize: 13, fontWeight: 700 }}>{c.label}</span>
-                              {c.note && <span style={{ fontSize: 10, color: '#6B737C' }}>{c.note}</span>}
+                  const medals = [
+                    { bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200' },
+                    { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F' },
+                    { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410' }
+                  ];
+                  const themes = {
+                    fame: { eyebrow: 'HALL OF FAME', title: '명예의 전당', color: '#FFD166', glow: 'rgba(255,209,102,.16)', line: 'linear-gradient(90deg,#FFE29A,#E8B23D 55%,rgba(232,178,61,0))', text: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', sub: '내전 기록으로 뽑은 부문별 1~3위입니다. 한 사람은 부문마다 자기 최고 기록으로 한 번만 오릅니다.' },
+                    shame: { eyebrow: 'HALL OF SHAME', title: '불명예의 전당', color: '#FF4B57', glow: 'rgba(255,75,87,.14)', line: 'linear-gradient(90deg,#FF7A84,#E1424F 55%,rgba(225,66,79,0))', text: 'linear-gradient(180deg,#FFD0D4 0%,#FF6B76 60%,#C7303D 100%)', sub: '다들 한 번쯤은 있는 날입니다.' }
+                  };
+                  const fameCard = (c, ci, th) => {
+                    const [top, ...rest] = c.rows;
+                    const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
+                    return (
+                      <div key={c.key} data-lift="1" style={{ position: 'relative', overflow: 'hidden', borderRadius: 20, border: '1px solid #262C34', background: '#14181D', display: 'flex', flexDirection: 'column', animation: 'popIn .5s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 60}ms` }}>
+                        <div style={{ height: 3, background: th.line }} />
+                        <div onClick={() => openPlayer(top.id)} style={{
+                          position: 'relative', overflow: 'hidden', cursor: 'pointer', padding: '16px 18px 18px',
+                          backgroundImage: mapBg
+                            ? `linear-gradient(180deg,rgba(20,24,29,.72) 0%,rgba(20,24,29,.94) 100%), url(${mapBg})`
+                            : `radial-gradient(420px 180px at 85% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
+                          backgroundSize: 'cover', backgroundPosition: 'center'
+                        }}>
+                          <div style={{ position: 'absolute', top: 0, left: 0, width: '45%', height: '100%', background: 'linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.05) 50%,rgba(255,255,255,0) 100%)', animation: 'sweep 6s linear infinite', animationDelay: `${ci * 400}ms`, pointerEvents: 'none' }} />
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                            <span style={{ fontSize: 15, lineHeight: 1 }}>{c.icon}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#C6CDD4', letterSpacing: '.02em' }}>{c.label}</span>
+                            {c.note && <span style={{ marginLeft: 'auto', fontSize: 10, color: '#6B737C', whiteSpace: 'nowrap' }}>{c.note}</span>}
+                          </div>
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 12 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 42, lineHeight: 1, letterSpacing: '-.02em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 12px ${th.glow})` }}>{top.value}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12, minWidth: 0 }}>
+                                <span style={{ flex: 'none', width: 20, height: 20, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 11, color: medals[0].fg, background: medals[0].bg }}>1</span>
+                                <span style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{top.id}</span>
+                              </div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {top.date ? [fmtDate(top.date), top.map, top.agent ? agentKo(top.agent) : null, top.score ? `${top.score} ${top.result}` : null].filter(Boolean).join(' · ') : top.sub || ' '}
+                              </div>
                             </div>
-                            {c.rows.map((r, i) => (
-                              <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                                <div style={{ width: 18, flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: i ? 12 : 14, color: medalColor[i] }}>{i + 1}</div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: i ? 12 : 14, fontWeight: i ? 500 : 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</div>
-                                  {(r.date || r.sub) && <div style={{ fontSize: 10, color: '#6B737C', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null, r.score ? `${r.score} ${r.result}` : null].filter(Boolean).join(' · ') : r.sub}</div>}
-                                </div>
-                                <div style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: i ? 12 : 15, fontWeight: 700, color: i ? '#C8D0D8' : accent }}>{r.value}</div>
+                            {top.agentIcon && <img src={top.agentIcon} alt={agentKo(top.agent) || ''} style={{ flex: 'none', width: 52, height: 52, borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', boxShadow: '0 6px 18px rgba(0,0,0,.4)' }} />}
+                          </div>
+                        </div>
+                        {!!rest.length && (
+                          <div style={{ display: 'flex', flexDirection: 'column', padding: '4px 18px 10px', borderTop: '1px solid #20262E' }}>
+                            {rest.map((r, i) => (
+                              <div key={r.id} onClick={() => openPlayer(r.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 0', cursor: 'pointer', borderTop: i ? '1px solid #1C2128' : 'none' }}>
+                                <span style={{ flex: 'none', width: 18, height: 18, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 10, color: medals[i + 1].fg, background: medals[i + 1].bg }}>{i + 2}</span>
+                                <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
+                                <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#A8B0B9' }}>{r.value}</span>
                               </div>
                             ))}
                           </div>
-                        ))}
+                        )}
+                      </div>
+                    );
+                  };
+                  const section = (cats, th) => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: '.16em', color: th.color, marginBottom: 6 }}>{th.eyebrow}</div>
+                          <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(24px,4.5vw,32px)', lineHeight: 1, letterSpacing: '-.02em', animation: 'revealMask .7s cubic-bezier(.2,.7,.3,1) both' }}>{th.title}</div>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#8B949E', paddingBottom: 2 }}>{th.sub}</div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
+                        {cats.map((c, ci) => fameCard(c, ci, th))}
                       </div>
                     </div>
                   );
+                  if (!fameBoard.fame.length) return <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 저장된 경기가 없습니다.</div>;
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-                      {fameBoard.fame.length ? section('명예의 전당', fameBoard.fame, '#FFD166') : <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 저장된 경기가 없습니다.</div>}
-                      {!!fameBoard.shame.length && section('불명예의 전당', fameBoard.shame, '#E1424F')}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 18 }}>칭호 도감</div>
-                        <div style={{ fontSize: 12, color: '#8B949E', marginTop: -4 }}>내전 기록으로 자동으로 붙는 칭호입니다. 기록이 바뀌면 칭호도 같이 바뀌고, 선수별 순위표에서 선수를 누르면 그 선수의 칭호가 보입니다.</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
-                          {TITLE_DEFS.map((d) => {
-                            const holders = Object.entries(titlesById).filter(([id, list]) => !excludedIds.includes(id) && list.some((t) => t.id === d.id)).map(([id, list]) => ({ id, name: list.find((t) => t.id === d.id).name }));
-                            return (
-                              <div key={d.id} style={{ ...card, borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ fontSize: 18 }}>{d.icon}</span>
-                                  <span style={{ fontSize: 13, fontWeight: 700 }}>{d.name}</span>
-                                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6B737C' }}>{holders.length}명</span>
-                                </div>
-                                <div style={{ fontSize: 11, color: '#8B949E', lineHeight: 1.5 }}>{d.desc}</div>
-                                {!!holders.length && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                    {holders.map((h) => (
-                                      <button key={h.id} onClick={() => openPlayer(h.id)} title={h.name} style={{ fontSize: 10, color: '#C6CDD4', background: '#252C34', border: 'none', borderRadius: 5, padding: '2px 6px', cursor: 'pointer', maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.id}{h.name !== d.name ? ` (${h.name})` : ''}</button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 34, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
+                      {section(fameBoard.fame, themes.fame)}
+                      {!!fameBoard.shame.length && section(fameBoard.shame, themes.shame)}
                     </div>
                   );
                 })()}
@@ -3231,7 +3249,7 @@ export default function Page() {
                               ))}
                             </div>
                             {!titlesById[statId] && <div style={{ fontSize: 12, color: '#6B737C', padding: '6px 0' }}>아직 받은 칭호가 없습니다. 내전을 더 하면 생길 수 있어요.</div>}
-                            <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>칭호는 내전 기록으로 자동으로 정해지고, 기록이 바뀌면 같이 바뀝니다. 전체 칭호 목록은 "명예의 전당" 탭에 있습니다.</div>
+                            <div style={{ fontSize: 10, color: '#6B737C', marginTop: 10 }}>칭호는 내전 기록으로 자동으로 정해지고, 기록이 바뀌면 같이 바뀝니다.</div>
                           </div>
                         )}
                         {detailTab === 'mate' && !!statMates && (() => {
