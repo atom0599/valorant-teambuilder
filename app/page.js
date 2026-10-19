@@ -3052,10 +3052,12 @@ export default function Page() {
                         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
                         <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '100%', background: 'linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.04) 50%,rgba(255,255,255,0) 100%)', animation: 'sweep 7s linear infinite', animationDelay: `${ci * 500}ms`, pointerEvents: 'none' }} />
                         <div style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px 22px', padding: '16px 20px 16px 22px' }}>
-                          <div style={{ flex: '0 0 150px', minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                              <span style={{ fontSize: 16, lineHeight: 1 }}>{c.icon}</span>
-                              <span style={{ fontSize: 13, fontWeight: 700 }}>{c.label}</span>
+                          <div style={{ flex: '0 0 170px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                              <span style={{ fontSize: 16, lineHeight: 1.2, flex: 'none' }}>{c.icon}</span>
+                              {/* 한국어는 글자 단위로 줄바꿈돼서 "퍼스트 데 / 스"처럼 낱말이
+                                  잘렸다 — keep-all로 띄어쓰기에서만 줄을 바꾼다. */}
+                              <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4, wordBreak: 'keep-all' }}>{c.label}</span>
                             </div>
                             {c.note && <div style={{ fontSize: 10, color: '#6B737C', marginTop: 4 }}>{c.note}</div>}
                           </div>
