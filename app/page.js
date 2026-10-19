@@ -2307,7 +2307,7 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>참가자 등록</div>
-                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록되면 최근 30경기 사용 요원 통계로 포지션이 자동으로 채워지고, 가장 많이 쓴 요원 3개도 함께 표시됩니다 (포지션은 직접 바꿔도 됩니다).</div>
+                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록되면 최근 경쟁전 10경기 사용 요원 통계로 포지션이 자동으로 채워지고, 가장 많이 쓴 요원 3개도 함께 표시됩니다 (포지션은 직접 바꿔도 됩니다).</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button onClick={lookupAll} disabled={players.some((p) => p.loading)} style={{ background: '#1B2027', color: '#E8EAEC', border: '1px solid #333B45', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 600, cursor: players.some((p) => p.loading) ? 'default' : 'pointer', opacity: players.some((p) => p.loading) ? .6 : 1 }}>전체 티어 조회</button>

@@ -30,8 +30,11 @@ export async function GET(request) {
   if (!key) return Response.json({ error: 'HENRIKDEV_API_KEY not set', role: null }, { status: 503 });
 
   try {
+    // 경쟁전만 — 모드 필터가 없으면 스파이크 러시·데스매치·팀 데스매치 등
+    // 아무 요원이나 고르는 모드까지 섞여 주 사용 요원과 포지션이 틀어졌다.
+    // v3 by-name은 size와 상관없이 최대 10경기만 준다 (see app/api/stats).
     const res = await henrikFetch(
-      `https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?size=30`,
+      `https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?mode=competitive&size=10`,
       { headers: { Authorization: key }, cache: 'no-store' }
     );
     if (!res.ok) return Response.json({ error: `henrikdev ${res.status}`, role: null, topAgents: [] }, { status: res.status });
