@@ -3036,7 +3036,9 @@ export default function Page() {
                     const rest = c.rows.filter((r) => r.rank !== 1);
                     const top = leaders[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
-                    const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null, r.score ? `${r.score} ${r.result}` : null].filter(Boolean).join(' · ') : r.sub);
+                    // 날짜 · 맵 · 요원은 한 줄, 점수는 항상 그 아래 줄.
+                    const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null].filter(Boolean).join(' · ') : r.sub);
+                    const scoreOf = (r) => (r.date && r.score ? `${r.score} ${r.result}` : null);
                     return (
                       <div key={c.key} data-lift="1" style={{
                         position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid #262C34',
@@ -3069,6 +3071,7 @@ export default function Page() {
                                       <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
                                     </div>
                                     {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 3, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
+                                    {!!scoreOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', lineHeight: 1.5 }}>{scoreOf(r)}</div>}
                                   </div>
                                 </div>
                               ))}
