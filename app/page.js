@@ -1236,7 +1236,7 @@ export default function Page() {
     setSel(null);
     setScreen('balance');
   }
-  // 예상 승률: 두 팀 실력 점수 합의 차이(티어 칸 단위, 밸런싱에 쓴 바로 그
+  // 승리 확률: 두 팀 실력 점수 합의 차이(티어 칸 단위, 밸런싱에 쓴 바로 그
   // 점수)를 로지스틱 곡선에 넣는다. 합이 5칸 차이(5명 평균으로 1칸)면 약
   // 65 : 35, 10칸이면 약 77 : 23. 실제 결과로 맞춘 값이 아니라 대략적인 추정.
   function winChance(t) {
@@ -2538,7 +2538,7 @@ export default function Page() {
                           <span style={{ fontSize: 12, color: '#FF4B57', fontWeight: 700 }}>팀 A</span>
                           <span style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, lineHeight: 1, color: '#FF4B57' }}>{wc.A}%</span>
                         </div>
-                        <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>예상 승률</div>
+                        <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>승리 확률</div>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                           <span style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, lineHeight: 1, color: '#2FD3B7' }}>{wc.B}%</span>
                           <span style={{ fontSize: 12, color: '#2FD3B7', fontWeight: 700 }}>팀 B</span>
@@ -3415,8 +3415,10 @@ export default function Page() {
                     return { avg, kd, n: list.length };
                   };
                   const A = stat('A'), B = stat('B');
+                  const wc = A.n && B.n ? winChance(teams) : null;
                   const bar = (color, ratio) => ({ display: 'inline-block', width: 3, height: Math.max(8, Math.round(8 + ratio * 10)), borderRadius: 2, background: color });
                   const rows = [
+                    ['승리 확률', wc ? `${wc.A}%` : '—', wc ? `${wc.B}%` : '—', wc ? wc.A / 100 : 0, wc ? wc.B / 100 : 0],
                     ['평균 티어', A.n ? TIERS[Math.round(A.avg)]?.label.replace(/\s\d/, '') : '—', B.n ? TIERS[Math.round(B.avg)]?.label.replace(/\s\d/, '') : '—', A.avg / 24, B.avg / 24],
                     ['평균 K/D', A.n ? A.kd.toFixed(2) : '—', B.n ? B.kd.toFixed(2) : '—', Math.min(1, A.kd / 2), Math.min(1, B.kd / 2)],
                     ['인원', String(A.n), String(B.n), A.n / 5, B.n / 5]
@@ -3435,13 +3437,6 @@ export default function Page() {
                     </div>
                   ));
                 })()}
-              </div>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 18 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>자동 밸런싱 준비?</div>
-                  <div style={{ fontSize: 11, color: '#8B949E' }}>{teams ? (usePosition ? '티어 + 포지션 반영됨' : '티어만 반영됨') : `${filled.length}명 등록 · 미배정`}</div>
-                </div>
-                <button onClick={balance} style={{ flex: 'none', background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 999, padding: '11px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', animation: 'glowPulse 3.6s ease-in-out infinite' }}>✦ 밸런싱</button>
               </div>
             </div>
 
