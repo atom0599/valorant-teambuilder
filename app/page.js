@@ -1072,11 +1072,13 @@ export default function Page() {
   // 우리 내전에서의 성적을 티어 칸 단위 보정치로 더한다. 스탯만으로는 티어와
   // 같은 척도가 안 나오고, 내전을 몇 판 안 한 사람은 기준이 없어서 티어를
   // 기준점으로 쓴다.
-  //   ACS: 내전 전체 평균 대비 +10%마다 +1칸
-  //   K/D: 1.0에서 +0.1마다 +0.3칸
-  //   승률: 50%에서 +10%p마다 +1칸
-  // 판수가 적으면 우연이 크니 n/(n+5)로 줄이고(5판이면 절반만 반영), ±6칸으로
-  // 자른다. 내전 기록이 없으면 보정 0 = 티어만.
+  //   ACS: 내전 전체 평균 대비 +10%마다 +0.5칸
+  //   K/D: 1.0에서 +0.1마다 +0.15칸
+  //   승률: 50%에서 +10%p마다 +0.5칸
+  // 판수가 적으면 우연이 크니 n/(n+5)로 줄이고(5판이면 절반만 반영), ±3칸으로
+  // 자른다. 내전 기록이 없으면 보정 0 = 티어만. (처음엔 이 두 배였는데, 내전
+  // 판수가 적을 때 성적이 너무 크게 반영돼서 비슷한 티어끼리 바꿔도 승리
+  // 확률이 크게 흔들렸다.)
   const customsPerf = useMemo(() => {
     let acsSum = 0, acsN = 0;
     Object.values(records).forEach((r) => (r.matches || []).forEach((m) => { if (m.acs != null) { acsSum += m.acs; acsN++; } }));
@@ -1088,25 +1090,27 @@ export default function Page() {
       const games = ms.length;
       const wins = ms.filter((m) => m.result === '승').length;
       const st = ms.filter((m) => m.kills != null);
-      let adj = ((wins / games) * 100 - 50) / 10;
+      let adj = ((wins / games) * 100 - 50) / 20;
       if (st.length) {
         const kills = st.reduce((n, m) => n + m.kills, 0);
         const deaths = st.reduce((n, m) => n + m.deaths, 0);
         const kd = deaths ? kills / deaths : kills;
-        adj += (kd - 1) * 3;
+        adj += (kd - 1) * 1.5;
         const acsList = st.filter((m) => m.acs != null);
-        if (avgAcs && acsList.length) adj += ((acsList.reduce((n, m) => n + m.acs, 0) / acsList.length) / avgAcs - 1) * 10;
+        if (avgAcs && acsList.length) adj += ((acsList.reduce((n, m) => n + m.acs, 0) / acsList.length) / avgAcs - 1) * 5;
       }
       adj *= games / (games + 5);
-      out[id] = { adj: Math.max(-6, Math.min(6, adj)), games };
+      out[id] = { adj: Math.max(-3, Math.min(3, adj)), games };
     });
     return out;
   }, [records]);
-  function customsSkill(p) {
-    const peakIdx = p.tier == null ? 0 : p.tier;
+  // 실력 점수의 기준 티어 칸: 이번 시즌 티어, 없으면 최고 티어, 그것도 없으면 0.
+  function baseTierIdx(p) {
     const curIdx = p.currentTier ? TIERS.findIndex((t) => t.label === p.currentTier) : -1;
-    const base = curIdx >= 0 ? curIdx : peakIdx;
-    return base + (customsPerf[canonicalName(p.name.trim())]?.adj || 0);
+    return curIdx >= 0 ? curIdx : (p.tier == null ? 0 : p.tier);
+  }
+  function customsSkill(p) {
+    return baseTierIdx(p) + (customsPerf[canonicalName(p.name.trim())]?.adj || 0);
   }
 
   // `rank` picks which candidate split to use: 0 is the best (lowest skill
@@ -1124,6 +1128,9 @@ export default function Page() {
         tier: seasonTierIdx(p),
         tierIcon: seasonTierIdx(p) != null ? p.currentTierIcon || null : null,
         skill: balanceMode === 'customs' || balanceMode === 'customsFresh' ? customsSkill(p) : skillScore(p, i),
+        // 밸런싱 화면 카드에 "실력 4.9 (내전 −2.1)"처럼 보여 줄 보정 종류.
+        adjKind: balanceMode === 'customs' || balanceMode === 'customsFresh' ? '내전' : 'K:D',
+        base: baseTierIdx(p),
         groupId: p.groupId || null
       }))
       .filter((p) => p.name);
@@ -2579,7 +2586,14 @@ export default function Page() {
                               <div key={idx} data-row="1" onClick={() => clickPlayer(k, idx)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: active ? '#2A313A' : '#1B2027', border: `1px solid ${active ? color : '#262C34'}`, borderRadius: 12, padding: '11px 14px', cursor: 'pointer' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                                  <div style={{ fontSize: 11, color: '#8B949E' }}>{p.pos}</div>
+                                  <div style={{ fontSize: 11, color: '#8B949E' }}>
+                                    {p.pos}
+                                    {p.skill != null && (() => {
+                                      // 실력 점수 = 기준 티어 칸 + 보정. 보정은 점수에서 기준 칸을 뺀 값.
+                                      const adj = Math.round((p.skill - (p.base ?? p.tier ?? 0)) * 10) / 10;
+                                      return <span title="밸런싱과 승리 확률에 쓰는 실력 점수 (티어 칸 + 보정)"> · 실력 {p.skill.toFixed(1)}{p.adjKind && adj ? <span style={{ color: adj > 0 ? '#C8F24C' : '#E1424F' }}> ({p.adjKind} {adj > 0 ? '+' : '−'}{Math.abs(adj).toFixed(1)})</span> : null}</span>;
+                                    })()}
+                                  </div>
                                 </div>
                                 {/* peakTierIcon: teams balanced before tiers switched to this season */}
                                 {(p.tierIcon || p.peakTierIcon) ? (
