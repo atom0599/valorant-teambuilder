@@ -2393,6 +2393,9 @@ export default function Page() {
                   </label>
                   <div style={{ fontSize: 12, color: '#8B949E' }}>{usePosition ? '티어 차이 + 포지션 중복 페널티를 함께 계산합니다.' : '티어만 기준으로 배분합니다.'}</div>
                   <div style={{ flexBasis: '100%', height: 0 }} />
+                  {/* 버튼 줄 아래에 설명이 오도록 한 칸(세로)으로 묶는다 — 옆에 두면
+                      버튼 오른쪽에 붙어서 읽기 어려웠다. */}
+                  <div style={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13 }}>밸런싱 방식</span>
                     {[['skill', '실력만'], ['customs', '내전 스탯'], ['fresh', '실력 + 새 조합'], ['customsFresh', '내전 스탯 + 새 조합']].map(([k, label]) => (
@@ -2408,6 +2411,7 @@ export default function Page() {
                       ? ['티어를 기준으로 우리 내전 성적(ACS · K/D · 승률)을 더해서,', '내전에서 잘하는 사람은 높게, 못하는 사람은 낮게 쳐서 배분합니다.', '내전을 적게 한 사람은 티어 쪽에 더 가깝게 봅니다.']
                       : ['실력(티어 + 랭크 K:D) 차이가 가장 적은 배분을 고릅니다.']
                     ).map((line) => <div key={line}>{line}</div>)}
+                  </div>
                   </div>
                   <div style={{ flex: 1 }} />
                   <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>
