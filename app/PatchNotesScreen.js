@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { PATCH_NOTES } from '../lib/patchnotes';
+import Pager from './Pager';
 
 const KIND = {
   new: ['신규', '#C8F24C', 'rgba(200,242,76,.12)'],
@@ -20,11 +21,17 @@ function KindTag({ kind }) {
   return <span style={{ flex: 'none', fontSize: 11, fontWeight: 700, color, background: bg, border: `1px solid ${color}55`, borderRadius: 6, padding: '1px 7px' }}>{label}</span>;
 }
 
+// 패치내역 목록 한 페이지에 보이는 날짜 수.
+const PAGE_SIZE = 5;
+
 const card = { background: 'rgba(20,24,29,.86)', border: '1px solid #262C34', borderRadius: 18 };
 
 export default function PatchNotesScreen() {
   const [openDate, setOpenDate] = useState(null);
+  const [page, setPage] = useState(0);
   const open = PATCH_NOTES.find((p) => p.date === openDate);
+  const pageCount = Math.ceil(PATCH_NOTES.length / PAGE_SIZE);
+  const shown = PATCH_NOTES.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
@@ -39,7 +46,7 @@ export default function PatchNotesScreen() {
 
       {!open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {PATCH_NOTES.map((p, i) => (
+          {shown.map((p, k) => { const i = page * PAGE_SIZE + k; return (
             <button
               key={p.date}
               onClick={() => setOpenDate(p.date)}
@@ -55,7 +62,8 @@ export default function PatchNotesScreen() {
               <span style={{ flex: 'none', fontSize: 12, color: '#8B949E' }}>{p.items.length}건</span>
               <span style={{ flex: 'none', fontSize: 18, color: '#5F6872' }}>›</span>
             </button>
-          ))}
+          ); })}
+          <div style={{ marginTop: 6 }}><Pager page={page} pageCount={pageCount} onChange={setPage} /></div>
         </div>
       )}
 
