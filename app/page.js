@@ -36,6 +36,9 @@ function cleanupGroups(arr) {
   return arr.map((p) => (p.groupId && counts[p.groupId] < 2 ? { ...p, groupId: null } : p));
 }
 const teamName = (k) => (k === 'A' ? '팀 A' : '팀 B');
+// 새 조합 밸런싱이 실력 최선 배분에서 양보할 수 있는 점수 폭(티어 칸 단위,
+// 두 팀 실력 합의 차이 기준). 3이면 5명 평균으로 0.6칸 이내.
+const FRESH_TOLERANCE = 3;
 // 한 경기의 경기 MVP / 팀 MVP. HenrikDev가 준 실제 인게임 수상(see
 // app/api/customs/route.js) — 경기 MVP + 반대편 팀의 팀 MVP. 그 정보가
 // 저장되기 전에 불러온 경기는 전투 점수(더 예전 건 ACS) 1위로 대신한다.
@@ -71,7 +74,7 @@ const SYNC_PROTOCOL = 2;
 
 function roomSnap(r) {
   const players = Array.isArray(r.players) ? r.players.map(({ loading, ...p }) => p) : null;
-  return stableJson([r.createdAt, players, r.usePosition, r.teams, r.series, r.pool, r.captains, r.bp, r.scores]);
+  return stableJson([r.createdAt, players, r.usePosition, r.balanceMode, r.teams, r.series, r.pool, r.captains, r.bp, r.scores]);
 }
 
 export default function Page() {
@@ -84,6 +87,9 @@ export default function Page() {
 
   const [players, setPlayers] = useState(emptyPlayers);
   const [usePosition, setUsePosition] = useState(true);
+  // 'skill': 실력(티어 + K:D) 차이만 최소화. 'fresh': 실력 차이가 최선과
+  // 거의 같은 배분들 중에서 같은 팀을 자주 해본 사람끼리 덜 묶이는 쪽을 고른다.
+  const [balanceMode, setBalanceMode] = useState('skill');
   const [teams, setTeams] = useState(null);
   const [sel, setSel] = useState(null);
 
@@ -320,8 +326,8 @@ export default function Page() {
 
   /* ---------- room sync (polling) ---------- */
   const roomState = useMemo(() => ({
-    code: roomCode, createdAt, players, usePosition, teams, series, pool, captains, bp, scores
-  }), [roomCode, createdAt, players, usePosition, teams, series, pool, captains, bp, scores]);
+    code: roomCode, createdAt, players, usePosition, balanceMode, teams, series, pool, captains, bp, scores
+  }), [roomCode, createdAt, players, usePosition, balanceMode, teams, series, pool, captains, bp, scores]);
 
   // Room sync is last-write-wins on the whole blob: every client pushes its
   // full local state every ~1s, and a stale push just gets overwritten by
@@ -432,6 +438,7 @@ export default function Page() {
     // server's empty slot over it — the "등록하자마자 해제" bug.
     if (d.players) { setPlayers(d.players); lastSyncedPlayersRef.current = (raw || d).players; }
     if (typeof d.usePosition === 'boolean') setUsePosition(d.usePosition);
+    if (d.balanceMode === 'skill' || d.balanceMode === 'fresh') setBalanceMode(d.balanceMode);
     if (!teamsDirtyRef.current) setTeams(d.teams ?? null);
     if (d.series) setSeries(d.series);
     if (d.pool && !poolDirtyRef.current) setPool(d.pool);
@@ -693,7 +700,7 @@ export default function Page() {
 
   function resetRoom() {
     const fresh = {
-      code: roomCode, createdAt: Date.now(), players, usePosition,
+      code: roomCode, createdAt: Date.now(), players, usePosition, balanceMode,
       teams: null, series: 'BO3', pool: isAdmin ? rotation : pool,
       captains: { A: null, B: null }, bp: null, scores: {}
     };
@@ -1030,6 +1037,35 @@ export default function Page() {
     return base + (kd - 1) * 2 * tierWeight;
   }
 
+  // 내전 기록에서 두 사람(본계정 기준)이 같은 팀으로 뛴 판수. 같은 date =
+  // 같은 경기이고, 각자의 result(승/패)가 같으면 같은 팀이었다.
+  const pairTogether = useMemo(() => {
+    const byDate = new Map();
+    Object.entries(records).forEach(([id, r]) => (r.matches || []).forEach((m) => {
+      let e = byDate.get(m.date);
+      if (!e) { e = { 승: [], 패: [] }; byDate.set(m.date, e); }
+      (m.result === '승' ? e.승 : e.패).push(id);
+    }));
+    const out = new Map();
+    byDate.forEach((e) => [e.승, e.패].forEach((side) => {
+      for (let a = 0; a < side.length; a++) for (let b = a + 1; b < side.length; b++) {
+        const k = [side[a], side[b]].sort().join('\n');
+        out.set(k, (out.get(k) || 0) + 1);
+      }
+    }));
+    return out;
+  }, [records]);
+  // 한 팀 안의 모든 두 사람 쌍이 같은 팀으로 해본 판수의 합.
+  function teamFamiliarity(members) {
+    let sum = 0;
+    for (let a = 0; a < members.length; a++) for (let b = a + 1; b < members.length; b++) {
+      const ra = members[a].rid || canonicalName(members[a].name);
+      const rb = members[b].rid || canonicalName(members[b].name);
+      sum += pairTogether.get([ra, rb].sort().join('\n')) || 0;
+    }
+    return sum;
+  }
+
   // `rank` picks which candidate split to use: 0 is the best (lowest skill
   // gap), 1 the next-best, etc. — wrapping if asked for more than exist.
   // "5:5 자동 밸런싱" always starts at rank 0; "다시 배분" walks forward
@@ -1039,7 +1075,7 @@ export default function Page() {
   function runBalance(rank) {
     const list = players
       .map((p, i) => ({
-        i, name: p.name.trim(), pos: p.pos,
+        i, name: p.name.trim(), rid: canonicalName(p.name.trim()), pos: p.pos,
         // This season's tier for display — null (unplaced / no data) is shown
         // as "언랭", never a fabricated tier or a peak-tier stand-in.
         tier: seasonTierIdx(p),
@@ -1114,6 +1150,20 @@ export default function Page() {
       candidates.push({ mask, score });
     }
     candidates.sort((a, b) => a.score - b.score);
+    // 새 조합 모드: 실력 점수가 최선에서 FRESH_TOLERANCE 안쪽인 배분만 골라,
+    // 그 안에서 팀 안의 "같은 팀으로 해본 판수" 합이 적은 순으로 다시 줄
+    // 세운다. 실력 균형을 먼저 지키고 남는 선택지에서만 조합을 섞는 것이라,
+    // 자주 같이 한 사람끼리 갈라 놓으려고 실력 차이가 크게 벌어지지는 않는다.
+    // 허용 범위 밖의 배분은 기존처럼 실력 순으로 뒤에 붙어 "다시 배분"이
+    // 끝까지 돌 수 있다.
+    if (balanceMode === 'fresh' && candidates.length) {
+      const limit = candidates[0].score + FRESH_TOLERANCE;
+      const near = candidates.filter((c) => c.score <= limit);
+      const far = candidates.filter((c) => c.score > limit);
+      near.forEach((c) => { c.fam = teamFamiliarity(membersOf(c.mask)) + teamFamiliarity(membersOf(half ^ c.mask)); });
+      near.sort((a, b) => a.fam - b.fam || a.score - b.score);
+      candidates.splice(0, candidates.length, ...near, ...far);
+    }
 
     let A, B;
     if (candidates.length) {
@@ -2270,7 +2320,15 @@ export default function Page() {
                     <input type="checkbox" checked={usePosition} onChange={(e) => setUsePosition(e.target.checked)} style={{ width: 16, height: 16, accentColor: '#FF4B57', cursor: 'pointer' }} />
                     <span>포지션도 고려해서 밸런싱</span>
                   </label>
-                  <div style={{ fontSize: 12, color: '#8B949E' }}>{usePosition ? '티어 차이 + 포지션 중복 페널티를 함께 계산합니다.' : '티어만 기준으로 그리디 배분합니다.'}</div>
+                  <div style={{ fontSize: 12, color: '#8B949E' }}>{usePosition ? '티어 차이 + 포지션 중복 페널티를 함께 계산합니다.' : '티어만 기준으로 배분합니다.'}</div>
+                  <div style={{ flexBasis: '100%', height: 0 }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13 }}>밸런싱 방식</span>
+                    {[['skill', '실력만'], ['fresh', '실력 + 새 조합']].map(([k, label]) => (
+                      <button key={k} onClick={() => setBalanceMode(k)} style={{ ...pill(balanceMode === k, '#FF4B57'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8B949E' }}>{balanceMode === 'fresh' ? '실력 차이는 최선과 거의 같게 맞추고, 그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.' : '실력 차이가 가장 적은 배분을 고릅니다.'}</div>
                   <div style={{ flex: 1 }} />
                   <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>
                     {apiSource === 'api' ? 'HenrikDev API 연결됨' : apiSource === 'error' ? 'HenrikDev API 조회 실패' : '/api/rank 대기'}
@@ -2392,7 +2450,8 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>팀 밸런싱</div>
-                    <div style={sub}>{teams ? `이번 시즌 티어(없으면 최고 티어) + K:D 반영 그리디 배분${usePosition ? ' + 포지션 분산' : ''} 결과입니다.` : '먼저 참가자를 등록하세요.'}</div>
+                    <div style={sub}>{teams ? `이번 시즌 티어(없으면 최고 티어) + K:D 반영 배분${usePosition ? ' + 포지션 분산' : ''}${balanceMode === 'fresh' ? ' + 새 조합' : ''} 결과입니다.` : '먼저 참가자를 등록하세요.'}</div>
+                    {!!teams && balanceMode === 'fresh' && <div style={{ fontSize: 12, color: '#8B949E', marginTop: 4 }}>팀 안에서 같은 팀으로 해본 판수 합 · 팀 A {teamFamiliarity(teams.A || [])}판 · 팀 B {teamFamiliarity(teams.B || [])}판</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button onClick={rebalance} style={{ background: '#1B2027', color: '#E8EAEC', border: '1px solid #333B45', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>다시 배분</button>
