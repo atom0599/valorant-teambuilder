@@ -1,4 +1,5 @@
 import { henrikFetch } from '../../../lib/henrik';
+import { roundStats } from '../../../lib/roundstats';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +18,9 @@ const norm = (p) => `${String(p?.name || '').trim()}#${String(p?.tag || '').trim
 // ACS needs the match's total rounds (both teams' rounds-won summed, since
 // every round has exactly one winner) which isn't known until both sides'
 // round counts are read, so it's computed by the caller and passed in.
-const statFor = (p, totalRounds, mvpOf) => {
+const statFor = (p, totalRounds, mvpOf, rounds) => {
   const st = p?.stats || {};
+  const rs = rounds[p?.puuid] || {};
   const hsTotal = (st.headshots || 0) + (st.bodyshots || 0) + (st.legshots || 0);
   return {
     name: norm(p),
@@ -37,7 +39,13 @@ const statFor = (p, totalRounds, mvpOf) => {
     combat: st.score || 0,
     // The game's own award: 'match' = 경기 MVP, 'team' = 팀 MVP (losing side).
     mvp: mvpOf(p),
-    hsPct: hsTotal ? Math.round(((st.headshots || 0) / hsTotal) * 100) : 0
+    hsPct: hsTotal ? Math.round(((st.headshots || 0) / hsTotal) * 100) : 0,
+    // 라운드 단위 기록 (lib/roundstats.js)
+    firstKills: rs.firstKills ?? null,
+    firstDeaths: rs.firstDeaths ?? null,
+    plants: rs.plants ?? null,
+    defuses: rs.defuses ?? null,
+    clutches: rs.clutches ?? null
   };
 };
 
@@ -87,12 +95,13 @@ export async function GET(request) {
         const matchMvp = m.metadata?.mvp?.puuid || null;
         const teamMvps = new Set((m.teams || []).map((t) => t?.mvp?.puuid).filter(Boolean));
         const mvpOf = (p) => (!p?.puuid ? null : p.puuid === matchMvp ? 'match' : teamMvps.has(p.puuid) ? 'team' : null);
+        const rounds = roundStats(m);
         out.push({
           id: m.metadata.match_id,
           startedAt: m.metadata.started_at,
           map: m.metadata.map?.name || '',
-          red: { rounds: redRounds, players: players.filter((p) => p.team_id === 'Red').map((p) => statFor(p, totalRounds, mvpOf)) },
-          blue: { rounds: blueRounds, players: players.filter((p) => p.team_id === 'Blue').map((p) => statFor(p, totalRounds, mvpOf)) }
+          red: { rounds: redRounds, players: players.filter((p) => p.team_id === 'Red').map((p) => statFor(p, totalRounds, mvpOf, rounds)) },
+          blue: { rounds: blueRounds, players: players.filter((p) => p.team_id === 'Blue').map((p) => statFor(p, totalRounds, mvpOf, rounds)) }
         });
       }
       if (pastSince || matches.length < PAGE_SIZE) break;

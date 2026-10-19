@@ -1714,8 +1714,8 @@ export default function Page() {
             date: Date.parse(m.startedAt) || undefined,
             matchKey: `customs:${m.id}`,
             teams: {
-              A: m.redPlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, puuid: p.puuid })),
-              B: m.bluePlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, puuid: p.puuid }))
+              A: m.redPlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, firstKills: p.firstKills, firstDeaths: p.firstDeaths, plants: p.plants, defuses: p.defuses, clutches: p.clutches, puuid: p.puuid })),
+              B: m.bluePlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, firstKills: p.firstKills, firstDeaths: p.firstDeaths, plants: p.plants, defuses: p.defuses, clutches: p.clutches, puuid: p.puuid }))
             }
           })
         });

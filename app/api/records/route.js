@@ -107,6 +107,8 @@ export async function POST(request) {
           agent: p.agent ?? null, agentIcon: p.agentIcon ?? null,
           kills: p.kills ?? null, deaths: p.deaths ?? null, assists: p.assists ?? null, acs: p.acs ?? null, hsPct: p.hsPct ?? null,
           combat: p.combat ?? null, mvp: p.mvp ?? null,
+          firstKills: p.firstKills ?? null, firstDeaths: p.firstDeaths ?? null,
+          plants: p.plants ?? null, defuses: p.defuses ?? null, clutches: p.clutches ?? null,
           matchKey
         }, ...(r.matches || [])];
         all[p.name] = r;
