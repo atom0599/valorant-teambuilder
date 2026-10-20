@@ -2566,6 +2566,40 @@ export default function Page() {
                     </div>
                   );
                 })()}
+                {!!teams && (() => {
+                  const customs = balanceMode === 'customs' || balanceMode === 'customsFresh';
+                  const li = { margin: '2px 0' };
+                  return (
+                    <details style={{ ...card, padding: '12px 18px', fontSize: 12, color: '#B8BEC6', lineHeight: 1.6 }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#E8EAEC' }}>실력 점수는 어떻게 계산되나요?</summary>
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div>선수 카드의 <b style={{ color: '#E8EAEC' }}>실력 16.5 ({customs ? '내전' : 'K:D'} +0.5)</b>는 <b style={{ color: '#E8EAEC' }}>기준 티어 칸 16 + 보정 0.5</b>라는 뜻입니다. 두 팀의 실력 점수 합 차이가 가장 작게 나누고, 승리 확률도 이 차이로 계산합니다.</div>
+                        <div>
+                          <div style={{ color: '#E8EAEC', fontWeight: 600 }}>기준 티어 칸</div>
+                          <div>아이언 1을 0으로 두고 한 티어마다 1칸씩 올라갑니다. 골드 1 = 9, 플래티넘 1 = 12, 다이아 1 = 15, 초월자 1 = 18, 불멸 1 = 21, 레디언트 = 24. 이번 시즌 티어를 쓰고, 이번 시즌 배치를 안 했으면 최고 티어, 그것도 없으면 0입니다.</div>
+                        </div>
+                        {customs ? (
+                          <div>
+                            <div style={{ color: '#E8EAEC', fontWeight: 600 }}>내전 보정 (우리 내전 기록 전체)</div>
+                            <ul style={{ margin: '2px 0', paddingLeft: 18 }}>
+                              <li style={li}>ACS: 내전 전체 평균보다 10% 높을 때마다 +0.75칸</li>
+                              <li style={li}>K/D: 1.0보다 0.1 높을 때마다 +0.2칸</li>
+                              <li style={li}>승률: 50%보다 10%p 높을 때마다 +0.25칸 (승률은 어느 팀에 배정됐는지에 크게 좌우돼서 비중이 낮습니다)</li>
+                            </ul>
+                            <div>낮으면 그만큼 뺍니다. 세 값을 더한 뒤 <b style={{ color: '#E8EAEC' }}>판수 ÷ (판수 + 10)</b>을 곱해서 판수가 적을수록 덜 반영하고(5판이면 1/3, 10판이면 절반, 30판이면 3/4), 최대 ±3칸으로 자릅니다. 내전 기록이 없으면 보정 0입니다. 부계정으로 참가해도 본계정 기록을 씁니다.</div>
+                            <div style={{ marginTop: 6, color: '#8B949E' }}>예) 다이아 2(16칸), 내전 10판, ACS 평균보다 10% 높음 · K/D 1.1 · 승률 60% → (0.75 + 0.2 + 0.25) × 10/20 = +0.6 → 실력 16.6</div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ color: '#E8EAEC', fontWeight: 600 }}>K:D 보정 (이번 시즌 경쟁전)</div>
+                            <div><b style={{ color: '#E8EAEC' }}>(K/D − 1) × 2 × (1 + 티어 칸 × 0.07)</b>. K/D가 1.0보다 0.1 높으면 아이언에서는 +0.2칸, 높은 티어일수록 더 크게(레디언트는 약 2.7배) 반영합니다. 높은 티어일수록 상대가 강해서 같은 K/D라도 더 의미가 크기 때문입니다. 시즌 전적이 없으면 보정 0입니다.</div>
+                            <div style={{ marginTop: 6, color: '#8B949E' }}>예) 다이아 2(16칸), K/D 1.1 → 0.1 × 2 × 2.12 ≈ +0.4 → 실력 16.4</div>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })()}
                 <div style={{ fontSize: 12, color: '#8B949E' }}>선수 카드를 두 번 클릭해 수동 스왑할 수 있습니다. {sel ? '선택됨 — 교체할 선수를 클릭하세요.' : ''}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14 }}>
                   {[['A', '팀 A', '#FF4B57'], ['B', '팀 B', '#2FD3B7']].map(([k, label, color]) => {
