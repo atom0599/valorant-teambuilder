@@ -2615,7 +2615,13 @@ export default function Page() {
                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
                             <span style={{ fontFamily: "'Archivo'", fontWeight: 700, fontSize: 20 }}>{label}</span>
                           </div>
-                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>평균 {list.length ? TIERS[Math.round(avg)]?.label : '—'}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>
+                            <div>평균 {list.length ? TIERS[Math.round(avg)]?.label : '—'}</div>
+                            {list.length > 0 && list.every((p) => p.skill != null) && (() => {
+                              const total = list.reduce((a, p) => a + p.skill, 0);
+                              return <div title="밸런싱과 승리 확률에 쓰는 실력 점수의 팀 합계와 평균">실력 합 <span style={{ color: color }}>{total.toFixed(1)}</span> · 평균 <span style={{ color: color }}>{(total / list.length).toFixed(1)}</span></div>;
+                            })()}
+                          </div>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {list.map((p, idx) => {
