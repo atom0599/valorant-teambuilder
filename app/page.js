@@ -191,10 +191,17 @@ export default function Page() {
 
   const [seasonStats, setSeasonStats] = useState({});
   const [seasonStatsLoading, setSeasonStatsLoading] = useState(false);
+  const seasonStatsRef = useRef(seasonStats);
+  seasonStatsRef.current = seasonStats;
   // Riot ID -> { tier (TIERS index | null), tierIcon, at } — this season's
   // tier, shared via /api/seasonstats. 전체전적 shows this instead of the tier
   // snapshot stored on match records.
   const [currentTiers, setCurrentTiers] = useState({});
+  // runLookup은 큐에서 늦게 돌기 때문에 등록 당시 클로저 값이 아니라 최신
+  // 값을 읽도록 ref로도 들고 있는다.
+  const currentTiersRef = useRef(currentTiers);
+  currentTiersRef.current = currentTiers;
+  const statsQueueRef = useRef(Promise.resolve());
   const tierRefreshTriedRef = useRef(new Set());
   const lookupQueueRef = useRef(Promise.resolve());
   const rebalanceRankRef = useRef(0);
@@ -954,10 +961,17 @@ export default function Page() {
       return c >= 0 ? c : (peakIdx ?? -1);
     };
     for (const acc of others) {
-      await new Promise((r) => setTimeout(r, 250)); // spread requests out, avoid HenrikDev rate limit
-      const j = acc.indexOf('#');
-      const d = await fetch(`/api/rank?name=${encodeURIComponent(acc.slice(0, j))}&tag=${encodeURIComponent(acc.slice(j + 1))}`).then((r) => r.json()).catch(() => null);
-      rememberCurrentTier(acc, d);
+      // 12시간 안에 조회해 둔 계정은 다시 묻지 않는다 (HenrikDev 요청 하나에
+      // 서버 쪽에서 3초씩 걸려서, 부계정마다 새로 조회하면 등록이 느렸다).
+      const c = currentTiersRef.current[acc];
+      let d;
+      if (c && 'peak' in c && (c.at || 0) > Date.now() - 12 * 60 * 60 * 1000) {
+        d = { source: 'api', currentTier: c.tier != null ? TIERS[c.tier]?.label : null, currentTierIcon: c.tierIcon, peakTier: c.peak != null ? TIERS[c.peak]?.label : null, peakTierIcon: c.peakIcon };
+      } else {
+        const j = acc.indexOf('#');
+        d = await fetch(`/api/rank?name=${encodeURIComponent(acc.slice(0, j))}&tag=${encodeURIComponent(acc.slice(j + 1))}`).then((r) => r.json()).catch(() => null);
+        rememberCurrentTier(acc, d);
+      }
       if (d?.source !== 'api') continue;
       const peakIdx = TIERS.findIndex((t) => t.label === (d.peakTier || d.currentTier));
       if (peakIdx < 0) continue;
@@ -989,7 +1003,20 @@ export default function Page() {
     // per-minute rate limit even with the queue pacing everyone above.
     // Tier+role is only 2 requests/player — safe to batch. Use the "새로고침"
     // button in 인원 관리 to pull stats separately.
-    if (!skipStats && !seasonStats[fullName]) await fetchOneSeasonStats(fullName);
+    //
+    // 기다리지 않고 따로 미뤄 둔다: 시즌 스탯은 최대 10번 요청(서버가 3초
+    // 간격으로 보냄)이라, 여기서 기다리면 다음 사람 티어 조회가 30초씩
+    // 밀렸다. queueSeasonStats는 대기 중인 티어 조회가 다 끝난 뒤에 돈다.
+    if (!skipStats) queueSeasonStats(fullName);
+  }
+
+  function queueSeasonStats(full) {
+    statsQueueRef.current = statsQueueRef.current.then(async () => {
+      let q;
+      do { q = lookupQueueRef.current; await q; } while (q !== lookupQueueRef.current);
+      if (seasonStatsRef.current[full]) return;
+      await fetchOneSeasonStats(full);
+    }).catch(() => {});
   }
 
   function lookupAll() { players.forEach((p, i) => { if (p.name.trim()) lookup(i, undefined, true); }); }
@@ -1001,7 +1028,13 @@ export default function Page() {
   function rememberCurrentTier(id, rankData) {
     if (!id || rankData?.source !== 'api') return;
     const idx = rankData.currentTier ? TIERS.findIndex((t) => t.label === rankData.currentTier) : -1;
-    const entry = { tier: idx >= 0 ? idx : null, tierIcon: idx >= 0 ? rankData.currentTierIcon || null : null, at: Date.now() };
+    const peakIdx = TIERS.findIndex((t) => t.label === (rankData.peakTier || rankData.currentTier));
+    const entry = {
+      tier: idx >= 0 ? idx : null, tierIcon: idx >= 0 ? rankData.currentTierIcon || null : null,
+      // 최고 티어도 같이 — 부계정 티어 비교(runLookup)가 캐시만으로 끝나게.
+      peak: peakIdx >= 0 ? peakIdx : null, peakIcon: rankData.peakTierIcon || null,
+      at: Date.now()
+    };
     setCurrentTiers((c) => ({ ...c, [id]: entry }));
     fetch('/api/seasonstats', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
