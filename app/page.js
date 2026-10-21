@@ -937,14 +937,44 @@ export default function Page() {
     // personTier로 그중 가장 높은 티어를 쓴다.
     rememberCurrentTier(fullName, rankData);
 
-    const currentTier = rankData?.currentTier || null;
-    const currentTierIcon = rankData?.currentTierIcon || null;
-    const peakTierIcon = rankData?.peakTierIcon || null;
+    let currentTier = rankData?.currentTier || null;
+    let currentTierIcon = rankData?.currentTierIcon || null;
+    let peakTierIcon = rankData?.peakTierIcon || null;
     const agents = roleData?.topAgents || [];
+
+    // 본계정/부계정이 있으면 같은 사람의 다른 계정도 조회해서 티어가 더 높은
+    // 계정의 티어를 쓴다 (표시 + 밸런싱 둘 다). 비교 기준은 밸런싱과 같게
+    // 이번 시즌 티어, 없으면 최고 티어. 참가 계정(p.name)은 그대로 둔다 —
+    // 경기 기록은 실제로 뛴 계정으로 남아야 하니까.
+    let tierAccount = fullName;
+    const owner = roster.find((r) => r.name === fullName || (r.alts || []).includes(fullName));
+    const others = owner ? [owner.name, ...(owner.alts || [])].map((a) => a.trim()).filter((a) => a.includes('#') && a !== fullName.trim()) : [];
+    const baseOf = (cur, peakIdx) => {
+      const c = cur ? TIERS.findIndex((t) => t.label === cur) : -1;
+      return c >= 0 ? c : (peakIdx ?? -1);
+    };
+    for (const acc of others) {
+      await new Promise((r) => setTimeout(r, 250)); // spread requests out, avoid HenrikDev rate limit
+      const j = acc.indexOf('#');
+      const d = await fetch(`/api/rank?name=${encodeURIComponent(acc.slice(0, j))}&tag=${encodeURIComponent(acc.slice(j + 1))}`).then((r) => r.json()).catch(() => null);
+      rememberCurrentTier(acc, d);
+      if (d?.source !== 'api') continue;
+      const peakIdx = TIERS.findIndex((t) => t.label === (d.peakTier || d.currentTier));
+      if (peakIdx < 0) continue;
+      if (baseOf(d.currentTier, peakIdx) > baseOf(currentTier, tier)) {
+        tier = peakIdx; source = 'api'; rankError = null;
+        currentTier = d.currentTier || null;
+        currentTierIcon = d.currentTierIcon || null;
+        peakTierIcon = d.peakTierIcon || null;
+        tierAccount = acc;
+      }
+    }
+    if (tierAccount !== fullName) setApiSource('api');
+
     setPlayers((arr) => arr.map((x, k) => {
       if (k !== i || !same(x, fullName)) return x;
       // 포지션은 자동으로 채우지 않는다 — 등록하면 미정, 직접 고른다.
-      return { ...x, tier, source, rankError, agents, currentTier, currentTierIcon, peakTierIcon, loading: false };
+      return { ...x, tier, source, rankError, agents, currentTier, currentTierIcon, peakTierIcon, tierAccount, loading: false };
     }));
 
     // Registering someone (fresh lookup, no cached stats yet) auto-loads their
@@ -2333,7 +2363,9 @@ export default function Page() {
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                 {active?.currentTierIcon
                                   ? <img src={active.currentTierIcon} alt={active.currentTier || ''} title={active.currentTier || ''} style={{ width: 28, height: 28 }} />
-                                  : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>—</span>}
+                                  : personTier(r.name)?.tierIcon
+                                    ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={tierPill(personTier(r.name).tier).label} style={{ width: 28, height: 28 }} />
+                                    : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>—</span>}
                               </div>
                               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 {(st?.topAgents || []).map((a) => (
@@ -2467,6 +2499,7 @@ export default function Page() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: p.name ? '#E8EAEC' : '#6B737C' }}>{p.name || '빈 칸 — 인원 관리에서 등록'}</div>
                               {!!p.realName && <div style={{ fontSize: 10, color: '#6B737C' }}>{p.realName}</div>}
+                              {!!p.tierAccount && p.tierAccount !== p.name.trim() && <div title={`티어는 ${p.tierAccount} 기준`} style={{ fontSize: 10, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>티어: {p.tierAccount}</div>}
                             </div>
                             {!!p.name && (
                               <button onClick={() => { setPlayers((arr) => cleanupGroups(arr.map((x, k) => (k === i ? { name: '', pos: '미정', tier: null, source: null, loading: false, realName: '', groupId: null } : x)))); setGroupPick((g) => g.filter((x) => x !== i)); }} title="참가자에서 제거" style={{ background: 'transparent', border: 'none', color: '#6B737C', fontSize: 14, cursor: 'pointer', padding: '2px 4px', flex: 'none' }}>×</button>
@@ -3529,7 +3562,7 @@ export default function Page() {
 
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {[
-                ['최고 승률', `${board.length ? Math.max(...board.map((x) => x.rate)) : 0}%`, '#C8F24C'],
+                ['최고 승률', `${rankedBoard.length ? Math.max(...rankedBoard.map((x) => x.rate)) : 0}%`, '#C8F24C'],
                 ['누적 경기', String(totalMatchCount), '#E8EAEC']
               ].map(([label, value, color]) => (
                 <div key={label} data-lift="1" style={{ flex: '1 1 120px', minWidth: 120, background: 'rgba(16,20,25,.72)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 20, padding: 16 }}>
