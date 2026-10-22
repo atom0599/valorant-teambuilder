@@ -2099,13 +2099,6 @@ export default function Page() {
   const statMatchPageCount = Math.ceil(statMatchList.length / MATCH_PAGE);
   const curStatMatchPage = Math.min(statMatchPage, Math.max(statMatchPageCount - 1, 0));
 
-  const recent = useMemo(() => {
-    const flat = [];
-    Object.values(records).forEach((r) => (r.matches || []).forEach((m) => flat.push(m)));
-    flat.sort((a, b) => b.date - a.date);
-    const seen = new Set();
-    return flat.filter((m) => { const k = `${m.date}${m.score}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);
-  }, [records]);
 
   // 홈 "내전 하이라이트" (lib/highlights.js). hlIndex 0 = 가장 최근 내전 날.
   const hlDays = useMemo(() => highlightDays(records), [records]);
@@ -2282,46 +2275,79 @@ export default function Page() {
                   const isToday = Date.now() >= hlDay.start && Date.now() < hlDay.end;
                   const short = (id) => String(id).split('#')[0];
                   const names = (ids) => short(ids[0]) + (ids.length > 1 ? ` 외 ${ids.length - 1}명` : '');
-                  const cell = (key, icon, label, main, sub, onClick, img) => (
-                    <button key={key} onClick={onClick} style={{ textAlign: 'left', background: '#1B2027', border: '1px solid #262C34', borderRadius: 14, padding: '12px 13px', cursor: 'pointer', color: '#E8EAEC', display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
-                      {img ? <img src={img} alt="" style={{ width: 34, height: 34, borderRadius: 8, flex: 'none' }} /> : <div style={{ fontSize: 22, width: 34, textAlign: 'center', flex: 'none' }}>{icon}</div>}
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em' }}>{img ? `${icon} ` : ''}{label}</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{main}</div>
-                        <div style={{ fontSize: 11, color: '#8B949E', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
-                      </div>
-                    </button>
-                  );
-                  const cells = [
-                    hl.mvp && cell('mvp', '👑', isToday ? '오늘의 MVP' : '이날의 MVP', names(hl.mvp.ids), `경기 MVP ${hl.mvp.count}회`, () => openPlayer(hl.mvp.ids[0])),
-                    hl.kills && cell('kills', '💥', '최다 킬', short(hl.kills.id), `${hl.kills.kills}킬 · ${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, () => openMatch(hl.kills.mt.date), hl.kills.agentIcon),
-                    hl.acs && cell('acs', '📈', '최고 ACS', short(hl.acs.id), `ACS ${hl.acs.acs} · ${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, () => openMatch(hl.acs.mt.date), hl.acs.agentIcon),
-                    hl.streak && cell('streak', '🔥', hl.streak.perfect ? '전승' : '최고 승률', names(hl.streak.ids), hl.streak.perfect ? `${hl.streak.w}전 전승` : `${hl.streak.w}승 ${hl.streak.l}패`, () => openPlayer(hl.streak.ids[0])),
-                    hl.close && cell('close', '😰', '최대 접전', hl.close.score, `${hl.close.map} · 경기 보기`, () => openMatch(hl.close.date))
+                  const m = hl.mvp;
+                  const mvpBg = m && (MAP_IMG[m.map] || MAP_IMG[String(m.map).split(',')[0]?.trim()]);
+                  const rows = [
+                    hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
+                    hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
+                    hl.streak && { key: 'streak', icon: '🔥', label: hl.streak.perfect ? '전승' : '최고 승률', who: names(hl.streak.ids), ctx: hl.streak.ids.slice(1).map(short).join(', '), value: hl.streak.perfect ? `${hl.streak.w}전 전승` : `${hl.streak.w}승 ${hl.streak.l}패`, unit: '', onClick: () => openPlayer(hl.streak.ids[0]) },
+                    hl.close && { key: 'close', icon: '😰', label: '최대 접전', who: hl.close.map, ctx: '경기 보기', value: hl.close.score.replace(/\s/g, ''), unit: '', onClick: () => openMatch(hl.close.date) }
                   ].filter(Boolean);
+                  const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
                   return (
-                    <div data-lift="1" style={{ background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <div data-lift="1" style={{ background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700 }}>{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
-                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E', marginTop: 2 }}>{hlDay.count}경기</div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#C8F24C', letterSpacing: '.16em' }}>MATCH DAY RECAP</div>
+                          <div style={{ fontFamily: "'Archivo'", fontSize: 22, fontWeight: 800, letterSpacing: '-.02em', marginTop: 4 }}>{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
+                          <div style={{ fontSize: 11, color: '#8B949E', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hlDay.count}경기 · {mapsPlayed}</div>
                         </div>
                         {hlDays.length > 1 && (
                           <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
                             {[['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
-                              <button key={t} title={title} disabled={off} onClick={() => setHlIndex(to)} style={{ width: 30, height: 30, borderRadius: 8, background: '#1B2027', border: '1px solid #262C34', color: off ? '#3A424C' : '#C6CDD4', cursor: off ? 'default' : 'pointer', fontSize: 11 }}>{t}</button>
+                              <button key={t} title={title} disabled={off} onClick={() => setHlIndex(to)} style={{ width: 30, height: 30, borderRadius: 999, background: 'transparent', border: `1px solid ${off ? '#20262E' : '#3A424C'}`, color: off ? '#3A424C' : '#C6CDD4', cursor: off ? 'default' : 'pointer', fontSize: 10 }}>{t}</button>
                             ))}
                           </div>
                         )}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>{cells}</div>
+
+                      {m && (
+                        <button onClick={() => openPlayer(m.id)} style={{ position: 'relative', overflow: 'hidden', textAlign: 'left', cursor: 'pointer', color: '#F5F7F9', border: '1px solid rgba(255,209,102,.35)', borderRadius: 16, padding: '22px 20px', display: 'flex', alignItems: 'center', gap: 18, backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 18px 40px rgba(0,0,0,.35)' }}>
+                          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg,#FFE29A,#E8B23D)' }} />
+                          {m.agentIcon
+                            ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
+                            : <div style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 36, border: '2px solid #E8B23D' }}>👑</div>}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.18em', color: '#FFD166' }}>👑 {isToday ? 'TODAY' : 'DAY'} MVP</div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 4 }}>
+                              <span style={{ fontFamily: "'Archivo'", fontSize: 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{short(m.id)}</span>
+                              {String(m.id).includes('#') && <span style={{ fontSize: 11, color: '#8B949E', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 8, fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C6CDD4' }}>
+                              <span>평균 ACS <b style={{ color: '#F5F7F9' }}>{m.acs}</b></span>
+                              <span>K/D <b style={{ color: '#F5F7F9' }}>{m.kd.toFixed(2)}</b></span>
+                              <span>{m.kills}/{m.deaths}/{m.assists}</span>
+                              <span style={{ color: '#C8F24C' }}>{m.w}승 {m.l}패</span>
+                              {!!m.mvp && <span style={{ color: '#FFD166' }}>경기 MVP {m.mvp}회</span>}
+                            </div>
+                          </div>
+                        </button>
+                      )}
+
+                      {!!rows.length && (
+                        <div>
+                          {rows.map((r, i) => (
+                            <button key={r.key} onClick={r.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? '1px solid #20262E' : 'none', color: '#E8EAEC', padding: '11px 4px', cursor: 'pointer' }}>
+                              {r.img
+                                ? <img src={r.img} alt="" style={{ width: 34, height: 34, borderRadius: 8, flex: 'none' }} />
+                                : <div style={{ width: 34, height: 34, borderRadius: 8, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 18, background: '#1B2027' }}>{r.icon}</div>}
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em' }}>{r.img ? `${r.icon} ` : ''}{r.label}</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.who} <span style={{ fontWeight: 400, fontSize: 11, color: '#6B737C' }}>{r.ctx}</span></div>
+                              </div>
+                              <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 20, letterSpacing: '-.02em', color: '#F5F7F9' }}>{r.value}{r.unit && <span style={{ fontSize: 11, fontWeight: 600, color: '#8B949E', marginLeft: 2 }}>{r.unit}</span>}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       {!!hl.newTitles.length && (
-                        <div style={{ marginTop: 12 }}>
-                          <div style={{ fontSize: 11, color: '#8B949E', marginBottom: 6 }}>🏅 새로 받은 칭호</div>
+                        <div style={{ borderTop: '1px solid #20262E', paddingTop: 12 }}>
+                          <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em', marginBottom: 8 }}>🏅 새로 받은 칭호</div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             {hl.newTitles.map((t) => (
-                              <button key={`${t.player}-${t.name}`} title={t.desc} onClick={() => { openPlayer(t.player); setDetailTab('title'); }} style={{ fontSize: 11, color: '#C6CDD4', background: '#1B2027', border: '1px solid #262C34', borderRadius: 8, padding: '5px 9px', cursor: 'pointer' }}>
-                                <b style={{ color: '#E8EAEC' }}>{short(t.player)}</b> {t.icon} {t.name}
+                              <button key={`${t.player}-${t.name}`} title={t.desc} onClick={() => { openPlayer(t.player); setDetailTab('title'); }} style={{ fontSize: 11, color: '#C6CDD4', background: '#1B2027', border: '1px solid #262C34', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}>
+                                {t.icon} <b style={{ color: '#E8EAEC' }}>{short(t.player)}</b> · {t.name}
                               </button>
                             ))}
                           </div>
@@ -2330,28 +2356,6 @@ export default function Page() {
                     </div>
                   );
                 })()}
-
-                <div data-lift="1" style={{ background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.04em' }}>최근 경기</div>
-                    <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{recent.length ? `${recent.length}건` : ''}</div>
-                  </div>
-                  {recent.length ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {recent.map((m, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1B2027', borderRadius: 12, padding: '10px 12px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.map || '내전'}</div>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{fmtDate(m.date)}</div>
-                          </div>
-                          <div style={{ fontFamily: "'Archivo'", fontWeight: 700, fontSize: 15, color: '#C8F24C' }}>{m.score}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 13, color: '#8B949E', padding: '18px 0' }}>아직 기록된 경기가 없습니다. 밴픽을 끝내고 결과를 입력하면 여기에 누적됩니다.</div>
-                  )}
-                </div>
               </div>
             )}
 

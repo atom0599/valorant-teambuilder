@@ -1,6 +1,7 @@
 'use client';
-// 선수 상세 "추이" 탭: 경기마다 ACS / K/D / 최근 5판 승률이 어떻게 변했는지
-// 꺾은선으로 보여 준다. 점은 이긴 판이 꽉 찬 점, 진 판이 빈 점.
+// 선수 상세 "추이" 탭: 경기를 할 때마다 그 판까지의 평균 ACS / K/D / 승률이
+// 어떻게 변했는지(누적 평균) 꺾은선으로 보여 준다. 점은 그 판에 이겼으면
+// 꽉 찬 점, 졌으면 빈 점.
 import { useEffect, useRef, useState } from 'react';
 import { agentKo, fmtDate } from '../lib/constants';
 
@@ -8,10 +9,11 @@ const MAX_POINTS = 30;
 const H = 200, PAD = { l: 38, r: 12, t: 16, b: 24 };
 const LINE = '#C8F24C';
 
+// 각 지표: 그 판까지 누적한 값(acc)으로 평균을 낸다. need = 이 지표에 쓸 수 있는 경기.
 const METRICS = {
-  acs: { label: 'ACS', need: (m) => m.acs != null, val: (m) => m.acs, fmt: (v) => String(Math.round(v)) },
-  kd: { label: 'K/D', need: (m) => m.kills != null, val: (m) => (m.deaths ? m.kills / m.deaths : m.kills), fmt: (v) => v.toFixed(2) },
-  rate: { label: '승률 (최근 5판)', need: () => true, val: null, fmt: (v) => `${Math.round(v)}%` }
+  acs: { label: '평균 ACS', need: (m) => m.acs != null, add: (a, m) => ({ n: (a?.n || 0) + 1, s: (a?.s || 0) + m.acs }), avg: (a) => a.s / a.n, one: (m) => `이 판 ACS ${m.acs}`, fmt: (v) => String(Math.round(v)) },
+  kd: { label: 'K/D', need: (m) => m.kills != null, add: (a, m) => ({ k: (a?.k || 0) + m.kills, d: (a?.d || 0) + (m.deaths || 0) }), avg: (a) => (a.d ? a.k / a.d : a.k), one: (m) => `이 판 ${m.kills}/${m.deaths}/${m.assists}`, fmt: (v) => v.toFixed(2) },
+  rate: { label: '승률', need: () => true, add: (a, m) => ({ n: (a?.n || 0) + 1, w: (a?.w || 0) + (m.result === '승' ? 1 : 0) }), avg: (a) => (a.w / a.n) * 100, one: (m) => `${m.result} ${m.score}`, fmt: (v) => `${Math.round(v)}%` }
 };
 
 function niceTicks(lo, hi) {
@@ -38,17 +40,12 @@ export default function TrendChart({ matches, pill }) {
   }, []);
   const def = METRICS[metric];
 
-  const sorted = [...(matches || [])].sort((a, b) => a.date - b.date);
-  let points;
-  if (metric === 'rate') {
-    // 그 판까지 최근 5판의 승률 (5판이 안 되면 그때까지의 판).
-    points = sorted.map((m, i) => {
-      const win = sorted.slice(Math.max(0, i - 4), i + 1);
-      return { m, v: (win.filter((x) => x.result === '승').length / win.length) * 100, n: win.length };
-    });
-  } else {
-    points = sorted.filter(def.need).map((m) => ({ m, v: def.val(m) }));
-  }
+  // 누적은 전체 경기로 하고, 그래프에는 최근 MAX_POINTS판만 그린다.
+  let acc = null;
+  let points = [...(matches || [])].sort((a, b) => a.date - b.date).filter(def.need).map((m, i) => {
+    acc = def.add(acc, m);
+    return { m, v: def.avg(acc), n: i + 1 };
+  });
   const total = points.length;
   points = points.slice(-MAX_POINTS);
 
@@ -64,31 +61,31 @@ export default function TrendChart({ matches, pill }) {
   }
 
   const vals = points.map((p) => p.v);
-  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const now = vals[vals.length - 1];
+  // 최근 5판 동안 평균이 얼마나 움직였는지.
+  const ago = vals[Math.max(0, vals.length - 6)];
+  const diff = now - ago;
   let lo = Math.min(...vals), hi = Math.max(...vals);
-  if (metric === 'rate') { lo = 0; hi = 100; }
-  else { const padY = (hi - lo || hi || 1) * 0.12; lo = Math.max(0, lo - padY); hi += padY; }
-  const ticks = metric === 'rate' ? [0, 50, 100] : niceTicks(lo, hi).filter((t) => t >= lo && t <= hi);
-  const x = (i) => PAD.l + (points.length === 1 ? 0 : (i / (points.length - 1)) * (W - PAD.l - PAD.r));
+  const minSpan = metric === 'rate' ? 20 : metric === 'kd' ? 0.4 : 40;
+  if (hi - lo < minSpan) { const mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2; }
+  const padY = (hi - lo) * 0.12;
+  lo = Math.max(0, lo - padY); hi = metric === 'rate' ? Math.min(100, hi + padY) : hi + padY;
+  const ticks = niceTicks(lo, hi).filter((t) => t >= lo && t <= hi);
+  const x = (i) => PAD.l + (i / (points.length - 1)) * (W - PAD.l - PAD.r);
   const y = (v) => PAD.t + (1 - (v - lo) / (hi - lo || 1)) * (H - PAD.t - PAD.b);
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
 
-  const last5 = vals.slice(-5);
-  const recentAvg = last5.reduce((a, b) => a + b, 0) / last5.length;
-  const diff = recentAvg - avg;
   const hp = hover != null ? points[hover] : null;
   const colW = (W - PAD.l - PAD.r) / Math.max(points.length - 1, 1);
 
   return (
     <div ref={boxRef}>
       {head}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 8, fontSize: 11, color: '#8B949E' }}>
-        <span>전체 평균 <b style={{ color: '#E8EAEC', fontFamily: "'IBM Plex Mono'" }}>{def.fmt(avg)}</b></span>
-        {metric !== 'rate' && (
-          <span>최근 5판 평균 <b style={{ color: '#E8EAEC', fontFamily: "'IBM Plex Mono'" }}>{def.fmt(recentAvg)}</b>
-            <span style={{ marginLeft: 4, color: diff >= 0 ? '#C8F24C' : '#FF7A84' }}>{diff >= 0 ? '▲' : '▼'} {def.fmt(Math.abs(diff))}</span>
-          </span>
-        )}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 8, fontSize: 11, color: '#8B949E' }}>
+        <span>지금 {def.label} <b style={{ color: '#E8EAEC', fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{def.fmt(now)}</b></span>
+        <span>최근 5판 동안 {def.fmt(Math.abs(diff)) === def.fmt(0)
+          ? <span style={{ color: '#8B949E' }}>변화 없음</span>
+          : <span style={{ color: diff > 0 ? '#C8F24C' : '#FF7A84', fontFamily: "'IBM Plex Mono'" }}>{diff > 0 ? '▲' : '▼'} {def.fmt(Math.abs(diff))}</span>}</span>
         <span style={{ marginLeft: 'auto', color: '#6B737C' }}>● 승 ○ 패{total > MAX_POINTS ? ` · 최근 ${MAX_POINTS}판` : ''}</span>
       </div>
       <div style={{ position: 'relative' }}>
@@ -99,8 +96,6 @@ export default function TrendChart({ matches, pill }) {
               <text x={PAD.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#6B737C" fontFamily="IBM Plex Mono">{def.fmt(t)}</text>
             </g>
           ))}
-          <line x1={PAD.l} x2={W - PAD.r} y1={y(avg)} y2={y(avg)} stroke="#8B949E" strokeWidth="1" strokeDasharray="4 4" />
-          <text x={W - PAD.r} y={y(avg) - 5} textAnchor="end" fontSize="10" fill="#8B949E">평균 {def.fmt(avg)}</text>
           <text x={PAD.l} y={H - 6} fontSize="10" fill="#6B737C" fontFamily="IBM Plex Mono">{fmtDate(points[0].m.date).slice(5)}</text>
           <text x={W - PAD.r} y={H - 6} textAnchor="end" fontSize="10" fill="#6B737C" fontFamily="IBM Plex Mono">{fmtDate(points[points.length - 1].m.date).slice(5)}</text>
           {hp && <line x1={x(hover)} x2={x(hover)} y1={PAD.t} y2={H - PAD.b} stroke="#3A424C" strokeWidth="1" />}
@@ -115,9 +110,9 @@ export default function TrendChart({ matches, pill }) {
         </svg>
         {hp && (
           <div style={{ position: 'absolute', top: 4, left: `${(x(hover) / W) * 100}%`, transform: `translateX(${x(hover) / W > 0.6 ? 'calc(-100% - 10px)' : '10px'})`, pointerEvents: 'none', background: '#0F1318', border: '1px solid #2A323B', borderRadius: 8, padding: '6px 9px', fontSize: 11, whiteSpace: 'nowrap', boxShadow: '0 6px 18px rgba(0,0,0,.4)' }}>
-            <div style={{ fontWeight: 700, color: '#E8EAEC' }}>{def.label} {def.fmt(hp.v)}{metric === 'rate' ? ` (${hp.n}판)` : ''}</div>
+            <div style={{ fontWeight: 700, color: '#E8EAEC' }}>{def.label} {def.fmt(hp.v)} <span style={{ fontWeight: 400, color: '#8B949E' }}>({hp.n}판 누적)</span></div>
             <div style={{ color: '#8B949E', marginTop: 2 }}>{fmtDate(hp.m.date)} · {hp.m.map}{hp.m.agent ? ` · ${agentKo(hp.m.agent)}` : ''}</div>
-            <div style={{ color: hp.m.result === '승' ? '#C8F24C' : '#FF7A84', marginTop: 2 }}>{hp.m.result} {hp.m.score}{hp.m.kills != null ? ` · ${hp.m.kills}/${hp.m.deaths}/${hp.m.assists}` : ''}</div>
+            <div style={{ color: hp.m.result === '승' ? '#C8F24C' : '#FF7A84', marginTop: 2 }}>{metric === 'rate' ? def.one(hp.m) : `${hp.m.result} · ${def.one(hp.m)}`}</div>
           </div>
         )}
       </div>
