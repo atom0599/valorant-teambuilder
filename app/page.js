@@ -2,7 +2,9 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
-import { computeTitles, computeFame, TITLE_DEFS } from '../lib/fame';
+import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps } from '../lib/fame';
+import { highlightDays, dayHighlight } from '../lib/highlights';
+import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
@@ -40,23 +42,6 @@ const teamName = (k) => (k === 'A' ? '팀 A' : '팀 B');
 // 새 조합 밸런싱이 실력 최선 배분에서 양보할 수 있는 점수 폭(티어 칸 단위,
 // 두 팀 실력 합의 차이 기준). 3이면 5명 평균으로 0.6칸 이내.
 const FRESH_TOLERANCE = 3;
-// 한 경기의 경기 MVP / 팀 MVP. HenrikDev가 준 실제 인게임 수상(see
-// app/api/customs/route.js) — 경기 MVP + 반대편 팀의 팀 MVP. 그 정보가
-// 저장되기 전에 불러온 경기는 전투 점수(더 예전 건 ACS) 1위로 대신한다.
-// 직접 입력해서 스탯이 없는 경기는 MVP 없음. 경기별 보기 배지와 전체 전적의
-// MVP 횟수가 같은 기준을 쓰도록 여기 한 곳에 둔다.
-function matchAwards(mt) {
-  const all = [...mt.winners, ...mt.losers];
-  const cs = (p) => p.combat ?? p.acs;
-  const best = (list) => list.filter((p) => cs(p) != null).sort((a, b) => cs(b) - cs(a) || b.kills - a.kills)[0] || null;
-  const realAwards = all.some((p) => p.mvp);
-  const mvp = realAwards ? all.find((p) => p.mvp === 'match') || null : best(all);
-  const teamMvp = realAwards
-    ? all.find((p) => p.mvp === 'team' && !(mvp && mt.winners.includes(mvp) === mt.winners.includes(p))) || null
-    : best(mvp && mt.winners.includes(mvp) ? mt.losers : mt.winners);
-  return { mvp, teamMvp };
-}
-
 // JSON with sorted keys, so two copies of the same data compare equal no
 // matter which client built them or in what key order.
 function stableJson(v) {
@@ -140,6 +125,7 @@ export default function Page() {
   const [mateView, setMateView] = useState('mate');
   const [detailTab, setDetailTab] = useState('recent');
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
+  const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -1878,27 +1864,8 @@ export default function Page() {
   const finished = !!bp && bp.index >= steps.length && !bp.pending;
   const bpInProgress = !!bp && !finished;
 
-  // 전체 경기에서 각 선수가 받은 경기 MVP / 팀 MVP 횟수. 경기별 보기와 같은
-  // 방식(같은 date = 같은 경기)으로 경기를 다시 묶어서 matchAwards로 센다.
-  const mvpCounts = useMemo(() => {
-    const byDate = new Map();
-    Object.entries(records).forEach(([id, r]) => (r.matches || []).forEach((m) => {
-      let e = byDate.get(m.date);
-      if (!e) { e = { winners: [], losers: [] }; byDate.set(m.date, e); }
-      (m.result === '승' ? e.winners : e.losers).push({ id, kills: m.kills, acs: m.acs, combat: m.combat ?? null, mvp: m.mvp ?? null });
-    }));
-    const out = {};
-    byDate.forEach((mt) => {
-      const { mvp, teamMvp } = matchAwards(mt);
-      const blank = () => ({ mvp: 0, teamMvp: 0, mvpLoss: 0 });
-      if (mvp) {
-        (out[mvp.id] ||= blank()).mvp += 1;
-        if (mt.losers.includes(mvp)) out[mvp.id].mvpLoss += 1;
-      }
-      if (teamMvp) (out[teamMvp.id] ||= blank()).teamMvp += 1;
-    });
-    return out;
-  }, [records]);
+  // 전체 경기에서 각 선수가 받은 경기 MVP / 팀 MVP 횟수 (lib/fame.js).
+  const mvpCounts = useMemo(() => countMvps(records), [records]);
 
   // 자동 칭호 + 명예의 전당 (lib/fame.js) — 저장된 내전 기록만으로 계산.
   const titlesById = useMemo(() => computeTitles(records, mvpCounts), [records, mvpCounts]);
@@ -2140,6 +2107,19 @@ export default function Page() {
     return flat.filter((m) => { const k = `${m.date}${m.score}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);
   }, [records]);
 
+  // 홈 "내전 하이라이트" (lib/highlights.js). hlIndex 0 = 가장 최근 내전 날.
+  const hlDays = useMemo(() => highlightDays(records), [records]);
+  const hlDay = hlDays[Math.min(hlIndex, Math.max(hlDays.length - 1, 0))] || null;
+  const hl = useMemo(() => (hlDay ? dayHighlight(records, hlDay, excludedIds) : null), [records, hlDay, excludedIds]);
+  function openPlayer(id) {
+    setScreen('stats'); setStatView('player'); setStatId(id); setStatMatchPage(0); setDetailTab('recent');
+  }
+  function openMatch(date) {
+    const idx = matchLog.slice().sort((a, b) => b.date - a.date).findIndex((mt) => mt.date === date);
+    setScreen('stats'); setStatView('match'); setMatchSort('newest');
+    setMatchPage(Math.max(0, Math.floor(idx / MATCH_PAGE))); setExpandedMatch(date);
+  }
+
   /* ---------- style helpers ---------- */
   const pill = (active, accent = '#FF4B57') => ({
     borderRadius: 999, padding: '9px 15px', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
@@ -2294,6 +2274,62 @@ export default function Page() {
                     <button onClick={() => setScreen('stats')} style={{ background: 'rgba(27,32,39,.72)', backdropFilter: 'blur(10px)', color: '#E8EAEC', border: '1px solid rgba(255,255,255,.14)', borderRadius: 12, padding: '14px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>전체 전적 보기</button>
                   </div>
                 </div>
+
+                {hl && (() => {
+                  // 자정을 넘겨 이어진 내전이면 "10월 17~18일"처럼 실제 경기 날짜로.
+                  const d0 = new Date(hl.matches[0].date), d1 = new Date(hl.matches[hl.matches.length - 1].date);
+                  const dayLabel = `${d0.getMonth() + 1}월 ${d0.getDate()}${d1.getDate() !== d0.getDate() ? `~${d1.getMonth() !== d0.getMonth() ? `${d1.getMonth() + 1}월 ` : ''}${d1.getDate()}` : ''}일`;
+                  const isToday = Date.now() >= hlDay.start && Date.now() < hlDay.end;
+                  const short = (id) => String(id).split('#')[0];
+                  const names = (ids) => short(ids[0]) + (ids.length > 1 ? ` 외 ${ids.length - 1}명` : '');
+                  const cell = (key, icon, label, main, sub, onClick, img) => (
+                    <button key={key} onClick={onClick} style={{ textAlign: 'left', background: '#1B2027', border: '1px solid #262C34', borderRadius: 14, padding: '12px 13px', cursor: 'pointer', color: '#E8EAEC', display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                      {img ? <img src={img} alt="" style={{ width: 34, height: 34, borderRadius: 8, flex: 'none' }} /> : <div style={{ fontSize: 22, width: 34, textAlign: 'center', flex: 'none' }}>{icon}</div>}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em' }}>{img ? `${icon} ` : ''}{label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{main}</div>
+                        <div style={{ fontSize: 11, color: '#8B949E', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
+                      </div>
+                    </button>
+                  );
+                  const cells = [
+                    hl.mvp && cell('mvp', '👑', isToday ? '오늘의 MVP' : '이날의 MVP', names(hl.mvp.ids), `경기 MVP ${hl.mvp.count}회`, () => openPlayer(hl.mvp.ids[0])),
+                    hl.kills && cell('kills', '💥', '최다 킬', short(hl.kills.id), `${hl.kills.kills}킬 · ${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, () => openMatch(hl.kills.mt.date), hl.kills.agentIcon),
+                    hl.acs && cell('acs', '📈', '최고 ACS', short(hl.acs.id), `ACS ${hl.acs.acs} · ${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, () => openMatch(hl.acs.mt.date), hl.acs.agentIcon),
+                    hl.streak && cell('streak', '🔥', hl.streak.perfect ? '전승' : '최고 승률', names(hl.streak.ids), hl.streak.perfect ? `${hl.streak.w}전 전승` : `${hl.streak.w}승 ${hl.streak.l}패`, () => openPlayer(hl.streak.ids[0])),
+                    hl.close && cell('close', '😰', '최대 접전', hl.close.score, `${hl.close.map} · 경기 보기`, () => openMatch(hl.close.date))
+                  ].filter(Boolean);
+                  return (
+                    <div data-lift="1" style={{ background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700 }}>{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E', marginTop: 2 }}>{hlDay.count}경기</div>
+                        </div>
+                        {hlDays.length > 1 && (
+                          <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
+                            {[['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
+                              <button key={t} title={title} disabled={off} onClick={() => setHlIndex(to)} style={{ width: 30, height: 30, borderRadius: 8, background: '#1B2027', border: '1px solid #262C34', color: off ? '#3A424C' : '#C6CDD4', cursor: off ? 'default' : 'pointer', fontSize: 11 }}>{t}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>{cells}</div>
+                      {!!hl.newTitles.length && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 11, color: '#8B949E', marginBottom: 6 }}>🏅 새로 받은 칭호</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {hl.newTitles.map((t) => (
+                              <button key={`${t.player}-${t.name}`} title={t.desc} onClick={() => { openPlayer(t.player); setDetailTab('title'); }} style={{ fontSize: 11, color: '#C6CDD4', background: '#1B2027', border: '1px solid #262C34', borderRadius: 8, padding: '5px 9px', cursor: 'pointer' }}>
+                                <b style={{ color: '#E8EAEC' }}>{short(t.player)}</b> {t.icon} {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div data-lift="1" style={{ background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -3378,8 +3414,8 @@ export default function Page() {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {[['recent', '최근 경기'], ['agent', '요원'], ['map', '맵'], ['mate', '팀원'], ['title', '칭호']].map(([k, label]) => (
-                            <button key={k} onClick={() => setDetailTab(k)} style={{ ...pill(detailTab === k), flex: '1 1 0', padding: '8px 10px', fontSize: 12 }}>{label}</button>
+                          {[['recent', '최근 경기'], ['trend', '추이'], ['agent', '요원'], ['map', '맵'], ['mate', '팀원'], ['title', '칭호']].map(([k, label]) => (
+                            <button key={k} onClick={() => setDetailTab(k)} style={{ ...pill(detailTab === k), flex: '1 1 0', padding: '8px 4px', minWidth: 0, fontSize: 12 }}>{label}</button>
                           ))}
                         </div>
                         {(detailTab === 'agent' || detailTab === 'map') && !!statPlay && (() => {
@@ -3416,6 +3452,12 @@ export default function Page() {
                             </div>
                           );
                         })()}
+                        {detailTab === 'trend' && (
+                          <div style={{ ...card, borderRadius: 20, padding: 16 }}>
+                            <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>실력 추이</div>
+                            <TrendChart key={statId} matches={statRec?.matches} pill={pill} />
+                          </div>
+                        )}
                         {detailTab === 'title' && (
                           <div style={{ ...card, borderRadius: 20, padding: 16 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
