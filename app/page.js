@@ -2280,7 +2280,7 @@ export default function Page() {
                   const rows = [
                     hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
                     hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
-                    hl.streak && { key: 'streak', icon: '🔥', label: hl.streak.perfect ? '전승' : '최고 승률', who: names(hl.streak.ids), ctx: hl.streak.ids.slice(1).map(short).join(', '), value: hl.streak.perfect ? `${hl.streak.w}전 전승` : `${hl.streak.w}승 ${hl.streak.l}패`, unit: '', onClick: () => openPlayer(hl.streak.ids[0]) },
+                    hl.streak && { key: 'streak', icon: '🔥', label: '전승', who: names(hl.streak.ids), ctx: hl.streak.ids.slice(1).map(short).join(', '), value: `${hl.streak.w}전 전승`, unit: '', onClick: () => openPlayer(hl.streak.ids[0]) },
                     hl.close && { key: 'close', icon: '😰', label: '최대 접전', who: hl.close.map, ctx: '경기 보기', value: hl.close.score.replace(/\s/g, ''), unit: '', onClick: () => openMatch(hl.close.date) }
                   ].filter(Boolean);
                   const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
