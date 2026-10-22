@@ -5,8 +5,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { agentKo, fmtDate } from '../lib/constants';
 
-const MAX_POINTS = 30;
-const H = 200, PAD = { l: 38, r: 12, t: 16, b: 24 };
+const H = 200, PAD = { t: 16, b: 24 };
+const AXIS_W = 38, PLOT_PAD = 12, STEP = 26; // Y축 칸 너비, 그래프 양끝 여백, 점 사이 간격(px)
 const LINE = '#C8F24C';
 
 // 각 지표: 그 판까지 누적한 값(acc)으로 평균을 낸다. need = 이 지표에 쓸 수 있는 경기.
@@ -30,6 +30,8 @@ export default function TrendChart({ matches, pill }) {
   const [hover, setHover] = useState(null);
   // 그래프를 칸의 실제 너비(px)로 그려야 좁은 선수 상세에서도 글자가 작아지지 않는다.
   const boxRef = useRef(null);
+  const scrollRef = useRef(null);
+  const [scrollX, setScrollX] = useState(0);
   const [W, setW] = useState(360);
   useEffect(() => {
     const el = boxRef.current;
@@ -40,14 +42,20 @@ export default function TrendChart({ matches, pill }) {
   }, []);
   const def = METRICS[metric];
 
-  // 누적은 전체 경기로 하고, 그래프에는 최근 MAX_POINTS판만 그린다.
   let acc = null;
-  let points = [...(matches || [])].sort((a, b) => a.date - b.date).filter(def.need).map((m, i) => {
+  const points = [...(matches || [])].sort((a, b) => a.date - b.date).filter(def.need).map((m, i) => {
     acc = def.add(acc, m);
     return { m, v: def.avg(acc), n: i + 1 };
   });
-  const total = points.length;
-  points = points.slice(-MAX_POINTS);
+
+  // 점 사이 간격을 고정해서, 경기가 쌓여 칸보다 길어지면 가로 스크롤로 넘겨 본다.
+  // Y축 눈금은 스크롤 밖에 따로 그려서 항상 보이게 한다.
+  const plotW = Math.max(W - AXIS_W, PLOT_PAD * 2 + (points.length - 1) * STEP);
+  useEffect(() => {
+    // 처음 열거나 지표를 바꾸면 가장 최근 경기(오른쪽 끝)가 보이게.
+    const el = scrollRef.current;
+    if (el) { el.scrollLeft = el.scrollWidth; setScrollX(el.scrollLeft); }
+  }, [metric, points.length, plotW]);
 
   const head = (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -71,12 +79,22 @@ export default function TrendChart({ matches, pill }) {
   const padY = (hi - lo) * 0.12;
   lo = Math.max(0, lo - padY); hi = metric === 'rate' ? Math.min(100, hi + padY) : hi + padY;
   const ticks = niceTicks(lo, hi).filter((t) => t >= lo && t <= hi);
-  const x = (i) => PAD.l + (i / (points.length - 1)) * (W - PAD.l - PAD.r);
+  const x = (i) => PLOT_PAD + (i / (points.length - 1)) * (plotW - PLOT_PAD * 2);
   const y = (v) => PAD.t + (1 - (v - lo) / (hi - lo || 1)) * (H - PAD.t - PAD.b);
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
+  const colW = (plotW - PLOT_PAD * 2) / (points.length - 1);
+
+  // 날짜 눈금: 날짜가 바뀌는 첫 판마다, 앞 눈금과 겹치지 않을 때만.
+  const dateTicks = [];
+  points.forEach((p, i) => {
+    const label = fmtDate(p.m.date).slice(5);
+    const last = dateTicks[dateTicks.length - 1];
+    if (!last || (last.label !== label && x(i) - last.x >= 44)) dateTicks.push({ x: x(i), label });
+  });
 
   const hp = hover != null ? points[hover] : null;
-  const colW = (W - PAD.l - PAD.r) / Math.max(points.length - 1, 1);
+  const viewW = W - AXIS_W;
+  const flip = hp && x(hover) - scrollX > viewW * 0.55;
 
   return (
     <div ref={boxRef}>
@@ -86,35 +104,40 @@ export default function TrendChart({ matches, pill }) {
         <span>최근 5판 동안 {def.fmt(Math.abs(diff)) === def.fmt(0)
           ? <span style={{ color: '#8B949E' }}>변화 없음</span>
           : <span style={{ color: diff > 0 ? '#C8F24C' : '#FF7A84', fontFamily: "'IBM Plex Mono'" }}>{diff > 0 ? '▲' : '▼'} {def.fmt(Math.abs(diff))}</span>}</span>
-        <span style={{ marginLeft: 'auto', color: '#6B737C' }}>● 승 ○ 패{total > MAX_POINTS ? ` · 최근 ${MAX_POINTS}판` : ''}</span>
+        <span style={{ marginLeft: 'auto', color: '#6B737C' }}>● 승 ○ 패 · {points.length}판</span>
       </div>
-      <div style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block' }} onMouseLeave={() => setHover(null)}>
+      <div style={{ display: 'flex' }}>
+        <svg width={AXIS_W} height={H} style={{ display: 'block', flex: 'none' }}>
           {ticks.map((t) => (
-            <g key={t}>
-              <line x1={PAD.l} x2={W - PAD.r} y1={y(t)} y2={y(t)} stroke="#20262E" strokeWidth="1" />
-              <text x={PAD.l - 8} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#6B737C" fontFamily="IBM Plex Mono">{def.fmt(t)}</text>
-            </g>
-          ))}
-          <text x={PAD.l} y={H - 6} fontSize="10" fill="#6B737C" fontFamily="IBM Plex Mono">{fmtDate(points[0].m.date).slice(5)}</text>
-          <text x={W - PAD.r} y={H - 6} textAnchor="end" fontSize="10" fill="#6B737C" fontFamily="IBM Plex Mono">{fmtDate(points[points.length - 1].m.date).slice(5)}</text>
-          {hp && <line x1={x(hover)} x2={x(hover)} y1={PAD.t} y2={H - PAD.b} stroke="#3A424C" strokeWidth="1" />}
-          <path d={path} fill="none" stroke={LINE} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {points.map((p, i) => {
-            const win = p.m.result === '승';
-            return <circle key={i} cx={x(i)} cy={y(p.v)} r={hover === i ? 5.5 : 4} fill={win ? LINE : '#14181D'} stroke={win ? '#14181D' : LINE} strokeWidth="2" />;
-          })}
-          {points.map((p, i) => (
-            <rect key={`h${i}`} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onMouseEnter={() => setHover(i)} onClick={() => setHover(i)} />
+            <text key={t} x={AXIS_W - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill="#6B737C" fontFamily="IBM Plex Mono">{def.fmt(t)}</text>
           ))}
         </svg>
-        {hp && (
-          <div style={{ position: 'absolute', top: 4, left: `${(x(hover) / W) * 100}%`, transform: `translateX(${x(hover) / W > 0.6 ? 'calc(-100% - 10px)' : '10px'})`, pointerEvents: 'none', background: '#0F1318', border: '1px solid #2A323B', borderRadius: 8, padding: '6px 9px', fontSize: 11, whiteSpace: 'nowrap', boxShadow: '0 6px 18px rgba(0,0,0,.4)' }}>
-            <div style={{ fontWeight: 700, color: '#E8EAEC' }}>{def.label} {def.fmt(hp.v)} <span style={{ fontWeight: 400, color: '#8B949E' }}>({hp.n}판 누적)</span></div>
-            <div style={{ color: '#8B949E', marginTop: 2 }}>{fmtDate(hp.m.date)} · {hp.m.map}{hp.m.agent ? ` · ${agentKo(hp.m.agent)}` : ''}</div>
-            <div style={{ color: hp.m.result === '승' ? '#C8F24C' : '#FF7A84', marginTop: 2 }}>{metric === 'rate' ? def.one(hp.m) : `${hp.m.result} · ${def.one(hp.m)}`}</div>
+        <div ref={scrollRef} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)} style={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'thin', scrollbarColor: '#3A424C transparent', paddingBottom: plotW > viewW ? 4 : 0 }}>
+          <div style={{ position: 'relative', width: plotW }}>
+            <svg width={plotW} height={H} style={{ display: 'block' }} onMouseLeave={() => setHover(null)}>
+              {ticks.map((t) => <line key={t} x1={0} x2={plotW} y1={y(t)} y2={y(t)} stroke="#20262E" strokeWidth="1" />)}
+              {dateTicks.map((d) => (
+                <text key={d.x} x={Math.max(d.x, 2)} y={H - 6} textAnchor={d.x < 20 ? 'start' : 'middle'} fontSize="10" fill="#6B737C" fontFamily="IBM Plex Mono">{d.label}</text>
+              ))}
+              {hp && <line x1={x(hover)} x2={x(hover)} y1={PAD.t} y2={H - PAD.b} stroke="#3A424C" strokeWidth="1" />}
+              <path d={path} fill="none" stroke={LINE} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+              {points.map((p, i) => {
+                const win = p.m.result === '승';
+                return <circle key={i} cx={x(i)} cy={y(p.v)} r={hover === i ? 5.5 : 4} fill={win ? LINE : '#14181D'} stroke={win ? '#14181D' : LINE} strokeWidth="2" />;
+              })}
+              {points.map((p, i) => (
+                <rect key={`h${i}`} x={x(i) - colW / 2} y={0} width={colW} height={H} fill="transparent" onMouseEnter={() => setHover(i)} onClick={() => setHover(i)} />
+              ))}
+            </svg>
+            {hp && (
+              <div style={{ position: 'absolute', top: 4, left: x(hover), transform: `translateX(${flip ? 'calc(-100% - 10px)' : '10px'})`, pointerEvents: 'none', background: '#0F1318', border: '1px solid #2A323B', borderRadius: 8, padding: '6px 9px', fontSize: 11, whiteSpace: 'nowrap', boxShadow: '0 6px 18px rgba(0,0,0,.4)' }}>
+                <div style={{ fontWeight: 700, color: '#E8EAEC' }}>{def.label} {def.fmt(hp.v)} <span style={{ fontWeight: 400, color: '#8B949E' }}>({hp.n}판 누적)</span></div>
+                <div style={{ color: '#8B949E', marginTop: 2 }}>{fmtDate(hp.m.date)} · {hp.m.map}{hp.m.agent ? ` · ${agentKo(hp.m.agent)}` : ''}</div>
+                <div style={{ color: hp.m.result === '승' ? '#C8F24C' : '#FF7A84', marginTop: 2 }}>{metric === 'rate' ? def.one(hp.m) : `${hp.m.result} · ${def.one(hp.m)}`}</div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
