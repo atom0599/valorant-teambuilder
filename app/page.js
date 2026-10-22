@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
-import { computeTitles, computeFame } from '../lib/fame';
+import { computeTitles, computeFame, TITLE_DEFS } from '../lib/fame';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
@@ -139,6 +139,7 @@ export default function Page() {
   const [statMatchPage, setStatMatchPage] = useState(0);
   const [mateView, setMateView] = useState('mate');
   const [detailTab, setDetailTab] = useState('recent');
+  const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -3417,7 +3418,27 @@ export default function Page() {
                         })()}
                         {detailTab === 'title' && (
                           <div style={{ ...card, borderRadius: 20, padding: 16 }}>
-                            <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em', marginBottom: 12 }}>칭호 <span style={{ color: '#6B737C' }}>· {(titlesById[statId] || []).length}개</span></div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                              <div style={{ fontSize: 12, color: '#8B949E', letterSpacing: '.05em' }}>칭호 <span style={{ color: '#6B737C' }}>· {(titlesById[statId] || []).length}개</span></div>
+                              <button onClick={() => setTitleDex((v) => !v)} style={{ fontSize: 10, color: titleDex ? '#ECE8E1' : '#8B949E', background: titleDex ? '#2A323B' : '#1B2128', border: '1px solid #2A323B', borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>📖 칭호 도감</button>
+                            </div>
+                            {titleDex && (
+                              <div style={{ background: '#151A20', border: '1px solid #20262E', borderRadius: 12, padding: '8px 12px', marginBottom: 12 }}>
+                                <div style={{ fontSize: 11, color: '#8B949E', marginBottom: 4 }}>칭호 도감 · 전체 {TITLE_DEFS.length}개 중 {(titlesById[statId] || []).length}개 보유</div>
+                                {TITLE_DEFS.map((d, i) => {
+                                  const own = (titlesById[statId] || []).some((t) => t.id === d.id);
+                                  return (
+                                    <div key={d.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '6px 0', borderTop: i ? '1px solid #20262E' : 'none', opacity: own ? 1 : 0.55 }}>
+                                      <div style={{ fontSize: 15, lineHeight: 1.2, flex: 'none', width: 20, textAlign: 'center' }}>{d.icon}</div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700 }}>{d.name}{own && <span style={{ fontSize: 10, color: '#3FB950', fontWeight: 600, marginLeft: 6 }}>보유</span>}</div>
+                                        <div style={{ fontSize: 10, color: '#8B949E', marginTop: 2 }}>{d.desc}</div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                               {(titlesById[statId] || []).map((t, i) => (
                                 <div key={t.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderTop: i ? '1px solid #20262E' : 'none' }}>
