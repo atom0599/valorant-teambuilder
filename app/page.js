@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
 import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps } from '../lib/fame';
 import { highlightDays, dayHighlight } from '../lib/highlights';
+import { useAgentArt } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
@@ -131,6 +132,7 @@ export default function Page() {
   const [detailTab, setDetailTab] = useState('recent');
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
+  const agentArt = useAgentArt(); // 요원 이름 → { portrait, background, colors } (명예의 전당 · 하이라이트 MVP)
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -2282,6 +2284,8 @@ export default function Page() {
                   const names = (ids) => short(ids[0]) + (ids.length > 1 ? ` 외 ${ids.length - 1}명` : '');
                   const m = hl.mvp;
                   const mvpBg = m && (MAP_IMG[m.map] || MAP_IMG[String(m.map).split(',')[0]?.trim()]);
+                  // 요원 일러스트가 있으면 맵 사진 대신 요원 색 그라데이션 + 배경 글씨 + 전신 초상화.
+                  const mvpArt = m && agentArt(m.agent);
                   const rows = [
                     hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
                     hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
@@ -2307,12 +2311,21 @@ export default function Page() {
                       </div>
 
                       {m && (
-                        <button onClick={() => openPlayer(m.id)} style={{ position: 'relative', overflow: 'hidden', textAlign: 'left', cursor: 'pointer', color: '#F5F7F9', border: '1px solid rgba(255,209,102,.35)', borderRadius: 16, padding: '22px 20px', display: 'flex', alignItems: 'center', gap: 18, backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 18px 40px rgba(0,0,0,.35)' }}>
+                        <button onClick={() => openPlayer(m.id)} style={{
+                          position: 'relative', overflow: 'hidden', textAlign: 'left', cursor: 'pointer', color: '#F5F7F9', border: '1px solid rgba(255,209,102,.35)', borderRadius: 16, padding: '22px 20px', display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 18px 40px rgba(0,0,0,.35)',
+                          ...(mvpArt
+                            ? { minHeight: 132, backgroundColor: '#0F1923', backgroundImage: `${mvpArt.background ? `url(${mvpArt.background}), ` : ''}linear-gradient(135deg,${mvpArt.colors[0] || '#0F1923'} 0%,${mvpArt.colors[1] || '#0F1923'} 55%,${mvpArt.colors[2] || '#0F1923'} 100%)`, backgroundSize: 'auto 150%, cover', backgroundPosition: 'right 12% center, center', backgroundRepeat: 'no-repeat' }
+                            : { backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' })
+                        }}>
+                          {mvpArt && <>
+                            <img src={mvpArt.portrait} alt="" aria-hidden="true" style={{ position: 'absolute', right: '-4%', top: '-26%', height: '270%', pointerEvents: 'none', filter: 'drop-shadow(0 10px 30px rgba(0,0,0,.45))' }} />
+                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(100deg,rgba(11,13,16,.92) 0%,rgba(11,13,16,.7) 42%,rgba(11,13,16,0) 72%)', pointerEvents: 'none' }} />
+                          </>}
                           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg,#FFE29A,#E8B23D)' }} />
-                          {m.agentIcon
+                          {mvpArt ? null : m.agentIcon
                             ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
                             : <div style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 36, border: '2px solid #E8B23D' }}>👑</div>}
-                          <div style={{ minWidth: 0 }}>
+                          <div style={{ position: 'relative', minWidth: 0 }}>
                             <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.18em', color: '#FFD166' }}>👑 {isToday ? 'TODAY' : 'DAY'} MVP</div>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 4 }}>
                               <span style={{ fontFamily: "'Archivo'", fontSize: 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{short(m.id)}</span>
@@ -3241,6 +3254,8 @@ export default function Page() {
                     const rest = c.rows.filter((r) => r.rank !== 1);
                     const top = leaders[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
+                    // 1위 기록에 요원이 있으면 그 요원 색 그라데이션 + 배경 글씨 + 전신 초상화를 깐다.
+                    const art = agentArt(top.agent);
                     // 날짜 · 맵 · 요원은 한 줄, 점수는 항상 그 아래 줄.
                     const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null].filter(Boolean).join(' · ') : r.sub);
                     const scoreOf = (r) => (r.date && r.score ? `${r.score} ${r.result}` : null);
@@ -3248,12 +3263,20 @@ export default function Page() {
                       <div key={c.key} data-lift="1" style={{
                         position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid #262C34',
                         backgroundColor: '#14181D',
-                        backgroundImage: mapBg
-                          ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.9) 100%), url(${mapBg})`
-                          : `radial-gradient(520px 160px at 30% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
-                        backgroundSize: 'cover', backgroundPosition: 'center',
+                        ...(art
+                          ? { backgroundImage: `${art.background ? `url(${art.background}), ` : ''}linear-gradient(120deg,${art.colors[0] || '#0F1923'} 0%,${art.colors[1] || '#0F1923'} 55%,${art.colors[2] || '#0F1923'} 100%)`, backgroundSize: 'auto 170%, cover', backgroundPosition: 'right 14% center, center', backgroundRepeat: 'no-repeat' }
+                          : {
+                            backgroundImage: mapBg
+                              ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.9) 100%), url(${mapBg})`
+                              : `radial-gradient(520px 160px at 30% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
+                            backgroundSize: 'cover', backgroundPosition: 'center'
+                          }),
                         animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 50}ms`
                       }}>
+                        {art && <>
+                          <img src={art.portrait} alt="" aria-hidden="true" style={{ position: 'absolute', right: '-2%', top: '-40%', height: 'min(300%, 400px)', pointerEvents: 'none', opacity: .85 }} />
+                          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.8) 40%,rgba(11,13,16,.35) 75%,rgba(11,13,16,.55) 100%)', pointerEvents: 'none' }} />
+                        </>}
                         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
                         <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '100%', background: 'linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.04) 50%,rgba(255,255,255,0) 100%)', animation: 'sweep 7s linear infinite', animationDelay: `${ci * 500}ms`, pointerEvents: 'none' }} />
                         <div style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px 22px', padding: '16px 20px 16px 22px' }}>
