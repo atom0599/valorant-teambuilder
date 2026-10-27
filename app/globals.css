@@ -115,7 +115,7 @@ button:active { transform: scale(.97); }
    명예의 전당은 세로 카드 위쪽이 요원 · 아래쪽이 기록이고, 하이라이트 · 선수 상세는 초상화 자리를 padding-right로 비운다. */
 .agentPortrait { position: absolute; pointer-events: none; user-select: none; max-width: none; filter: drop-shadow(0 12px 28px rgba(0,0,0,.4)); }
 .fameRoulette { --fame-w: 300px; }
-/* 세로 카드 위쪽 요원 칸(255px)에 머리부터 발끝까지: 이미지 위 10%는 빈 공간이라 그만큼 올리고,
+/* 세로 카드 위쪽 요원 칸(230px)에 머리부터 발끝까지: 이미지 위 10%는 빈 공간이라 그만큼 올리고,
    요원이 이미지 가로 35~78%에 서 있어서 56%를 가운데로 맞춘다. */
 .fameTile .agentPortrait { height: 104%; top: -9%; left: 50%; transform: translateX(-56.5%); }
 /* 선수 상세 카드: 카드 높이에 맞춰 전신, 몸이 오른쪽 끝에 오게. */

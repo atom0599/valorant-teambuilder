@@ -3316,9 +3316,9 @@ export default function Page() {
                         transition: 'transform .6s cubic-bezier(.22,.8,.25,1), opacity .6s, box-shadow .6s',
                         cursor: active ? 'grab' : 'pointer', userSelect: 'none'
                       }}>
-                        <div style={{ height: 560, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
+                        <div style={{ height: 490, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
                           <div style={{
-                            position: 'relative', height: 255, flex: 'none', overflow: 'hidden',
+                            position: 'relative', height: 230, flex: 'none', overflow: 'hidden',
                             ...(art
                               ? {
                                 backgroundColor: c1,
