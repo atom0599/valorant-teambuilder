@@ -119,11 +119,17 @@ export default function FamePodium({ cats, kind, agentArt }) {
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [shame]);
 
-  // 명예는 넘길 때마다 꽃가루 (처음 그릴 때는 빼고).
+  // 명예는 넘길 때마다 꽃가루 (처음 그릴 때는 빼고). 연타하면 꽃가루가 수천 개 쌓여 화면이
+  // 버벅이고 클릭이 씹힌 것처럼 느껴져서, 새로 터질 때 이전 꽃가루는 치우고 0.35초 안의 연타는 건너뛴다.
+  const lastBurst = useRef(0);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     if (shame) return;
+    const now = performance.now();
+    if (now - lastBurst.current < 350) return;
+    lastBurst.current = now;
     const s = fx.current, cols = ['#FFE29A', '#FFF6D6', '#E8B23D', '#ffffff', '#F5C451'];
+    s.confetti = [];
     for (let k = 0; k < 120; k++) {
       const a = -Math.PI / 2 + (Math.random() - .5) * 1.6, v = Math.random() * 9 + 5;
       s.confetti.push({ x: s.W / 2, y: s.H * .42, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: Math.random() * Math.PI, vr: (Math.random() - .5) * .3, w: Math.random() * 6 + 4, h: Math.random() * 3 + 2, c: cols[k % cols.length], life: 1 });

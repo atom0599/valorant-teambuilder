@@ -322,6 +322,9 @@ button:active { transform: scale(.97); }
 .hlMvp { position: relative; display: flex; align-items: center; gap: 18px; text-align: left; color: #F5F7F9; cursor: pointer; background: transparent; border: none; padding: 10px 0 6px; text-shadow: inherit; animation: fadeUp .6s cubic-bezier(.2,.7,.3,1) both; }
 .hlCrown { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .18em; color: #2b1e04; text-shadow: none;
   background: linear-gradient(145deg, #FFE29A, #E8B23D); border-radius: 999px; padding: 4px 10px; box-shadow: 0 0 18px rgba(255,209,102,.35); }
+.hlAgentChip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #F5F7F9; text-shadow: none;
+  background: rgba(10,12,15,.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 3px 11px 3px 4px; }
+.hlAgentChip img { width: 20px; height: 20px; border-radius: 999px; }
 .hlMvpName { font-family: 'Archivo', sans-serif; font-size: clamp(32px, 5.6vw, 48px); font-weight: 800; line-height: 1; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: none;
   background: linear-gradient(180deg, #FFF6D6 0%, #F5C451 55%, #D99A1E 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 18px rgba(255,209,102,.3)); }
 /* 기록 네 칸: 유리 판 2 × 2 */

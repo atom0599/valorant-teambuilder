@@ -2304,13 +2304,13 @@ export default function Page() {
                   const rows = [
                     hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
                     hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
-                    hl.streak && { key: 'streak', icon: '🔥', label: '전승', who: names(hl.streak.ids), ctx: hl.streak.ids.slice(1).map(short).join(', '), value: `${hl.streak.w}전 전승`, unit: '', onClick: () => openPlayer(hl.streak.ids[0]) },
+                    hl.firstKills && { key: 'firstKills', icon: '⚡', label: '최다 퍼스트 킬', who: short(hl.firstKills.id), ctx: `${hl.firstKills.mt.map}${hl.firstKills.agent ? ` · ${agentKo(hl.firstKills.agent)}` : ''}`, value: hl.firstKills.firstKills, unit: '번', img: hl.firstKills.agentIcon, onClick: () => openMatch(hl.firstKills.mt.date) },
                     hl.close && { key: 'close', icon: '😰', label: '최대 접전', who: hl.close.map, ctx: '경기 보기', value: hl.close.score.replace(/\s/g, ''), unit: '', onClick: () => openMatch(hl.close.date) }
                   ].filter(Boolean);
                   const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
-                  // 기록 칸은 늘 네 칸(최다 킬 · 최고 ACS · 전승 · 최대 접전) — 없는 날은 빈 칸으로 두어 날마다 크기가 같다.
+                  // 기록 칸은 늘 네 칸(최다 킬 · 최고 ACS · 최다 퍼스트 킬 · 최대 접전) — 없는 날은 빈 칸으로 두어 날마다 크기가 같다.
                   const tiles = [
-                    ['kills', '💥', '최다 킬'], ['acs', '📈', '최고 ACS'], ['streak', '🔥', '전승'], ['close', '😰', '최대 접전']
+                    ['kills', '💥', '최다 킬'], ['acs', '📈', '최고 ACS'], ['firstKills', '⚡', '최다 퍼스트 킬'], ['close', '😰', '최대 접전']
                   ].map(([key, icon, label]) => rows.find((r) => r.key === key) || { key, icon, label, empty: true });
                   return (
                     <div data-lift="1" className={`hlStage${mvpArt ? ' hlCard' : ''}`} style={{
@@ -2348,7 +2348,10 @@ export default function Page() {
                               ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 72, height: 72, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
                               : <div style={{ width: 72, height: 72, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 34, border: '2px solid #E8B23D' }}>👑</div>)}
                             <div style={{ minWidth: 0 }}>
-                              <span className="hlCrown">👑 {isToday ? 'TODAY' : 'DAY'} MVP{m.agent ? ` · ${agentKo(m.agent)}` : ''}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span className="hlCrown">👑 {isToday ? 'TODAY' : 'DAY'} MVP</span>
+                                {m.agent && <span className="hlAgentChip">{m.agentIcon && <img src={m.agentIcon} alt="" />}{agentKo(m.agent)}</span>}
+                              </div>
                               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 8 }}>
                                 <span className="hlMvpName">{short(m.id)}</span>
                                 {String(m.id).includes('#') && <span style={{ fontSize: 11, color: 'rgba(232,234,236,.55)', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
