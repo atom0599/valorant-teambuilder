@@ -110,14 +110,10 @@ button:active { transform: scale(.97); }
   .playerSplit > .playerDetail { flex: 0 0 360px !important; }
 }
 
-/* 요원 일러스트 카드 (명예의 전당 · 내전 하이라이트). fullPortrait는 2048x1860에
-   요원이 가운데~오른쪽(가로 35~78%)에 서 있다. 요원 위에는 글자를 올리지 않는다 —
-   명예의 전당은 세로 카드 위쪽이 요원 · 아래쪽이 기록이고, 하이라이트 · 선수 상세는 초상화 자리를 padding-right로 비운다. */
+/* 요원 일러스트 카드 (내전 하이라이트 · 선수 상세). fullPortrait는 2048x1860에
+   요원이 가운데~오른쪽(가로 35~78%)에 서 있다. 요원 위에는 글자를 올리지 않게
+   초상화 자리를 padding-right로 비운다. */
 .agentPortrait { position: absolute; pointer-events: none; user-select: none; max-width: none; filter: drop-shadow(0 12px 28px rgba(0,0,0,.4)); }
-.fameRoulette { --fame-w: 300px; }
-/* 세로 카드 위쪽 요원 칸(230px)에 머리부터 발끝까지: 이미지 위 10%는 빈 공간이라 그만큼 올리고,
-   요원이 이미지 가로 35~78%에 서 있어서 56%를 가운데로 맞춘다. */
-.fameTile .agentPortrait { height: 104%; top: -9%; left: 50%; transform: translateX(-56.5%); }
 /* 선수 상세 카드: 카드 높이에 맞춰 전신, 몸이 오른쪽 끝에 오게. */
 .playerCard .agentPortrait { height: 104%; top: -6%; right: 0; transform: translateX(24%); }
 .playerCard { padding-right: 132px !important; }
@@ -125,8 +121,161 @@ button:active { transform: scale(.97); }
 .hlCard .agentPortrait { height: 104%; top: -6%; right: 0; transform: translateX(19%); }
 .hlCard .hlTop, .hlCard .hlRest { padding-right: 270px; }
 @media (max-width: 640px) {
-  .fameRoulette { --fame-w: min(78vw, 300px); }
   .hlCard .agentPortrait { height: 250px; top: -6px; right: -96px; transform: none; }
   .hlCard .hlTop { padding-right: 118px; }
   .hlCard .hlRest { padding-right: 0; }
+}
+
+/* ===================================================================
+   명예의 전당 / 불명예의 전당 시상대 (app/FamePodium.js)
+   무대 폭에 맞춰 줄어들도록 크기는 컨테이너 폭(cqw) 기준.
+   =================================================================== */
+@property --c0 { syntax: '<color>'; initial-value: #2a3340; inherits: true; }
+.psWrap { container-type: inline-size; }
+.ps { --th: #FFD166; position: relative; height: clamp(600px, 112cqw, 780px); border-radius: 26px; overflow: hidden; touch-action: pan-y; user-select: none; outline: none;
+  background: radial-gradient(70% 60% at 50% 34%, color-mix(in srgb, var(--c0) 55%, #07080a) 0%, #06070a 78%);
+  transition: --c0 1s ease; box-shadow: 0 30px 60px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.05); }
+.psLayer { position: absolute; inset: 0; pointer-events: none; }
+/* 1위 요원 배경 문구: 무대 뒤 전체에 크게, 천천히 흐르고 마우스에 살짝 반응 */
+.psText { position: absolute; left: 50%; top: -10%; width: 70%; height: 120%; pointer-events: none; transform: translate(calc(-50% + var(--px, 0) * -24px), calc(var(--py, 0) * -14px));
+  background-repeat: repeat-y; background-position: center 0; background-size: auto 55%; opacity: .1; animation: psFlow 40s linear infinite; transition: transform .6s cubic-bezier(.2,.7,.3,1); }
+@keyframes psFlow { to { background-position: center -110% } }
+/* 조명: 가운데 핀 조명(불명예에선 전구와 한 몸으로 흔들림) + 양옆에서 흔들리는 빛줄기 */
+.psBeam { position: absolute; top: -40px; width: 340px; height: 120%; transform-origin: 50% 0; mix-blend-mode: screen; filter: blur(8px); opacity: .55;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--th) 45%, transparent) 0%, color-mix(in srgb, var(--th) 10%, transparent) 55%, transparent 85%);
+  clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%); }
+.psPend { position: absolute; left: 50%; top: 0; width: 340px; height: 100%; margin-left: -170px; transform-origin: 50% 0; }
+.psBeam.b1 { left: 0; opacity: .7; background: linear-gradient(180deg, rgba(255,250,235,.32) 0%, rgba(255,250,235,.08) 55%, transparent 85%); }
+.psBeam.b2 { left: 6%; animation: psSway 9s ease-in-out infinite; }
+.psBeam.b3 { right: 6%; animation: psSway 11s ease-in-out infinite reverse; }
+@keyframes psSway { 0%, 100% { transform: rotate(-14deg) } 50% { transform: rotate(10deg) } }
+.psCord, .psBulb { display: none; }
+/* 1위 뒤 후광 + 도는 빛살 */
+.psAura { position: absolute; left: 50%; bottom: 30%; width: 420px; height: 420px; transform: translateX(-50%); border-radius: 50%; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--c0) 85%, white 10%) 0%, color-mix(in srgb, var(--c0) 40%, transparent) 45%, transparent 75%);
+  animation: psPulse 4s ease-in-out infinite; }
+@keyframes psPulse { 0%, 100% { transform: translateX(-50%) scale(.95); opacity: .6 } 50% { transform: translateX(-50%) scale(1.05); opacity: .85 } }
+.psRays { position: absolute; left: 50%; bottom: 42%; width: 640px; height: 640px; transform: translate(-50%, 50%); border-radius: 50%; opacity: .16; pointer-events: none; mix-blend-mode: screen;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--th) 80%, white) 0deg 4deg, transparent 4deg 18deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 20%, transparent 70%); mask-image: radial-gradient(closest-side, #000 20%, transparent 70%); animation: psSpin 60s linear infinite; }
+@keyframes psSpin { to { transform: translate(-50%, 50%) rotate(360deg) } }
+.psFx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* 제목: 무대 위 여백에만 놓아 요원 머리를 가리지 않는다 */
+.psHud { position: absolute; top: 26px; left: 0; right: 0; text-align: center; z-index: 8; pointer-events: none; }
+.psHud .en { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .32em; color: var(--th); }
+.psHud .ko { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: clamp(20px, 4.2cqw, 32px); letter-spacing: -.02em; margin-top: 6px; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
+.psHud .line { width: 120px; height: 1px; margin: 12px auto 0; background: linear-gradient(90deg, transparent, var(--th), transparent); }
+.psHud > * { animation: psHud .7s cubic-bezier(.2,.7,.3,1) both; }
+.psHud .ko { animation-delay: .06s; } .psHud .line { animation-delay: .12s; }
+@keyframes psHud { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: none } }
+/* 단상 (2위 · 1위 · 3위) */
+.psPodium { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 4px; z-index: 5; }
+.psStep { position: relative; width: min(230px, 30cqw); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.psAgent { position: relative; width: 100%; }
+.psAgent img { position: absolute; left: 50%; bottom: -6px; max-width: none; pointer-events: none; transform: translate(calc(-56.5% + var(--px, 0) * 8px), 0); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)); transition: filter .4s, transform .5s cubic-bezier(.2,.7,.3,1); }
+.psAgent img.rise { animation: psRise .9s cubic-bezier(.2,.8,.25,1) both; }
+@keyframes psRise { 0% { opacity: 0; transform: translate(-56.5%, 60px); filter: brightness(3) drop-shadow(0 0 30px #fff) } 55% { opacity: 1; filter: brightness(1.6) drop-shadow(0 0 20px rgba(255,255,255,.6)) } 100% { opacity: 1; transform: translate(-56.5%, 0) } }
+.psStep:hover .psAgent img { filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(1.12); transform: translate(calc(-56.5% + var(--px, 0) * 8px), -8px); }
+.psStep.g1 .psAgent { height: min(330px, 43cqw); } .psStep.g1 .psAgent img { height: min(360px, 47cqw); }
+.psStep.g2 .psAgent { height: min(260px, 34cqw); } .psStep.g2 .psAgent img { height: min(290px, 38cqw); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(.82); }
+.psStep.g3 .psAgent { height: min(235px, 31cqw); } .psStep.g3 .psAgent img { height: min(262px, 34cqw); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(.75); }
+.psBlock { position: relative; width: 100%; text-align: center; padding-top: 18px; color: #E8EAEC;
+  background: linear-gradient(180deg, #1e1f22 0%, #0d0e10 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 30px 50px rgba(0,0,0,.5); }
+.psBlock::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 18px; transform: translateY(-100%); clip-path: polygon(5% 0, 95% 0, 100% 100%, 0 100%); background: var(--top); }
+.psBlock::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--led); box-shadow: 0 0 14px var(--led), 0 0 30px var(--led); }
+.psStep.g1 .psBlock { height: 210px; --top: linear-gradient(90deg, #6b5218, #FFE29A 40%, #FFF6D6 50%, #E8B23D 70%, #6b5218); --led: #FFD166; background: linear-gradient(180deg, #2a2210 0%, #0e0b05 100%); }
+.psStep.g2 .psBlock { height: 150px; --top: linear-gradient(90deg, #545b63, #EDF1F5 45%, #ffffff 50%, #AAB3BC 70%, #545b63); --led: #C9D2DA; background: linear-gradient(180deg, #24272b 0%, #0c0d0f 100%); }
+.psStep.g3 .psBlock { height: 118px; --top: linear-gradient(90deg, #5a3510, #E7B27E 45%, #FFD9B0 50%, #B9722F 70%, #5a3510); --led: #E7B27E; background: linear-gradient(180deg, #2a1d12 0%, #0f0a06 100%); }
+.psNum { font-family: Cinzel, serif; font-weight: 900; line-height: 1; letter-spacing: .04em;
+  background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.08)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 1px 0 rgba(0,0,0,.6)); }
+.psStep.g1 .psNum { font-size: 44px; background-image: linear-gradient(180deg, #FFF3CC, #B8902F); }
+.psStep.g2 .psNum { font-size: 34px; } .psStep.g3 .psNum { font-size: 30px; }
+.psName { font-size: 14px; font-weight: 800; margin-top: 8px; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.psStep.g1 .psName { font-size: 16px; }
+.psVal { font-family: 'Archivo', sans-serif; font-weight: 800; letter-spacing: -.03em; margin-top: 2px; }
+.psStep.g1 .psVal { font-size: 40px; line-height: 1; background: linear-gradient(180deg, #FFF3CC, #F5C451 60%, #D99A1E); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 16px rgba(255,209,102,.35)); }
+.psStep.g2 .psVal { font-size: 22px; color: #DDE3E9; } .psStep.g3 .psVal { font-size: 20px; color: #E7B27E; }
+.psMini { display: flex; justify-content: center; gap: 12px; margin-top: 10px; }
+.psMini span { display: inline-flex; align-items: baseline; gap: 4px; }
+.psMini i { font-style: normal; font-size: 10px; color: rgba(232,234,236,.5); }
+.psMini b { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 800; color: #F5F7F9; }
+.psEmpty { opacity: .3; font-size: 13px; margin-top: 10px; }
+/* 바닥 반사 + 안개 */
+.psFloor { position: absolute; left: 0; right: 0; bottom: 0; height: 74px; z-index: 6; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(0,0,0,.6)); border-top: 1px solid rgba(255,255,255,.06); }
+.psReflect { position: absolute; left: 50%; bottom: 0; height: 74px; transform: translateX(-50%); display: flex; gap: 4px; z-index: 6; pointer-events: none; overflow: hidden; opacity: .22;
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent 80%); mask-image: linear-gradient(180deg, #000, transparent 80%); }
+.psReflect div { width: min(230px, 30cqw); height: 74px; background: linear-gradient(180deg, var(--led), transparent 60%); filter: blur(2px); }
+.psFog { position: absolute; left: -10%; right: -10%; bottom: 40px; height: 160px; z-index: 7; pointer-events: none; opacity: .55; filter: blur(18px);
+  background: radial-gradient(40% 50% at 25% 60%, rgba(200,210,225,.18), transparent 70%), radial-gradient(40% 50% at 75% 55%, rgba(200,210,225,.14), transparent 70%);
+  animation: psDrift 18s ease-in-out infinite alternate; }
+@keyframes psDrift { from { transform: translateX(-4%) } to { transform: translateX(4%) } }
+.psVignette { position: absolute; inset: 0; z-index: 7; pointer-events: none; background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.7) 100%); }
+/* 단상에 마우스를 올리면 그 선수의 경기 기록 */
+.psTip { position: absolute; z-index: 10; width: 250px; padding: 12px 14px; border-radius: 14px; pointer-events: none; animation: psTip .2s ease both;
+  background: rgba(12,14,18,.88); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 40px rgba(0,0,0,.5); }
+@keyframes psTip { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.psTip .t1 { font-weight: 800; font-size: 13px; color: #F5F7F9; }
+.psTip .t2 { font-size: 11px; color: rgba(232,234,236,.6); margin-top: 4px; line-height: 1.5; }
+.psTip .psMini { justify-content: flex-start; }
+/* 넘기기 */
+.psNav { position: absolute; top: 50%; z-index: 9; width: 44px; height: 44px; border-radius: 999px; transform: translateY(-50%); cursor: pointer;
+  background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.14); color: #E8EAEC; font-size: 12px; transition: border-color .2s, background .2s; }
+.psNav:hover { border-color: var(--th); background: rgba(10,12,15,.8); }
+.psNav.l { left: 16px; } .psNav.r { right: 16px; }
+.psDots { position: absolute; left: 0; right: 0; bottom: 24px; z-index: 9; display: flex; justify-content: center; gap: 6px; }
+.psDots button { width: 8px; height: 4px; padding: 0; border: none; border-radius: 999px; background: rgba(255,255,255,.2); cursor: pointer; transition: width .4s cubic-bezier(.2,.7,.3,1), background .4s; }
+.psDots button.on { width: 28px; background: var(--th); box-shadow: 0 0 10px var(--th); }
+
+/* ----- 불명예: 축하가 아니라 우울하게, 하지만 색은 살아 있게 -----
+   비 내리는 한밤의 뒷골목. 남보라 · 짙은 청록 밤하늘에 1위 요원 색이 은은하게 번지고, 흔들리는
+   호박색 전구 하나, 깜빡이는 장밋빛 · 청록 · 보라 네온 띠, 보랏빛 비와 안개. 축하 연출은 없다. */
+.ps.shame { --th: #D06A7A;
+  background:
+    radial-gradient(55% 45% at 50% 32%, color-mix(in srgb, var(--c0) 45%, transparent) 0%, transparent 70%),
+    radial-gradient(80% 60% at 20% 100%, rgba(40,90,120,.35) 0%, transparent 70%),
+    radial-gradient(80% 60% at 85% 95%, rgba(120,40,90,.32) 0%, transparent 70%),
+    linear-gradient(180deg, #0d0a1c 0%, #120d26 45%, #080712 100%); }
+.ps.shame .psBeam.b2, .ps.shame .psBeam.b3, .ps.shame .psRays, .ps.shame .psAura { display: none; }
+.ps.shame .psPend { animation: psSwing 7s ease-in-out infinite; }
+@keyframes psSwing { 0%, 100% { transform: rotate(-5deg) } 50% { transform: rotate(5deg) } }
+.ps.shame .psCord { display: block; position: absolute; left: 50%; top: 0; width: 1px; height: 120px; background: linear-gradient(180deg, #2a2440, #5f5680); }
+.ps.shame .psBulb { display: block; position: absolute; left: 50%; top: 116px; width: 18px; height: 22px; margin-left: -9px; border-radius: 45% 45% 50% 50%;
+  background: radial-gradient(circle at 50% 60%, #fff0c8 0%, #f0b860 45%, #7a4a20 100%); box-shadow: 0 0 22px 8px rgba(255,190,110,.4); animation: psFlick 6s steps(1) infinite; }
+.ps.shame .psBeam.b1 { top: 128px; opacity: .7; filter: blur(10px); background: linear-gradient(180deg, rgba(255,196,130,.26) 0%, rgba(255,160,120,.07) 50%, transparent 80%); animation: psFlick 6s steps(1) infinite; }
+@keyframes psFlick { 0%, 100% { opacity: .8 } 70% { opacity: .8 } 71% { opacity: .1 } 73% { opacity: .6 } 75% { opacity: .05 } 78% { opacity: .8 } }
+.ps.shame .psText { opacity: .08; filter: saturate(.6) hue-rotate(-10deg); }
+.ps.shame .psAgent img { filter: saturate(.55) brightness(.72) hue-rotate(-12deg) drop-shadow(0 0 18px rgba(120,90,200,.25)) drop-shadow(0 18px 22px rgba(0,0,0,.7)); }
+.ps.shame .psStep.g2 .psAgent img, .ps.shame .psStep.g3 .psAgent img { filter: saturate(.45) brightness(.6) hue-rotate(-12deg) drop-shadow(0 18px 22px rgba(0,0,0,.7)); }
+.ps.shame .psStep:hover .psAgent img { filter: saturate(.75) brightness(.85) hue-rotate(-12deg) drop-shadow(0 18px 22px rgba(0,0,0,.7)); transform: translate(calc(-56.5% + var(--px, 0) * 8px), 0); }
+.ps.shame .psAgent img.rise { animation: psSlump 1.8s cubic-bezier(.4,0,.2,1) both; }
+@keyframes psSlump { 0% { opacity: 0; transform: translate(-56.5%, -26px) } 100% { opacity: 1; transform: translate(-56.5%, 0) } }
+.ps.shame .psBlock { background: linear-gradient(180deg, #1d1b2e 0%, #0d0c16 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 30px 50px rgba(0,0,0,.6); }
+.ps.shame .psStep.g1 .psBlock { --top: linear-gradient(90deg, #2a2540, #5a4f78 45%, #6c6290 50%, #463e62 70%, #2a2540); --led: #E0566C; }
+.ps.shame .psStep.g2 .psBlock { --top: linear-gradient(90deg, #232838, #48546e 45%, #56627e 50%, #3a445a 70%, #232838); --led: #4FA3B8; }
+.ps.shame .psStep.g3 .psBlock { --top: linear-gradient(90deg, #2a2236, #54466a 45%, #62527a 50%, #44385a 70%, #2a2236); --led: #9B6BD0; }
+.ps.shame .psBlock::after { box-shadow: 0 0 10px var(--led), 0 0 22px var(--led); animation: psNeon 5s steps(1) infinite; }
+.ps.shame .psStep.g2 .psBlock::after { animation-delay: -1.7s; } .ps.shame .psStep.g3 .psBlock::after { animation-delay: -3.1s; }
+@keyframes psNeon { 0%, 100% { opacity: .9 } 40% { opacity: .9 } 41% { opacity: .2 } 43% { opacity: .85 } 44% { opacity: .1 } 47% { opacity: .9 } }
+.ps.shame .psNum { background-image: linear-gradient(180deg, rgba(200,180,240,.4), rgba(200,180,240,.05)); }
+.ps.shame .psStep.g1 .psNum { background-image: linear-gradient(180deg, #F2A5B2, #6a2a44); }
+.ps.shame .psStep.g1 .psVal { background-image: linear-gradient(180deg, #FFD6DD 0%, #E0566C 55%, #7B3BA8 100%); filter: drop-shadow(0 4px 16px rgba(224,86,108,.3)); }
+.ps.shame .psStep.g2 .psVal { color: #8CC4D3; } .ps.shame .psStep.g3 .psVal { color: #B79BE0; }
+.ps.shame .psName { color: #C9C3E0; }
+.ps.shame .psHud .ko { color: #D9D3EE; }
+.ps.shame .psFloor { background: linear-gradient(180deg, rgba(120,110,200,.06), rgba(0,0,0,.65)); }
+.ps.shame .psReflect { opacity: .35; }
+.ps.shame .psFog { opacity: .95; background: radial-gradient(45% 55% at 25% 60%, rgba(110,120,200,.26), transparent 70%), radial-gradient(45% 55% at 75% 55%, rgba(170,90,160,.2), transparent 70%); }
+.ps.shame .psVignette { background: radial-gradient(110% 85% at 50% 40%, transparent 45%, rgba(0,0,0,.8) 100%); }
+.ps.shame .psDots button.on { box-shadow: 0 0 8px var(--th); }
+/* 좁은 무대: 단상 글씨를 줄이고 화살표는 아래로 */
+/* 단상이 좁으면 1위 스탯 줄은 숨기고 마우스 툴팁에서만 */
+@container (max-width: 760px) {
+  .psBlock .psMini { display: none; }
+}
+@container (max-width: 600px) {
+  .psStep.g1 .psBlock { height: 180px; } .psStep.g2 .psBlock { height: 130px; } .psStep.g3 .psBlock { height: 104px; }
+  .psStep.g1 .psVal { font-size: 28px; } .psName, .psStep.g1 .psName { font-size: 12px; padding: 0 4px; }
+  .psStep.g1 .psNum { font-size: 34px; } .psStep.g2 .psNum { font-size: 26px; } .psStep.g3 .psNum { font-size: 22px; }
+  .psStep.g2 .psVal { font-size: 17px; } .psStep.g3 .psVal { font-size: 16px; }
+  .psNav { top: auto; bottom: 12px; transform: none; width: 38px; height: 38px; }
 }

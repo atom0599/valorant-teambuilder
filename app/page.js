@@ -8,6 +8,7 @@ import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
+import FamePodium from './FamePodium';
 import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
@@ -132,11 +133,7 @@ export default function Page() {
   const [detailTab, setDetailTab] = useState('recent');
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
-  const [fameIdx, setFameIdx] = useState({ fame: 0, shame: 0 }); // 명예 / 불명예의 전당에서 보고 있는 부문
-  const [fameDrag, setFameDrag] = useState(null); // 끄는 중인 룰렛 { k, dx }
-  const fameStart = useRef(null); // 끌기 시작 { k, x, moved }
-  const fameJustDragged = useRef(false); // 끌고 놓은 직후의 클릭은 카드 선택으로 치지 않음
-  const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 · 하이라이트 MVP · 선수 상세 카드)
+  const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 시상대 · 하이라이트 MVP · 선수 상세 카드)
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -2126,7 +2123,7 @@ export default function Page() {
   }
 
   /* ---------- style helpers ---------- */
-  // 스탯 한 줄 (하이라이트 MVP · 명예의 전당 카드 공용). [이름, 값, 값 색] 목록 (이름이 null이면 값만).
+  // 스탯 한 줄 (하이라이트 MVP). [이름, 값, 값 색] 목록 (이름이 null이면 값만).
   // 한국어가 고정폭 글꼴로 넘어가면 높이가 달라 줄이 삐뚤어 보여서, 이름과 값 모두
   // 일반 글꼴로 쓰고 기준선(baseline)에 맞춘다.
   const statLine = (items, style) => (
@@ -3261,194 +3258,28 @@ export default function Page() {
                 )}
 
                 {statView === 'fame' && (() => {
-                  const medals = [
-                    { bg: 'linear-gradient(145deg,#FFE29A,#E8B23D)', fg: '#4A3200' },
-                    { bg: 'linear-gradient(145deg,#EDF1F5,#B9C2CB)', fg: '#33393F' },
-                    { bg: 'linear-gradient(145deg,#E7B27E,#B9722F)', fg: '#3B2410' }
-                  ];
+                  // 명예의 전당 / 불명예의 전당 시상대 (app/FamePodium.js). 무대 두 개를 따로 둔다.
                   const themes = {
-                    fame: { eyebrow: 'HALL OF FAME', title: '명예의 전당', color: '#FFD166', glow: 'rgba(255,209,102,.16)', bar: 'linear-gradient(180deg,#FFE29A,#E8B23D)', text: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', sub: '내전 기록으로 뽑은 부문별 1~3위입니다. 기록이 같으면 공동 순위이고, 한 사람은 부문마다 자기 최고 기록으로 한 번만 오릅니다.' },
-                    shame: { eyebrow: 'HALL OF SHAME', title: '불명예의 전당', color: '#FF4B57', glow: 'rgba(255,75,87,.14)', bar: 'linear-gradient(180deg,#FF7A84,#E1424F)', text: 'linear-gradient(180deg,#FFD0D4 0%,#FF6B76 60%,#C7303D 100%)', sub: '다들 한 번쯤은 있는 날입니다.' }
+                    fame: { eyebrow: 'HALL OF FAME', title: '명예의 전당', color: '#FFD166', sub: '내전 기록으로 뽑은 부문별 1~3위입니다. 기록이 같으면 공동 순위이고, 한 사람은 부문마다 자기 최고 기록으로 한 번만 오릅니다.' },
+                    shame: { eyebrow: 'HALL OF SHAME', title: '불명예의 전당', color: '#D06A7A', sub: '다들 한 번쯤은 있는 날입니다.' }
                   };
-                  const rankBadge = (r, size) => (
-                    <span title={r.tied ? `공동 ${r.rank}위` : `${r.rank}위`} style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: size, height: size, padding: r.tied ? '0 5px' : 0, borderRadius: 6, fontFamily: "'Archivo'", fontWeight: 800, fontSize: size > 18 ? 11 : 10, color: medals[r.rank - 1].fg, background: medals[r.rank - 1].bg, whiteSpace: 'nowrap' }}>{r.tied ? `공동 ${r.rank}` : r.rank}</span>
-                  );
-                  // 부문 하나 = 세로 카드 한 장. 위쪽은 1위 기록 요원 칸(색 그라데이션 · 위키 배경 문구 ·
-                  // 머리부터 발끝까지 전신, 글자는 올리지 않음), 아래쪽은 기록: 부문 → 큰 기록 → 1위 ·
-                  // 그 판 정보 → 그 판 K/D/A · ACS · HS → 2~3위. 같은 순위(공동)는 한 줄로 묶는다.
-                  // d = 가운데 카드에서 몇 칸 떨어졌는지 (룰렛에서 양옆 카드는 기울고 작고 흐리게).
-                  const fameTile = (c, d, onPick, th) => {
-                    const groups = [];
-                    c.rows.forEach((r) => {
-                      const g = groups[groups.length - 1];
-                      if (g && g.rank === r.rank) g.rows.push(r);
-                      else groups.push({ rank: r.rank, tied: r.tied, value: r.value, rows: [r] });
-                    });
-                    const [lead, ...rest] = groups;
-                    const top = lead.rows[0];
-                    const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
-                    const art = agentArt(top.agent);
-                    const c0 = art?.colors[0] || '#1F2A36', c1 = art?.colors[1] || '#0F1923';
-                    const m = top.m;
-                    // 그 판 정보: 공동 1위면 누구 경기인지 앞에 붙인다.
-                    const matchLine = m
-                      ? [lead.rows.length > 1 ? String(top.id).split('#')[0] : null, fmtDate(m.date), m.map, m.agent ? agentKo(m.agent) : null, m.score ? `${m.score} ${m.result}` : m.result].filter(Boolean).join(' · ')
-                      : [top.sub, top.agent ? `모스트 요원 ${agentKo(top.agent)}` : null].filter(Boolean).join(' · ');
-                    const stats = m ? [
-                      m.kills != null && ['K/D/A', `${m.kills}/${m.deaths ?? 0}/${m.assists ?? 0}`],
-                      m.acs != null && ['ACS', m.acs],
-                      m.hsPct != null && ['HS', `${m.hsPct}%`]
-                    ].filter(Boolean) : [];
-                    const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
-                    // 공동 순위(2명 이상)는 늘 "누구 외 N명" 한 줄로 쓰고, 마우스를 올리면 전원 이름이 뜬다.
-                    const names = (g) => (g.rows.length > 1 ? `${g.rows[0].id} 외 ${g.rows.length - 1}명` : g.rows[0].id);
-                    const allNames = (g) => (g.rows.length > 1 ? g.rows.map((r) => r.id).join(', ') : undefined);
-                    const active = d === 0;
-                    return (
-                      <div key={c.key} className="fameTile" onClick={active ? undefined : onPick} style={{
-                        // 폭을 딱 고정해야(긴 이름이 카드를 늘리지 않게) 넘길 때마다 정확히 가운데에 온다.
-                        flex: '0 0 var(--fame-w)', width: 'var(--fame-w)', minWidth: 0, position: 'relative', borderRadius: 22, padding: 1,
-                        // 얇은 금속 테두리: 바깥 1px에 테마 색 그라데이션.
-                        background: active ? `linear-gradient(160deg,${th.color} 0%,rgba(255,255,255,.1) 32%,rgba(255,255,255,.04) 68%,${th.color}88 100%)` : 'rgba(255,255,255,.08)',
-                        boxShadow: active ? `0 30px 60px rgba(0,0,0,.55), 0 0 46px ${th.glow}` : '0 14px 30px rgba(0,0,0,.35)',
-                        transform: active ? 'none' : `perspective(1100px) rotateY(${d < 0 ? 10 : -10}deg) scale(.86)`,
-                        opacity: active ? 1 : Math.abs(d) === 1 ? .5 : .18,
-                        transition: 'transform .6s cubic-bezier(.22,.8,.25,1), opacity .6s, box-shadow .6s',
-                        cursor: active ? 'grab' : 'pointer', userSelect: 'none'
-                      }}>
-                        <div style={{ height: 490, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
-                          <div style={{
-                            position: 'relative', height: 230, flex: 'none', overflow: 'hidden',
-                            ...(art
-                              ? {
-                                backgroundColor: c1,
-                                backgroundImage: `${art.text ? `url(${art.text}), ` : ''}radial-gradient(75% 65% at 50% 42%,${c0} 0%,${c1} 100%)`,
-                                backgroundSize: `${art.text ? 'auto 96%, ' : ''}cover`,
-                                backgroundPosition: `${art.text ? 'center 40%, ' : ''}center`,
-                                backgroundRepeat: 'no-repeat'
-                              }
-                              : {
-                                backgroundImage: mapBg
-                                  ? `linear-gradient(180deg,rgba(11,13,16,.25) 0%,rgba(11,13,16,.7) 75%,${c1} 100%), url(${mapBg})`
-                                  : `radial-gradient(75% 65% at 50% 42%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
-                                backgroundSize: 'cover', backgroundPosition: 'center'
-                              })
-                          }}>
-                            {/* 발밑 빛 */}
-                            <div style={{ position: 'absolute', left: '18%', right: '18%', bottom: 4, height: 26, borderRadius: '50%', background: `radial-gradient(closest-side, ${art ? c0 : th.glow}, transparent)`, opacity: .9 }} />
-                            {art
-                              ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" draggable={false} />
-                              : <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 84, filter: 'drop-shadow(0 12px 28px rgba(0,0,0,.55))' }}>{c.icon}</div>}
-                          </div>
-                          <div style={{ height: 1, flex: 'none', background: `linear-gradient(90deg,transparent,${th.color}aa,transparent)` }} />
-                          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '16px 20px 18px' }}>
-                            <div style={{ ...line, fontSize: 16, fontWeight: 800, letterSpacing: '-.01em', color: th.color }}>{c.icon} {c.label}</div>
-                            <div style={{ marginTop: 8, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.035em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 4px 18px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
-                            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                              {rankBadge(lead, 20)}
-                              <span title={allNames(lead)} style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9', cursor: lead.rows.length > 1 ? 'help' : undefined }}>{names(lead)}</span>
-                            </div>
-                            {!!matchLine && <div style={{ ...line, marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(232,234,236,.6)' }}>{matchLine}</div>}
-                            {!!stats.length && statLine(stats, { marginTop: 12, columnGap: 12 })}
-                            {!!rest.length && (
-                              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.08)' }}>
-                                {rest.map((g) => (
-                                  <div key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                    {rankBadge(g, 18)}
-                                    <span title={allNames(g)} style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#DDE2E7', cursor: g.rows.length > 1 ? 'help' : undefined }}>{names(g)}</span>
-                                    <span style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 13, fontWeight: 800, color: 'rgba(232,234,236,.7)' }}>{g.value}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  };
-                  const section = (cats, th, k) => (
+                  const section = (cats, kind) => (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
                         <div>
-                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: '.16em', color: th.color, marginBottom: 6 }}>{th.eyebrow}</div>
-                          <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(24px,4.5vw,32px)', lineHeight: 1, letterSpacing: '-.02em', animation: 'revealMask .7s cubic-bezier(.2,.7,.3,1) both' }}>{th.title}</div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, letterSpacing: '.16em', color: themes[kind].color, marginBottom: 6 }}>{themes[kind].eyebrow}</div>
+                          <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(24px,4.5vw,32px)', lineHeight: 1, letterSpacing: '-.02em', animation: 'revealMask .7s cubic-bezier(.2,.7,.3,1) both' }}>{themes[kind].title}</div>
                         </div>
-                        <div style={{ fontSize: 12, color: '#8B949E', paddingBottom: 2 }}>{th.sub}</div>
+                        <div style={{ fontSize: 12, color: '#8B949E', paddingBottom: 2 }}>{themes[kind].sub}</div>
                       </div>
-                      {(() => {
-                        const n = cats.length;
-                        const i = Math.min(fameIdx[k] || 0, n - 1);
-                        const pick = (to) => setFameIdx((s) => ({ ...s, [k]: to }));
-                        const go = (d) => pick((i + d + n) % n);
-                        const dx = fameDrag?.k === k ? fameDrag.dx : 0;
-                        // 끌기: 손가락/마우스를 따라 트랙이 움직이고, 놓으면 끈 거리만큼 가까운 카드로 붙는다.
-                        // 브라우저가 끌기를 취소하면(pointercancel, 세로 스크롤로 판단 등) 그 자리에 멈추지 않고 지금 카드를 가운데로 되돌린다.
-                        const end = (e, cancel) => {
-                          const st = fameStart.current;
-                          fameStart.current = null;
-                          setFameDrag(null);
-                          if (!st || st.k !== k || !st.moved || cancel) return;
-                          const card = e.currentTarget.querySelector('.fameTile');
-                          const step = (card ? card.offsetWidth : 300) + 18;
-                          const moved = st.dx || 0;
-                          let steps = Math.round(-moved / step);
-                          if (!steps && Math.abs(moved) > 50) steps = moved < 0 ? 1 : -1;
-                          pick(Math.max(0, Math.min(n - 1, i + steps)));
-                          fameJustDragged.current = true;
-                          setTimeout(() => { fameJustDragged.current = false; }, 0);
-                        };
-                        const arrow = (d, t) => (
-                          <button onClick={() => go(d)} aria-label={d < 0 ? '이전 부문' : '다음 부문'} style={{ width: 38, height: 38, flex: 'none', borderRadius: 999, background: 'rgba(15,19,24,.7)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,.12)', color: '#E8EAEC', cursor: 'pointer', fontSize: 11 }}>{t}</button>
-                        );
-                        return (
-                          <>
-                            {/* 가로 룰렛: 세로 카드를 한 줄로 늘어놓고 지금 카드가 가운데 오게 트랙을 민다.
-                                카드 폭 --fame-w, 간격 18px. 50%는 트랙(=보이는 칸) 폭 기준. */}
-                            <div className="fameRoulette" style={{ overflow: 'hidden', padding: '14px 0 18px', touchAction: 'pan-y' }}
-                              onPointerDown={(e) => { if (e.pointerType === 'mouse' && e.button !== 0) return; fameStart.current = { k, x: e.clientX, moved: false }; }}
-                              onPointerMove={(e) => {
-                                const st = fameStart.current;
-                                if (!st || st.k !== k) return;
-                                const d = e.clientX - st.x;
-                                if (!st.moved) {
-                                  if (Math.abs(d) < 6) return;
-                                  st.moved = true;
-                                  e.currentTarget.setPointerCapture(e.pointerId);
-                                }
-                                st.dx = d;
-                                setFameDrag({ k, dx: d });
-                              }}
-                              onPointerUp={(e) => end(e, false)}
-                              onPointerCancel={(e) => end(e, true)}
-                              onLostPointerCapture={(e) => { if (fameStart.current?.k === k) end(e, true); }}
-                            >
-                              <div style={{
-                                display: 'flex', gap: 18,
-                                transform: `translateX(calc(50% - var(--fame-w) / 2 - ${i} * (var(--fame-w) + 18px) + ${dx}px))`,
-                                transition: dx ? 'none' : 'transform .6s cubic-bezier(.22,.8,.25,1)'
-                              }}>
-                                {cats.map((c, ci) => fameTile(c, ci - i, () => { if (!fameJustDragged.current) pick(ci); }, th))}
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-                              {arrow(-1, '◀')}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                {cats.map((c, ci) => (
-                                  <button key={c.key} onClick={() => pick(ci)} aria-label={`${ci + 1}번째 부문`} style={{ width: ci === i ? 26 : 8, height: 4, padding: 0, border: 'none', borderRadius: 999, cursor: 'pointer', background: ci === i ? th.color : 'rgba(255,255,255,.18)', transition: 'width .4s cubic-bezier(.2,.7,.3,1), background .4s' }} />
-                                ))}
-                              </div>
-                              {arrow(1, '▶')}
-                            </div>
-                          </>
-                        );
-                      })()}
+                      <FamePodium cats={cats} kind={kind} agentArt={agentArt} />
                     </div>
                   );
                   if (!fameBoard.fame.length) return <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 저장된 경기가 없습니다.</div>;
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 34, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
-                      {section(fameBoard.fame, themes.fame, 'fame')}
-                      {!!fameBoard.shame.length && section(fameBoard.shame, themes.shame, 'shame')}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 40, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
+                      {section(fameBoard.fame, 'fame')}
+                      {!!fameBoard.shame.length && section(fameBoard.shame, 'shame')}
                     </div>
                   );
                 })()}
