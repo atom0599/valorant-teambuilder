@@ -221,6 +221,8 @@ button:active { transform: scale(.97); }
 .psNav { position: absolute; top: 50%; z-index: 11; width: 44px; height: 44px; border-radius: 999px; transform: translateY(-50%); cursor: pointer;
   background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.14); color: #E8EAEC; font-size: 12px; transition: border-color .2s, background .2s; }
 @media (hover: hover) { .psNav:hover { border-color: var(--th); background: rgba(10,12,15,.8); } }
+/* 눈에 보이는 원보다 넓게 눌리도록 투명한 테두리 영역 */
+.psNav::before { content: ""; position: absolute; inset: -14px; border-radius: 999px; }
 .psNav, .psDots button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .psNav.l { left: 16px; } .psNav.r { right: 16px; }
 /* 막대 줄은 무대 폭 전체를 차지하는 상자라, 좁은 무대에서 아래로 내려온 화살표를 덮어 가운데를 누르면

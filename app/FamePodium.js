@@ -146,6 +146,12 @@ export default function FamePodium({ cats, kind, agentArt }) {
   const leds = shame ? ['#4FA3B8', '#E0566C', '#9B6BD0'] : ['#C9D2DA', 'var(--th)', '#E7B27E'];
 
   const onKey = (e) => { if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); };
+  // 화살표 · 막대는 누르는 순간(pointerdown) 바로 넘긴다. 아주 빠르게 연타하면 누를 때와 뗄 때 위치가
+  // 조금 달라져 브라우저가 클릭으로 치지 않는 일이 있어서. 키보드(Enter · Space)는 click으로 받는다.
+  const press = (fn) => ({
+    onPointerDown: (e) => { if (e.button === 0) { e.preventDefault(); fn(); } },
+    onClick: (e) => { if (e.detail === 0) fn(); }
+  });
   // 툴팁 · 깊이감은 마우스에서만. 터치 기기는 탭할 때 화면이 바뀌면 첫 탭을 "마우스 올리기"로 써 버려
   // 화살표를 두 번 눌러야 넘어가는 일이 있었다.
   const showTip = (e, g, rk) => {
@@ -196,7 +202,7 @@ export default function FamePodium({ cats, kind, agentArt }) {
             const a = r && agentArt(r.agent);
             return (
               <div key={rk} className={`psStep g${rk}`} onPointerEnter={(e) => showTip(e, g, rk)} onPointerLeave={() => setTip(null)}>
-                <div className="psAgent">{a?.portrait && <img className="rise" src={a.portrait} alt={agentKo(r.agent) || ''} draggable={false} style={{ animationDelay: `${rk === 1 ? 0 : rk === 2 ? 180 : 320}ms` }} />}</div>
+                <div className="psAgent">{a?.portrait && <img className="rise" src={a.portrait} alt={agentKo(r.agent) || ''} draggable={false} decoding="async" style={{ animationDelay: `${rk === 1 ? 0 : rk === 2 ? 180 : 320}ms` }} />}</div>
                 <div className="psBlock">
                   <div className="psNum">{['', 'I', 'II', 'III'][rk]}</div>
                   {g ? (
@@ -220,10 +226,10 @@ export default function FamePodium({ cats, kind, agentArt }) {
             <Mini stats={statsOf(tip.g.rows[0])} />
           </div>
         )}
-        <button className="psNav l" onClick={() => go(-1)} aria-label="이전 부문">◀</button>
-        <button className="psNav r" onClick={() => go(1)} aria-label="다음 부문">▶</button>
+        <button className="psNav l" {...press(() => go(-1))} aria-label="이전 부문">◀</button>
+        <button className="psNav r" {...press(() => go(1))} aria-label="다음 부문">▶</button>
         <div className="psDots">
-          {cats.map((x, k) => <button key={x.key} className={k === i ? 'on' : undefined} onClick={() => setIdx(k)} aria-label={`${k + 1}번째 부문`} />)}
+          {cats.map((x, k) => <button key={x.key} className={k === i ? 'on' : undefined} {...press(() => setIdx(k))} aria-label={`${k + 1}번째 부문`} />)}
         </div>
       </div>
     </div>
