@@ -1,5 +1,6 @@
 import { henrikFetch } from '../../../lib/henrik';
 import { roundStats } from '../../../lib/roundstats';
+import { agentIconUrl } from '../../../lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ const statFor = (p, totalRounds, mvpOf, rounds) => {
     // can still tie this player back to the right roster entry / record.
     puuid: p?.puuid || null,
     agent: p?.agent?.name || null,
-    agentIcon: p?.agent?.id ? `https://media.valorant-api.com/agents/${p.agent.id}/displayicon.png` : null,
+    agentIcon: agentIconUrl(p?.agent?.name, p?.agent?.id ? `https://media.valorant-api.com/agents/${p.agent.id}/displayicon.png` : null),
     kills: st.kills || 0,
     deaths: st.deaths || 0,
     assists: st.assists || 0,

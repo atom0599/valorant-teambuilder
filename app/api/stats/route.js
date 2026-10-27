@@ -1,4 +1,5 @@
 import { henrikFetch } from '../../../lib/henrik';
+import { agentIconUrl } from '../../../lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,7 +83,7 @@ export async function GET(request) {
         const agent = me.agent;
         if (agent?.id) {
           const key2 = agent.name || agent.id;
-          if (!agentCounts[key2]) agentCounts[key2] = { count: 0, icon: `https://media.valorant-api.com/agents/${agent.id}/displayicon.png` };
+          if (!agentCounts[key2]) agentCounts[key2] = { count: 0, icon: agentIconUrl(agent.name, `https://media.valorant-api.com/agents/${agent.id}/displayicon.png`) };
           agentCounts[key2].count++;
         }
       }

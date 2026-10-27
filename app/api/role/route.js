@@ -1,5 +1,5 @@
 import { henrikFetch } from '../../../lib/henrik';
-import { agentRole } from '../../../lib/constants';
+import { agentRole, agentIconUrl } from '../../../lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +39,7 @@ export async function GET(request) {
       if (!agent) continue;
       totalAgentMatches++;
       if (!agentCounts[agent]) {
-        agentCounts[agent] = { count: 0, icon: me.assets?.agent?.small || null, portrait: me.assets?.agent?.bust || null };
+        agentCounts[agent] = { count: 0, icon: agentIconUrl(agent, me.assets?.agent?.small), portrait: me.assets?.agent?.bust || null };
       }
       agentCounts[agent].count++;
       const role = agentRole(agent);

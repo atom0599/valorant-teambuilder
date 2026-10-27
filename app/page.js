@@ -10,7 +10,7 @@ import PatchNotesScreen from './PatchNotesScreen';
 import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
-  hashStr, fmtDate, tierPill, seqFor, agentKo
+  hashStr, fmtDate, tierPill, seqFor, agentKo, agentIconUrl
 } from '../lib/constants';
 
 const NAV = [
@@ -112,7 +112,12 @@ export default function Page() {
   const [newMemberRealName, setNewMemberRealName] = useState('');
   const [altPick, setAltPick] = useState({}); // roster name -> which of their accounts to register with next
 
-  const [records, setRecords] = useState({});
+  const [records, setRecordsRaw] = useState({});
+  // Matches saved before an agent's icon existed on valorant-api.com carry a
+  // dead URL — swap in our own copy (see agentIconUrl) whenever records load.
+  const setRecords = (r) => setRecordsRaw(Object.fromEntries(Object.entries(r || {}).map(([id, rec]) => [id, rec?.matches
+    ? { ...rec, matches: rec.matches.map((m) => (m.agent ? { ...m, agentIcon: agentIconUrl(m.agent, m.agentIcon) } : m)) }
+    : rec])));
   // Riot IDs an admin hid from the 선수별 leaderboard (see /api/records PUT).
   const [excludedIds, setExcludedIds] = useState([]);
   const [statId, setStatId] = useState(null);
