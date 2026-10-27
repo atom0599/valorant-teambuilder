@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
 import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps } from '../lib/fame';
 import { highlightDays, dayHighlight } from '../lib/highlights';
-import { useAgentArt } from '../lib/agentArt';
+import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
@@ -2284,8 +2284,9 @@ export default function Page() {
                   const names = (ids) => short(ids[0]) + (ids.length > 1 ? ` 외 ${ids.length - 1}명` : '');
                   const m = hl.mvp;
                   const mvpBg = m && (MAP_IMG[m.map] || MAP_IMG[String(m.map).split(',')[0]?.trim()]);
-                  // 요원 일러스트가 있으면 맵 사진 대신 요원 색 그라데이션 + 배경 글씨 + 전신 초상화.
+                  // MVP 요원 일러스트가 있으면 카드 전체 배경을 그 요원으로 (색 · 배경 문구 · 전신 초상화).
                   const mvpArt = m && agentArt(m.agent);
+                  const ts = mvpArt ? { textShadow: '0 1px 10px rgba(0,0,0,.55)' } : null;
                   const rows = [
                     hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
                     hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
@@ -2294,7 +2295,12 @@ export default function Page() {
                   ].filter(Boolean);
                   const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
                   return (
-                    <div data-lift="1" style={{ background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div data-lift="1" className={mvpArt ? 'hlCard' : undefined} style={{
+                      position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', gap: 14,
+                      ...(mvpArt ? agentCardBg(mvpArt, ['auto 92%', 'right 36px center']) : { background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)' })
+                    }}>
+                      {mvpArt && <img className="agentPortrait" src={mvpArt.portrait} alt="" aria-hidden="true" />}
+                      <div className="hlTop" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, ...ts }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#C8F24C', letterSpacing: '.16em' }}>MATCH DAY RECAP</div>
@@ -2312,23 +2318,20 @@ export default function Page() {
 
                       {m && (
                         <button onClick={() => openPlayer(m.id)} style={{
-                          position: 'relative', overflow: 'hidden', textAlign: 'left', cursor: 'pointer', color: '#F5F7F9', border: '1px solid rgba(255,209,102,.35)', borderRadius: 16, padding: '22px 20px', display: 'flex', alignItems: 'center', gap: 18, boxShadow: '0 18px 40px rgba(0,0,0,.35)',
+                          position: 'relative', overflow: 'hidden', textAlign: 'left', cursor: 'pointer', color: '#F5F7F9', display: 'flex', alignItems: 'center', gap: 18,
                           ...(mvpArt
-                            ? { minHeight: 132, backgroundColor: '#0F1923', backgroundImage: `${mvpArt.background ? `url(${mvpArt.background}), ` : ''}linear-gradient(135deg,${mvpArt.colors[0] || '#0F1923'} 0%,${mvpArt.colors[1] || '#0F1923'} 55%,${mvpArt.colors[2] || '#0F1923'} 100%)`, backgroundSize: 'auto 150%, cover', backgroundPosition: 'right 12% center, center', backgroundRepeat: 'no-repeat' }
-                            : { backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' })
+                            // 카드 배경이 이미 MVP 요원이라 배너는 테두리 없이 글자만.
+                            ? { background: 'transparent', border: 'none', padding: '14px 0 18px', textShadow: 'inherit' }
+                            : { border: '1px solid rgba(255,209,102,.35)', borderRadius: 16, padding: '22px 20px', boxShadow: '0 18px 40px rgba(0,0,0,.35)', backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' })
                         }}>
-                          {mvpArt && <>
-                            <img src={mvpArt.portrait} alt="" aria-hidden="true" style={{ position: 'absolute', right: '-4%', top: '-26%', height: '270%', pointerEvents: 'none', filter: 'drop-shadow(0 10px 30px rgba(0,0,0,.45))' }} />
-                            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(100deg,rgba(11,13,16,.92) 0%,rgba(11,13,16,.7) 42%,rgba(11,13,16,0) 72%)', pointerEvents: 'none' }} />
-                          </>}
-                          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg,#FFE29A,#E8B23D)' }} />
+                          {!mvpArt && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg,#FFE29A,#E8B23D)' }} />}
                           {mvpArt ? null : m.agentIcon
                             ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
                             : <div style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 36, border: '2px solid #E8B23D' }}>👑</div>}
                           <div style={{ position: 'relative', minWidth: 0 }}>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.18em', color: '#FFD166' }}>👑 {isToday ? 'TODAY' : 'DAY'} MVP</div>
+                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.18em', color: '#FFD166' }}>👑 {isToday ? 'TODAY' : 'DAY'} MVP{mvpArt && m.agent ? ` · ${agentKo(m.agent)}` : ''}</div>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 4 }}>
-                              <span style={{ fontFamily: "'Archivo'", fontSize: 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: 'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{short(m.id)}</span>
+                              <span style={{ fontFamily: "'Archivo'", fontSize: mvpArt ? 'clamp(28px,5vw,40px)' : 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: 'none', filter: mvpArt ? 'drop-shadow(0 2px 8px rgba(0,0,0,.5))' : undefined, background:'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{short(m.id)}</span>
                               {String(m.id).includes('#') && <span style={{ fontSize: 11, color: '#8B949E', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 8, fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C6CDD4' }}>
@@ -2341,17 +2344,19 @@ export default function Page() {
                           </div>
                         </button>
                       )}
+                      </div>
 
+                      <div className="hlRest" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, ...ts }}>
                       {!!rows.length && (
                         <div>
                           {rows.map((r, i) => (
-                            <button key={r.key} onClick={r.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? '1px solid #20262E' : 'none', color: '#E8EAEC', padding: '11px 4px', cursor: 'pointer' }}>
+                            <button key={r.key} onClick={r.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? `1px solid ${mvpArt ? 'rgba(255,255,255,.1)' : '#20262E'}` : 'none', color: '#E8EAEC', padding: '11px 4px', cursor: 'pointer' }}>
                               {r.img
                                 ? <img src={r.img} alt="" style={{ width: 34, height: 34, borderRadius: 8, flex: 'none' }} />
                                 : <div style={{ width: 34, height: 34, borderRadius: 8, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 18, background: '#1B2027' }}>{r.icon}</div>}
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em' }}>{r.img ? `${r.icon} ` : ''}{r.label}</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.who} <span style={{ fontWeight: 400, fontSize: 11, color: '#6B737C' }}>{r.ctx}</span></div>
+                                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.who} <span style={{ fontWeight: 400, fontSize: 11, color: mvpArt ? 'rgba(232,234,236,.6)' : '#6B737C' }}>{r.ctx}</span></div>
                               </div>
                               <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 20, letterSpacing: '-.02em', color: '#F5F7F9' }}>{r.value}{r.unit && <span style={{ fontSize: 11, fontWeight: 600, color: '#8B949E', marginLeft: 2 }}>{r.unit}</span>}</div>
                             </button>
@@ -2360,7 +2365,7 @@ export default function Page() {
                       )}
 
                       {!!hl.newTitles.length && (
-                        <div style={{ borderTop: '1px solid #20262E', paddingTop: 12 }}>
+                        <div style={{ borderTop: `1px solid ${mvpArt ? 'rgba(255,255,255,.1)' : '#20262E'}`, paddingTop: 12 }}>
                           <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em', marginBottom: 8 }}>🏅 새로 받은 칭호</div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             {hl.newTitles.map((t) => (
@@ -2371,6 +2376,7 @@ export default function Page() {
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -3254,66 +3260,60 @@ export default function Page() {
                     const rest = c.rows.filter((r) => r.rank !== 1);
                     const top = leaders[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
-                    // 1위 기록에 요원이 있으면 그 요원 색 그라데이션 + 배경 글씨 + 전신 초상화를 깐다.
+                    // 1위 기록에 요원이 있으면 카드 전체 배경을 그 요원으로 (색 · 배경 문구 · 전신 초상화).
                     const art = agentArt(top.agent);
                     // 날짜 · 맵 · 요원은 한 줄, 점수는 항상 그 아래 줄.
                     const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null].filter(Boolean).join(' · ') : r.sub);
                     const scoreOf = (r) => (r.date && r.score ? `${r.score} ${r.result}` : null);
                     return (
-                      <div key={c.key} data-lift="1" style={{
-                        position: 'relative', overflow: 'hidden', borderRadius: 16, border: '1px solid #262C34',
+                      <div key={c.key} data-lift="1" className={`fameCard${art ? ' hasArt' : ''}`} style={{
+                        position: 'relative', overflow: 'hidden', borderRadius: 18, border: '1px solid rgba(255,255,255,.08)',
                         backgroundColor: '#14181D',
                         ...(art
-                          ? { backgroundImage: `${art.background ? `url(${art.background}), ` : ''}linear-gradient(120deg,${art.colors[0] || '#0F1923'} 0%,${art.colors[1] || '#0F1923'} 55%,${art.colors[2] || '#0F1923'} 100%)`, backgroundSize: 'auto 170%, cover', backgroundPosition: 'right 14% center, center', backgroundRepeat: 'no-repeat' }
+                          ? { ...agentCardBg(art), minHeight: 156 }
                           : {
                             backgroundImage: mapBg
-                              ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.9) 100%), url(${mapBg})`
+                              ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.8) 50%,rgba(11,13,16,.6) 100%), url(${mapBg})`
                               : `radial-gradient(520px 160px at 30% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
                             backgroundSize: 'cover', backgroundPosition: 'center'
                           }),
                         animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 50}ms`
                       }}>
-                        {art && <>
-                          <img src={art.portrait} alt="" aria-hidden="true" style={{ position: 'absolute', right: '-2%', top: '-40%', height: 'min(300%, 400px)', pointerEvents: 'none', opacity: .85 }} />
-                          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.8) 40%,rgba(11,13,16,.35) 75%,rgba(11,13,16,.55) 100%)', pointerEvents: 'none' }} />
-                        </>}
-                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
-                        <div style={{ position: 'absolute', top: 0, left: 0, width: '30%', height: '100%', background: 'linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.04) 50%,rgba(255,255,255,0) 100%)', animation: 'sweep 7s linear infinite', animationDelay: `${ci * 500}ms`, pointerEvents: 'none' }} />
-                        <div style={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px 22px', padding: '16px 20px 16px 22px' }}>
-                          <div style={{ flex: '0 0 170px', minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
-                              <span style={{ fontSize: 16, lineHeight: 1.2, flex: 'none' }}>{c.icon}</span>
-                              {/* 한국어는 글자 단위로 줄바꿈돼서 "퍼스트 데 / 스"처럼 낱말이
-                                  잘렸다 — keep-all로 띄어쓰기에서만 줄을 바꾼다. */}
-                              <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4, wordBreak: 'keep-all' }}>{c.label}</span>
-                            </div>
-                            {c.note && <div style={{ fontSize: 10, color: '#6B737C', marginTop: 4 }}>{c.note}</div>}
+                        {art && <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />}
+                        <div style={{ position: 'absolute', left: 0, top: 18, bottom: 18, width: 3, borderRadius: '0 3px 3px 0', background: th.bar }} />
+                        <div className="fameBody" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 22px 18px 24px', textShadow: art ? '0 1px 10px rgba(0,0,0,.5)' : undefined }}>
+                          {/* 부문 이름. 한국어는 글자 단위로 줄바꿈돼서 "퍼스트 데 / 스"처럼
+                              낱말이 잘렸다 — keep-all로 띄어쓰기에서만 줄을 바꾼다. */}
+                          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '2px 10px' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: th.color, wordBreak: 'keep-all' }}>{c.icon} {c.label}</span>
+                            {c.note && <span style={{ fontSize: 10, color: 'rgba(232,234,236,.5)' }}>{c.note}</span>}
                           </div>
-                          <div style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 34, lineHeight: 1, letterSpacing: '-.02em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 10px ${th.glow})`, minWidth: 92 }}>{top.value}</div>
-                            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px 18px', minWidth: 0 }}>
+                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 42, lineHeight: 1, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none', filter: 'drop-shadow(0 2px 10px rgba(0,0,0,.45))' }}>{top.value}</div>
+                            <div style={{ flex: '1 1 160px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {leaders.map((r) => (
                                 <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                                  {r.agentIcon && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,.12)' }} />}
+                                  {/* 요원 일러스트가 깔린 카드는 1위 요원이 이미 보이니 아이콘은 같이 뛴 공동 1위만. */}
+                                  {r.agentIcon && !(art && r === top) && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,.14)' }} />}
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                                       {rankBadge(r, 20)}
-                                      <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
+                                      <span style={{ fontSize: 16, fontWeight: 800, color: '#F5F7F9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
                                     </div>
-                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 3, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
-                                    {!!scoreOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', lineHeight: 1.5 }}>{scoreOf(r)}</div>}
+                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: 'rgba(232,234,236,.68)', marginTop: 4, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
+                                    {!!scoreOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: 'rgba(232,234,236,.68)', lineHeight: 1.5 }}>{scoreOf(r)}</div>}
                                   </div>
                                 </div>
                               ))}
                             </div>
                           </div>
                           {!!rest.length && (
-                            <div style={{ flex: '1 1 220px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 16, borderLeft: '1px solid rgba(255,255,255,.08)' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.1)' }}>
                               {rest.map((r) => (
-                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
                                   {rankBadge(r, 18)}
-                                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
-                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#A8B0B9' }}>{r.value}</span>
+                                  <span style={{ minWidth: 0, fontSize: 12, fontWeight: 600, color: '#DDE2E7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
+                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: 'rgba(232,234,236,.6)' }}>{r.value}</span>
                                 </div>
                               ))}
                             </div>

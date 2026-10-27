@@ -108,3 +108,19 @@ button:active { transform: scale(.97); }
   .playerSplit > .boardContainer { flex: 1 1 0 !important; }
   .playerSplit > .playerDetail { flex: 0 0 360px !important; }
 }
+
+/* 요원 일러스트 카드 (명예의 전당 · 내전 하이라이트). fullPortrait는 2048x1860에
+   요원이 가운데~오른쪽(가로 35~78%)에 서 있어서, 오른쪽으로 밀어 몸만 보이게 둔다.
+   글자는 초상화 자리를 비워 두고(padding-right) 왼쪽에만 놓는다. */
+.agentPortrait { position: absolute; pointer-events: none; user-select: none; max-width: none; filter: drop-shadow(0 12px 28px rgba(0,0,0,.4)); }
+.fameCard .agentPortrait { height: 430px; top: -58px; right: -128px; }
+.fameCard.hasArt .fameBody { padding-right: 230px; }
+.hlCard .agentPortrait { height: 600px; top: -40px; right: -210px; }
+.hlCard .hlTop, .hlCard .hlRest { padding-right: 270px; }
+@media (max-width: 640px) {
+  .fameCard .agentPortrait { height: 330px; top: -36px; right: -112px; }
+  .fameCard.hasArt .fameBody { padding-right: 112px; }
+  .hlCard .agentPortrait { height: 300px; top: -10px; right: -108px; }
+  .hlCard .hlTop { padding-right: 104px; }
+  .hlCard .hlRest { padding-right: 0; }
+}
