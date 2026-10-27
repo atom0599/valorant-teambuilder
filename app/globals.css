@@ -110,17 +110,22 @@ button:active { transform: scale(.97); }
 }
 
 /* 요원 일러스트 카드 (명예의 전당 · 내전 하이라이트). fullPortrait는 2048x1860에
-   요원이 가운데~오른쪽(가로 35~78%)에 서 있어서, 오른쪽으로 밀어 몸만 보이게 둔다.
-   글자는 초상화 자리를 비워 두고(padding-right) 왼쪽에만 놓는다. */
+   요원이 가운데~오른쪽(가로 35~78%)에 서 있다. 요원 위에는 글자를 올리지 않는다 —
+   명예의 전당은 기록 칸 / 요원 칸을 나누고, 하이라이트는 초상화 자리를 padding-right로 비운다. */
 .agentPortrait { position: absolute; pointer-events: none; user-select: none; max-width: none; filter: drop-shadow(0 12px 28px rgba(0,0,0,.4)); }
-.fameTile .agentPortrait { height: 470px; top: -14px; left: 50%; transform: translateX(-56%); transform-origin: 56% 20%; transition: transform .6s cubic-bezier(.2,.7,.3,1);
-  /* 아래쪽(기록 칸 경계)에서 초상화만 투명하게 녹인다 — 위에 어두운 막을 덮지 않음. */
-  -webkit-mask-image: linear-gradient(180deg,#000 36%,transparent 50%); mask-image: linear-gradient(180deg,#000 36%,transparent 50%); }
-.fameTile:hover .agentPortrait { transform: translateX(-56%) scale(1.05); }
+.fameTile { min-height: 168px; }
+.fameTile .fameArt { width: clamp(150px, 34%, 300px);
+  /* 기록 칸과 맞닿는 왼쪽 끝만 투명하게 녹여 잇는다. 요원 칸 위엔 글자 없음. */
+  -webkit-mask-image: linear-gradient(90deg,transparent 0,#000 22%); mask-image: linear-gradient(90deg,transparent 0,#000 22%); }
+.fameTile .agentPortrait { height: 500px; top: -22px; left: 50%; transform: translateX(-54%); transform-origin: 54% 18%; transition: transform .6s cubic-bezier(.2,.7,.3,1); }
+.fameTile:hover .agentPortrait { transform: translateX(-54%) scale(1.05); }
 .hlCard .agentPortrait { height: 600px; top: -40px; right: -210px; }
 .hlCard .hlTop, .hlCard .hlRest { padding-right: 270px; }
 @media (max-width: 640px) {
-  .hlCard .agentPortrait { height: 300px; top: -10px; right: -108px; }
-  .hlCard .hlTop { padding-right: 104px; }
+  .fameTile { flex-direction: column-reverse; }
+  .fameTile .fameArt { width: 100%; height: 190px; -webkit-mask-image: linear-gradient(0deg,transparent 0,#000 22%); mask-image: linear-gradient(0deg,transparent 0,#000 22%); }
+  .fameTile .agentPortrait { height: 460px; }
+  .hlCard .agentPortrait { height: 250px; top: -6px; right: -96px; }
+  .hlCard .hlTop { padding-right: 118px; }
   .hlCard .hlRest { padding-right: 0; }
 }
