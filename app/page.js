@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { mergeScores } from '../lib/scores';
-import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps } from '../lib/fame';
+import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps, mostAgent } from '../lib/fame';
 import { highlightDays, dayHighlight } from '../lib/highlights';
 import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
@@ -132,7 +132,7 @@ export default function Page() {
   const [detailTab, setDetailTab] = useState('recent');
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
-  const agentArt = useAgentArt(); // 요원 이름 → { portrait, background, colors } (명예의 전당 · 하이라이트 MVP)
+  const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 · 하이라이트 MVP · 선수 상세 카드)
 
   const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
@@ -1991,6 +1991,7 @@ export default function Page() {
   }, [board, rankedBoard, statSort, isAdmin]);
 
   const statRec = statId ? records[statId] : null;
+  const statArt = agentArt(mostAgent(statRec).agent); // 선수 상세 상단 카드 배경 = 모스트 요원
   const statTotal = statRec ? statRec.wins + statRec.losses : 0;
   const statRate = statTotal ? Math.round((statRec.wins / statTotal) * 100) : 0;
   // Matches aren't always stored newest-first — a 과거 내전 불러오기 import
@@ -3255,67 +3256,92 @@ export default function Page() {
                   const rankBadge = (r, size) => (
                     <span title={r.tied ? `공동 ${r.rank}위` : `${r.rank}위`} style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: size, height: size, padding: r.tied ? '0 5px' : 0, borderRadius: 6, fontFamily: "'Archivo'", fontWeight: 800, fontSize: size > 18 ? 11 : 10, color: medals[r.rank - 1].fg, background: medals[r.rank - 1].bg, whiteSpace: 'nowrap' }}>{r.tied ? `공동 ${r.rank}` : r.rank}</span>
                   );
-                  // 부문 하나 = 가로로 긴 카드 한 줄. 모든 카드가 같은 높이 · 같은 칸 배치:
-                  // 왼쪽 기록 칸(부문 → 기록 → 1위 → 아래에 2~3위), 오른쪽 요원 칸(색 그라데이션 ·
-                  // 위키 배경 문구 · 머리부터 발끝까지 전신 초상화). 요원 칸에는 글자를 올리지 않는다.
+                  // 부문 하나 = 가로로 긴 카드 한 줄. 카드 배경 전체가 1위 기록 요원(색 그라데이션 · 위키
+                  // 배경 문구 · 머리부터 발끝까지 전신 초상화)이고, 기록은 왼쪽에만 놓아 요원을 가리지 않는다.
+                  // 모든 카드가 같은 높이 · 같은 배치: 부문 → 기록 · 1위 → 그 판 자세한 기록 → 2~3위.
+                  // 같은 순위(공동)는 한 줄로 묶는다.
                   const fameTile = (c, ci, th) => {
-                    const leaders = c.rows.filter((r) => r.rank === 1);
-                    const rest = c.rows.filter((r) => r.rank !== 1);
-                    const top = leaders[0];
+                    const groups = [];
+                    c.rows.forEach((r) => {
+                      const g = groups[groups.length - 1];
+                      if (g && g.rank === r.rank) g.rows.push(r);
+                      else groups.push({ rank: r.rank, tied: r.tied, value: r.value, rows: [r] });
+                    });
+                    const [lead, ...rest] = groups;
+                    const top = lead.rows[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
                     const art = agentArt(top.agent);
-                    const c0 = art?.colors[0] || '#1F2A36', c1 = art?.colors[1] || '#0F1923';
-                    const sub = top.date ? [fmtDate(top.date), top.map, top.agent ? agentKo(top.agent) : null, top.score ? `${top.score} ${top.result}` : null].filter(Boolean).join(' · ') : top.sub;
+                    const m = top.m;
+                    // 그 판 정보: 공동 1위면 누구 경기인지 앞에 붙인다.
+                    const matchLine = m
+                      ? [lead.rows.length > 1 ? String(top.id).split('#')[0] : null, fmtDate(m.date), m.map, m.agent ? agentKo(m.agent) : null, m.score ? `${m.score} ${m.result}` : m.result].filter(Boolean).join(' · ')
+                      : [top.sub, top.agent ? `모스트 요원 ${agentKo(top.agent)}` : null].filter(Boolean).join(' · ');
+                    const stats = m ? [
+                      m.kills != null && ['K/D/A', `${m.kills}/${m.deaths ?? 0}/${m.assists ?? 0}`],
+                      m.acs != null && ['ACS', m.acs],
+                      m.hsPct != null && ['HS', `${m.hsPct}%`],
+                      m.firstKills != null && ['첫 킬', m.firstKills],
+                      m.firstDeaths != null && ['첫 데스', m.firstDeaths],
+                      !!m.plants && ['설치', m.plants],
+                      !!m.defuses && ['해체', m.defuses],
+                      !!m.clutches && ['클러치', m.clutches],
+                      m.mvp === 'match' && ['MVP', '경기'],
+                      m.mvp === 'team' && ['MVP', '팀']
+                    ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
+                    const names = (g) => g.rows.map((r) => r.id).join(' · ');
                     return (
                       <div key={c.key} data-lift="1" className="fameTile" style={{
-                        position: 'relative', overflow: 'hidden', borderRadius: 18, display: 'flex', height: 260,
-                        background: `linear-gradient(90deg,#0E1217 0%,${c1} 100%)`, border: '1px solid rgba(255,255,255,.08)',
+                        position: 'relative', overflow: 'hidden', borderRadius: 18, height: 250, border: '1px solid rgba(255,255,255,.08)',
+                        ...(art
+                          ? agentCardBg(art, ['auto 100%', 'right 14px center'])
+                          : {
+                            backgroundColor: '#0F1923',
+                            backgroundImage: mapBg
+                              ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.8) 55%,rgba(11,13,16,.55) 100%), url(${mapBg})`
+                              : `radial-gradient(60% 120% at 85% 50%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
+                            backgroundSize: 'cover', backgroundPosition: 'center'
+                          }),
                         animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 45}ms`
                       }}>
+                        {art
+                          ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />
+                          : <div aria-hidden="true" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 160, display: 'grid', placeItems: 'center', fontSize: 64 }}>{c.icon}</div>}
                         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
-                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: '18px 18px 16px 24px' }}>
+                        <div className="fameBody" style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', textShadow: art ? '0 1px 8px rgba(0,0,0,.5)' : undefined }}>
                           <div style={{ ...line, fontSize: 13, fontWeight: 700, color: th.color }}>
-                            {c.icon} {c.label}{c.note && <span style={{ fontSize: 10, fontWeight: 400, color: '#6B737C', marginLeft: 8 }}>{c.note}</span>}
+                            {c.icon} {c.label}{c.note && <span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(232,234,236,.5)', marginLeft: 8 }}>{c.note}</span>}
                           </div>
-                          <div style={{ marginTop: 10, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 12px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
-                          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                            {rankBadge(top, 20)}
-                            <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{top.id}</span>
+                          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none', filter: 'drop-shadow(0 2px 10px rgba(0,0,0,.45))' }}>{top.value}</div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                                {rankBadge(lead, 20)}
+                                <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{names(lead)}</span>
+                              </div>
+                              {!!matchLine && <div style={{ ...line, marginTop: 5, fontFamily: "'IBM Plex Mono'", fontSize: 11, color: 'rgba(232,234,236,.72)' }}>{matchLine}</div>}
+                            </div>
                           </div>
-                          {!!sub && <div style={{ ...line, marginTop: 4, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E' }}>{sub}</div>}
-                          {leaders.length > 1 && <div style={{ ...line, marginTop: 3, fontSize: 11, color: '#C8D0D8' }}>공동 1위 · {leaders.slice(1).map((r) => r.id).join(', ')}</div>}
-                          {!!rest.length && (
-                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,.08)' }}>
-                              {(rest.length > 3 ? rest.slice(0, 2) : rest).map((r) => (
-                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                  {rankBadge(r, 18)}
-                                  <span style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#C8D0D8' }}>{r.id}</span>
-                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#8B949E' }}>{r.value}</span>
-                                </div>
+                          {!!stats.length && (
+                            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 54, overflow: 'hidden' }}>
+                              {stats.map(([k, v]) => (
+                                <span key={k + v} style={{ flex: 'none', fontSize: 11, color: 'rgba(232,234,236,.7)', background: 'rgba(11,13,16,.5)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 7, padding: '3px 8px', textShadow: 'none' }}>
+                                  {k} <b style={{ fontFamily: "'IBM Plex Mono'", color: '#F5F7F9' }}>{v}</b>
+                                </span>
                               ))}
-                              {rest.length > 3 && <div style={{ ...line, fontSize: 11, color: '#8B949E' }}>외 {rest.slice(2).map((r) => r.id).join(', ')}</div>}
                             </div>
                           )}
-                        </div>
-                        <div className="fameArt" aria-hidden="true" style={{
-                          position: 'relative', overflow: 'hidden', flex: 'none',
-                          ...(art
-                            ? {
-                              backgroundColor: c1,
-                              backgroundImage: `${art.text ? `url(${art.text}), ` : ''}radial-gradient(85% 70% at 50% 45%,${c0} 0%,${c1} 100%)`,
-                              backgroundSize: `${art.text ? 'auto 100%, ' : ''}cover`,
-                              backgroundPosition: `${art.text ? 'center, ' : ''}center`,
-                              backgroundRepeat: 'no-repeat'
-                            }
-                            : {
-                              backgroundImage: mapBg ? `url(${mapBg})` : `radial-gradient(85% 70% at 50% 45%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
-                              backgroundSize: 'cover', backgroundPosition: 'center'
-                            })
-                        }}>
-                          {art
-                            ? <img className="agentPortrait" src={art.portrait} alt="" />
-                            : <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 60, background: mapBg ? 'rgba(11,13,16,.45)' : 'transparent' }}>{c.icon}</div>}
+                          {!!rest.length && (
+                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,.1)' }}>
+                              {rest.map((g) => (
+                                <div key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                  {rankBadge(g, 18)}
+                                  <span style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#DDE2E7' }}>{names(g)}</span>
+                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: 'rgba(232,234,236,.6)' }}>{g.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -3398,8 +3424,10 @@ export default function Page() {
                   <div className="playerDetail" style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .5s cubic-bezier(.2,.7,.3,1) both' }}>
                     {statRec ? (
                       <>
-                        <div data-lift="1" style={{ position: 'relative', overflow: 'hidden', background: '#14181D', border: '1px solid #FF4B5735', borderRadius: 20, padding: 20 }}>
-                          <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,75,87,.12)', filter: 'blur(6px)' }} />
+                        <div data-lift="1" className={statArt ? 'playerCard' : undefined} style={{ position: 'relative', overflow: 'hidden', border: '1px solid #FF4B5735', borderRadius: 20, padding: 20, ...(statArt ? { ...agentCardBg(statArt, ['auto 100%', 'right 18px center']), textShadow: '0 1px 8px rgba(0,0,0,.5)' } : { background: '#14181D' }) }}>
+                          {statArt
+                            ? <img className="agentPortrait" src={statArt.portrait} alt="" aria-hidden="true" />
+                            : <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,75,87,.12)', filter: 'blur(6px)' }} />}
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
                             <div style={{ width: 46, height: 46, flex: 'none', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 20, color: '#0B0D10', background: '#FF4B57', animation: 'glowPulse 3.4s ease-in-out infinite' }}>{statId.slice(0, 1).toUpperCase()}</div>
                             <div style={{ minWidth: 0 }}>
