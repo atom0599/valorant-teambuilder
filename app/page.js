@@ -3255,65 +3255,76 @@ export default function Page() {
                   const rankBadge = (r, size) => (
                     <span title={r.tied ? `공동 ${r.rank}위` : `${r.rank}위`} style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: size, height: size, padding: r.tied ? '0 5px' : 0, borderRadius: 6, fontFamily: "'Archivo'", fontWeight: 800, fontSize: size > 18 ? 11 : 10, color: medals[r.rank - 1].fg, background: medals[r.rank - 1].bg, whiteSpace: 'nowrap' }}>{r.tied ? `공동 ${r.rank}` : r.rank}</span>
                   );
-                  const fameRow = (c, ci, th) => {
+                  // 부문 하나 = 요원 카드 한 장. 위는 1위 기록 요원의 일러스트(색 그라데이션 · 위키 배경 문구 ·
+                  // 전신 초상화), 아래는 기록. 초상화는 덮지 않고 아래쪽만 투명하게 녹여 기록 칸으로 잇는다.
+                  const fameTile = (c, ci, th) => {
                     const leaders = c.rows.filter((r) => r.rank === 1);
                     const rest = c.rows.filter((r) => r.rank !== 1);
                     const top = leaders[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
-                    // 1위 기록에 요원이 있으면 카드 전체 배경을 그 요원으로 (색 · 배경 문구 · 전신 초상화).
                     const art = agentArt(top.agent);
-                    // 날짜 · 맵 · 요원은 한 줄, 점수는 항상 그 아래 줄.
-                    const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null].filter(Boolean).join(' · ') : r.sub);
-                    const scoreOf = (r) => (r.date && r.score ? `${r.score} ${r.result}` : null);
+                    const c0 = art?.colors[0] || '#1F2A36', c1 = art?.colors[1] || '#0F1923';
+                    // 날짜 · 맵 · 요원, 점수까지 한 줄.
+                    const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null, r.score ? `${r.score} ${r.result}` : null].filter(Boolean).join(' · ') : r.sub);
                     return (
-                      <div key={c.key} data-lift="1" className={`fameCard${art ? ' hasArt' : ''}`} style={{
-                        position: 'relative', overflow: 'hidden', borderRadius: 18, border: '1px solid rgba(255,255,255,.08)',
-                        backgroundColor: '#14181D',
-                        ...(art
-                          ? { ...agentCardBg(art), minHeight: 156 }
-                          : {
-                            backgroundImage: mapBg
-                              ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.8) 50%,rgba(11,13,16,.6) 100%), url(${mapBg})`
-                              : `radial-gradient(520px 160px at 30% 0%, ${th.glow} 0%, rgba(20,24,29,0) 70%)`,
-                            backgroundSize: 'cover', backgroundPosition: 'center'
-                          }),
-                        animation: 'fadeUp .4s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 50}ms`
+                      <div key={c.key} data-lift="1" className="fameTile" style={{
+                        position: 'relative', overflow: 'hidden', borderRadius: 18, display: 'flex', flexDirection: 'column',
+                        background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)`, border: '1px solid rgba(255,255,255,.08)',
+                        boxShadow: '0 14px 34px rgba(0,0,0,.3)',
+                        animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 45}ms`
                       }}>
-                        {art && <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />}
-                        <div style={{ position: 'absolute', left: 0, top: 18, bottom: 18, width: 3, borderRadius: '0 3px 3px 0', background: th.bar }} />
-                        <div className="fameBody" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 22px 18px 24px', textShadow: art ? '0 1px 10px rgba(0,0,0,.5)' : undefined }}>
-                          {/* 부문 이름. 한국어는 글자 단위로 줄바꿈돼서 "퍼스트 데 / 스"처럼
-                              낱말이 잘렸다 — keep-all로 띄어쓰기에서만 줄을 바꾼다. */}
-                          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '2px 10px' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: th.color, wordBreak: 'keep-all' }}>{c.icon} {c.label}</span>
-                            {c.note && <span style={{ fontSize: 10, color: 'rgba(232,234,236,.5)' }}>{c.note}</span>}
+                        <div style={{
+                          position: 'relative', height: 230, overflow: 'hidden', flex: 'none',
+                          ...(art
+                            ? {
+                              backgroundColor: c1,
+                              backgroundImage: `${art.text ? `url(${art.text}), ` : ''}radial-gradient(90% 100% at 50% 18%,${c0} 0%,${c1} 85%)`,
+                              backgroundSize: `${art.text ? 'auto 118%, ' : ''}cover`,
+                              backgroundPosition: `${art.text ? 'center 40%, ' : ''}center`,
+                              backgroundRepeat: 'no-repeat'
+                            }
+                            : {
+                              backgroundImage: mapBg
+                                ? `linear-gradient(180deg,rgba(11,13,16,.35) 0%,rgba(11,13,16,.75) 70%,${c1} 100%), url(${mapBg})`
+                                : `radial-gradient(90% 100% at 50% 20%, ${th.glow} 0%, rgba(15,25,35,0) 80%)`,
+                              backgroundSize: 'cover', backgroundPosition: 'center'
+                            })
+                        }}>
+                          {art
+                            ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />
+                            : <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 72, filter: 'drop-shadow(0 10px 24px rgba(0,0,0,.5))' }}>{c.icon}</div>}
+                          {/* 부문 이름. 한국어는 글자 단위로 줄바꿈돼서 낱말이 잘리니 keep-all. */}
+                          <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#F5F7F9', background: 'rgba(11,13,16,.55)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 999, padding: '5px 11px', wordBreak: 'keep-all' }}>{c.icon} {c.label}</span>
+                            {c.note && <span style={{ fontSize: 10, color: 'rgba(232,234,236,.8)', background: 'rgba(11,13,16,.45)', borderRadius: 999, padding: '2px 8px' }}>{c.note}</span>}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px 18px', minWidth: 0 }}>
-                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 42, lineHeight: 1, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none', filter: 'drop-shadow(0 2px 10px rgba(0,0,0,.45))' }}>{top.value}</div>
-                            <div style={{ flex: '1 1 160px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {leaders.map((r) => (
-                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                                  {/* 요원 일러스트가 깔린 카드는 1위 요원이 이미 보이니 아이콘은 같이 뛴 공동 1위만. */}
-                                  {r.agentIcon && !(art && r === top) && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,.14)' }} />}
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                                      {rankBadge(r, 20)}
-                                      <span style={{ fontSize: 16, fontWeight: 800, color: '#F5F7F9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
-                                    </div>
-                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: 'rgba(232,234,236,.68)', marginTop: 4, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
-                                    {!!scoreOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: 'rgba(232,234,236,.68)', lineHeight: 1.5 }}>{scoreOf(r)}</div>}
+                          {art && top.agent && <span style={{ position: 'absolute', right: 12, bottom: 10, fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: 'rgba(245,247,249,.8)', textShadow: '0 1px 8px rgba(0,0,0,.6)' }}>{String(top.agent).toUpperCase()}</span>}
+                        </div>
+                        <div style={{ height: 2, flex: 'none', background: th.bar }} />
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px 16px' }}>
+                          <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 44, lineHeight: .95, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 12px ${th.glow})` }}>{top.value}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {leaders.map((r) => (
+                              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                {/* 1위 요원은 위 일러스트로 보이니, 아이콘은 다른 요원으로 공동 1위를 한 사람만. */}
+                                {r.agentIcon && !(art && r.agent === top.agent) && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,255,255,.14)' }} />}
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                                    {rankBadge(r, 20)}
+                                    <span style={{ fontSize: 15, fontWeight: 800, color: '#F5F7F9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
                                   </div>
+                                  {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 4, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            ))}
                           </div>
                           {!!rest.length && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.1)' }}>
+                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.08)' }}>
                               {rest.map((r) => (
-                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
+                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                                   {rankBadge(r, 18)}
-                                  <span style={{ minWidth: 0, fontSize: 12, fontWeight: 600, color: '#DDE2E7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
-                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: 'rgba(232,234,236,.6)' }}>{r.value}</span>
+                                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
+                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#A8B0B9' }}>{r.value}</span>
                                 </div>
                               ))}
                             </div>
@@ -3331,8 +3342,8 @@ export default function Page() {
                         </div>
                         <div style={{ fontSize: 12, color: '#8B949E', paddingBottom: 2 }}>{th.sub}</div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {cats.map((c, ci) => fameRow(c, ci, th))}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 14 }}>
+                        {cats.map((c, ci) => fameTile(c, ci, th))}
                       </div>
                     </div>
                   );

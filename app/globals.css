@@ -113,13 +113,13 @@ button:active { transform: scale(.97); }
    요원이 가운데~오른쪽(가로 35~78%)에 서 있어서, 오른쪽으로 밀어 몸만 보이게 둔다.
    글자는 초상화 자리를 비워 두고(padding-right) 왼쪽에만 놓는다. */
 .agentPortrait { position: absolute; pointer-events: none; user-select: none; max-width: none; filter: drop-shadow(0 12px 28px rgba(0,0,0,.4)); }
-.fameCard .agentPortrait { height: 430px; top: -58px; right: -128px; }
-.fameCard.hasArt .fameBody { padding-right: 230px; }
+.fameTile .agentPortrait { height: 470px; top: -14px; left: 50%; transform: translateX(-56%); transform-origin: 56% 20%; transition: transform .6s cubic-bezier(.2,.7,.3,1);
+  /* 아래쪽(기록 칸 경계)에서 초상화만 투명하게 녹인다 — 위에 어두운 막을 덮지 않음. */
+  -webkit-mask-image: linear-gradient(180deg,#000 36%,transparent 50%); mask-image: linear-gradient(180deg,#000 36%,transparent 50%); }
+.fameTile:hover .agentPortrait { transform: translateX(-56%) scale(1.05); }
 .hlCard .agentPortrait { height: 600px; top: -40px; right: -210px; }
 .hlCard .hlTop, .hlCard .hlRest { padding-right: 270px; }
 @media (max-width: 640px) {
-  .fameCard .agentPortrait { height: 330px; top: -36px; right: -112px; }
-  .fameCard.hasArt .fameBody { padding-right: 112px; }
   .hlCard .agentPortrait { height: 300px; top: -10px; right: -108px; }
   .hlCard .hlTop { padding-right: 104px; }
   .hlCard .hlRest { padding-right: 0; }
