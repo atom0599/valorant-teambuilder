@@ -3307,11 +3307,9 @@ export default function Page() {
                       m.mvp === 'team' && [null, '팀 MVP', '#C6CDD4']
                     ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
-                    // 공동 순위는 한 줄. 이름을 다 쓰면 넘칠 만큼 길면(3명 이상이거나 길이가 길면) "누구 외 N명".
-                    const names = (g) => {
-                      const all = g.rows.map((r) => r.id).join(' · ');
-                      return g.rows.length > 1 && (g.rows.length > 2 || all.length > 24) ? `${g.rows[0].id} 외 ${g.rows.length - 1}명` : all;
-                    };
+                    // 공동 순위(2명 이상)는 늘 "누구 외 N명" 한 줄로 쓰고, 마우스를 올리면 전원 이름이 뜬다.
+                    const names = (g) => (g.rows.length > 1 ? `${g.rows[0].id} 외 ${g.rows.length - 1}명` : g.rows[0].id);
+                    const allNames = (g) => (g.rows.length > 1 ? g.rows.map((r) => r.id).join(', ') : undefined);
                     const active = d === 0;
                     return (
                       <div key={c.key} className="fameTile" onClick={active ? undefined : onPick} style={{
@@ -3325,9 +3323,9 @@ export default function Page() {
                         transition: 'transform .6s cubic-bezier(.22,.8,.25,1), opacity .6s, box-shadow .6s',
                         cursor: active ? 'grab' : 'pointer', userSelect: 'none'
                       }}>
-                        <div style={{ height: 620, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
+                        <div style={{ height: 560, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
                           <div style={{
-                            position: 'relative', height: 300, flex: 'none', overflow: 'hidden',
+                            position: 'relative', height: 255, flex: 'none', overflow: 'hidden',
                             ...(art
                               ? {
                                 backgroundColor: c1,
@@ -3351,12 +3349,12 @@ export default function Page() {
                           </div>
                           <div style={{ height: 1, flex: 'none', background: `linear-gradient(90deg,transparent,${th.color}aa,transparent)` }} />
                           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '16px 20px 18px' }}>
-                            <div style={{ ...line, fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: th.color }}>{c.icon} {c.label}</div>
+                            <div style={{ ...line, fontSize: 16, fontWeight: 800, letterSpacing: '-.01em', color: th.color }}>{c.icon} {c.label}</div>
                             {c.note && <div style={{ ...line, fontSize: 10, color: '#6B737C', marginTop: 3 }}>{c.note}</div>}
-                            <div style={{ marginTop: 8, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 50, lineHeight: 1, letterSpacing: '-.035em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 4px 18px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
+                            <div style={{ marginTop: 8, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.035em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 4px 18px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
                             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                               {rankBadge(lead, 20)}
-                              <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{names(lead)}</span>
+                              <span title={allNames(lead)} style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9', cursor: lead.rows.length > 1 ? 'help' : undefined }}>{names(lead)}</span>
                             </div>
                             {!!matchLine && <div style={{ ...line, marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(232,234,236,.6)' }}>{matchLine}</div>}
                             {!!stats.length && statLine(stats, { marginTop: 12, columnGap: 12 })}
@@ -3365,7 +3363,7 @@ export default function Page() {
                                 {rest.map((g) => (
                                   <div key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                                     {rankBadge(g, 18)}
-                                    <span style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#DDE2E7' }}>{names(g)}</span>
+                                    <span title={allNames(g)} style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#DDE2E7', cursor: g.rows.length > 1 ? 'help' : undefined }}>{names(g)}</span>
                                     <span style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 13, fontWeight: 800, color: 'rgba(232,234,236,.7)' }}>{g.value}</span>
                                   </div>
                                 ))}
@@ -3546,7 +3544,7 @@ export default function Page() {
                               <button onClick={() => deleteRecord({ id: statId }, `${statId}의 전적을 전부 삭제할까요?`)} style={{ flex: 'none', background: 'transparent', color: '#E1424F', border: '1px solid #E1424F66', borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>선수 전적 삭제</button>
                             </div>
                           )}
-                          <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+                          <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 16, marginRight: statArt ? -112 : 0 }}>
                             <div>
                               <div style={{ fontSize: 11, color: '#C6CDD4', letterSpacing: '.06em' }}>승률</div>
                               <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 44, lineHeight: 1, color: '#C8F24C' }}>{statRate}%</div>
