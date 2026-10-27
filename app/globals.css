@@ -175,7 +175,7 @@ button:active { transform: scale(.97); }
 .psAgent img { position: absolute; left: 50%; bottom: -6px; max-width: none; pointer-events: none; transform: translate(calc(-56.5% + var(--px, 0) * 8px), 0); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)); transition: filter .4s, transform .5s cubic-bezier(.2,.7,.3,1); }
 .psAgent img.rise { animation: psRise .9s cubic-bezier(.2,.8,.25,1) both; }
 @keyframes psRise { 0% { opacity: 0; transform: translate(-56.5%, 60px); filter: brightness(3) drop-shadow(0 0 30px #fff) } 55% { opacity: 1; filter: brightness(1.6) drop-shadow(0 0 20px rgba(255,255,255,.6)) } 100% { opacity: 1; transform: translate(-56.5%, 0) } }
-.psStep:hover .psAgent img { filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(1.12); transform: translate(calc(-56.5% + var(--px, 0) * 8px), -8px); }
+@media (hover: hover) { .psStep:hover .psAgent img { filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(1.12); transform: translate(calc(-56.5% + var(--px, 0) * 8px), -8px); } }
 .psStep.g1 .psAgent { height: min(330px, 43cqw); } .psStep.g1 .psAgent img { height: min(360px, 47cqw); }
 .psStep.g2 .psAgent { height: min(260px, 34cqw); } .psStep.g2 .psAgent img { height: min(290px, 38cqw); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(.82); }
 .psStep.g3 .psAgent { height: min(235px, 31cqw); } .psStep.g3 .psAgent img { height: min(262px, 34cqw); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(.75); }
@@ -220,7 +220,8 @@ button:active { transform: scale(.97); }
 /* 넘기기 */
 .psNav { position: absolute; top: 50%; z-index: 11; width: 44px; height: 44px; border-radius: 999px; transform: translateY(-50%); cursor: pointer;
   background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.14); color: #E8EAEC; font-size: 12px; transition: border-color .2s, background .2s; }
-.psNav:hover { border-color: var(--th); background: rgba(10,12,15,.8); }
+@media (hover: hover) { .psNav:hover { border-color: var(--th); background: rgba(10,12,15,.8); } }
+.psNav, .psDots button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .psNav.l { left: 16px; } .psNav.r { right: 16px; }
 /* 막대 줄은 무대 폭 전체를 차지하는 상자라, 좁은 무대에서 아래로 내려온 화살표를 덮어 가운데를 누르면
    클릭이 막대 줄로 가 버렸다 — 줄 자체는 클릭을 통과시키고 막대만 받는다. 화살표는 그보다 위에. */
@@ -250,7 +251,7 @@ button:active { transform: scale(.97); }
 .ps.shame .psText { opacity: .08; filter: saturate(.6) hue-rotate(-10deg); }
 .ps.shame .psAgent img { filter: saturate(.55) brightness(.72) hue-rotate(-12deg) drop-shadow(0 0 18px rgba(120,90,200,.25)) drop-shadow(0 18px 22px rgba(0,0,0,.7)); }
 .ps.shame .psStep.g2 .psAgent img, .ps.shame .psStep.g3 .psAgent img { filter: saturate(.45) brightness(.6) hue-rotate(-12deg) drop-shadow(0 18px 22px rgba(0,0,0,.7)); }
-.ps.shame .psStep:hover .psAgent img { filter: saturate(.75) brightness(.85) hue-rotate(-12deg) drop-shadow(0 18px 22px rgba(0,0,0,.7)); transform: translate(calc(-56.5% + var(--px, 0) * 8px), 0); }
+@media (hover: hover) { .ps.shame .psStep:hover .psAgent img { filter: saturate(.75) brightness(.85) hue-rotate(-12deg) drop-shadow(0 18px 22px rgba(0,0,0,.7)); transform: translate(calc(-56.5% + var(--px, 0) * 8px), 0); } }
 .ps.shame .psAgent img.rise { animation: psSlump 1.8s cubic-bezier(.4,0,.2,1) both; }
 @keyframes psSlump { 0% { opacity: 0; transform: translate(-56.5%, -26px) } 100% { opacity: 1; transform: translate(-56.5%, 0) } }
 .ps.shame .psBlock { background: linear-gradient(180deg, #1d1b2e 0%, #0d0c16 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 30px 50px rgba(0,0,0,.6); }

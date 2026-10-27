@@ -146,8 +146,10 @@ export default function FamePodium({ cats, kind, agentArt }) {
   const leds = shame ? ['#4FA3B8', '#E0566C', '#9B6BD0'] : ['#C9D2DA', 'var(--th)', '#E7B27E'];
 
   const onKey = (e) => { if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); };
+  // 툴팁 · 깊이감은 마우스에서만. 터치 기기는 탭할 때 화면이 바뀌면 첫 탭을 "마우스 올리기"로 써 버려
+  // 화살표를 두 번 눌러야 넘어가는 일이 있었다.
   const showTip = (e, g, rk) => {
-    if (!g) return;
+    if (!g || e.pointerType !== 'mouse') return;
     const sr = stageRef.current.getBoundingClientRect(), r = e.currentTarget.getBoundingClientRect();
     setTip({ g, rk, x: Math.min(sr.width - 260, Math.max(10, r.left - sr.left + r.width / 2 - 125)), y: Math.max(90, r.top - sr.top + 20) });
   };
@@ -172,6 +174,7 @@ export default function FamePodium({ cats, kind, agentArt }) {
         }}
         onPointerCancel={() => { x0.current = null; }}
         onPointerMove={(e) => {
+          if (e.pointerType !== 'mouse') return;
           const r = e.currentTarget.getBoundingClientRect();
           e.currentTarget.style.setProperty('--px', ((e.clientX - r.left) / r.width - .5).toFixed(3));
           e.currentTarget.style.setProperty('--py', ((e.clientY - r.top) / r.height - .5).toFixed(3));
