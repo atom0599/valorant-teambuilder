@@ -174,7 +174,7 @@ button:active { transform: scale(.97); }
 .psAgent { position: relative; width: 100%; }
 .psAgent img { position: absolute; left: 50%; bottom: -6px; max-width: none; pointer-events: none; transform: translate(calc(-56.5% + var(--px, 0) * 8px), 0); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)); transition: filter .4s, transform .5s cubic-bezier(.2,.7,.3,1); }
 .psAgent img.rise { animation: psRise .9s cubic-bezier(.2,.8,.25,1) both; }
-@keyframes psRise { 0% { opacity: 0; transform: translate(-56.5%, 60px); filter: brightness(3) drop-shadow(0 0 30px #fff) } 55% { opacity: 1; filter: brightness(1.6) drop-shadow(0 0 20px rgba(255,255,255,.6)) } 100% { opacity: 1; transform: translate(-56.5%, 0) } }
+@keyframes psRise { 0% { opacity: 0; transform: translate(-56.5%, 60px) } 100% { opacity: 1; transform: translate(-56.5%, 0) } } /* 몸에서 빛나는 효과 없이 올라오기만 */
 @media (hover: hover) { .psStep:hover .psAgent img { filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(1.12); transform: translate(calc(-56.5% + var(--px, 0) * 8px), -8px); } }
 .psStep.g1 .psAgent { height: min(330px, 43cqw); } .psStep.g1 .psAgent img { height: min(360px, 47cqw); }
 .psStep.g2 .psAgent { height: min(260px, 34cqw); } .psStep.g2 .psAgent img { height: min(290px, 38cqw); filter: drop-shadow(0 18px 22px rgba(0,0,0,.6)) brightness(.82); }
