@@ -132,6 +132,9 @@ export default function Page() {
   const [detailTab, setDetailTab] = useState('recent');
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
+  const [fameIdx, setFameIdx] = useState({ fame: 0, shame: 0 }); // 명예 / 불명예의 전당에서 보고 있는 부문
+  const fameDir = useRef(1); // 넘긴 방향 (카드가 들어오는 쪽)
+  const fameTouch = useRef(null); // 스와이프 시작 x
   const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 · 하이라이트 MVP · 선수 상세 카드)
 
   const [apiSource, setApiSource] = useState(null);
@@ -2122,6 +2125,19 @@ export default function Page() {
   }
 
   /* ---------- style helpers ---------- */
+  // 스탯 한 줄 (하이라이트 MVP · 명예의 전당 카드 공용). [이름, 값, 값 색] 목록.
+  // 한국어가 고정폭 글꼴로 넘어가면 높이가 달라 줄이 삐뚤어 보여서, 이름과 값 모두
+  // 일반 글꼴로 쓰고 기준선(baseline)에 맞춘다.
+  const statLine = (items, style) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 16, rowGap: 6, ...style }}>
+      {items.map(([k, v, color]) => (
+        <span key={k} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+          <span style={{ fontSize: 11, color: 'rgba(232,234,236,.62)' }}>{k}</span>
+          <b style={{ fontFamily: "'Archivo'", fontSize: 14, fontWeight: 800, letterSpacing: '-.01em', color: color || '#F5F7F9' }}>{v}</b>
+        </span>
+      ))}
+    </div>
+  );
   const pill = (active, accent = '#FF4B57') => ({
     borderRadius: 999, padding: '9px 15px', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
     whiteSpace: 'nowrap', border: `1px solid ${active ? accent : '#262C34'}`,
@@ -2335,13 +2351,13 @@ export default function Page() {
                               <span style={{ fontFamily: "'Archivo'", fontSize: mvpArt ? 'clamp(28px,5vw,40px)' : 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: 'none', filter: mvpArt ? 'drop-shadow(0 2px 8px rgba(0,0,0,.5))' : undefined, background:'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{short(m.id)}</span>
                               {String(m.id).includes('#') && <span style={{ fontSize: 11, color: '#8B949E', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 8, fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#C6CDD4' }}>
-                              <span>평균 ACS <b style={{ color: '#F5F7F9' }}>{m.acs}</b></span>
-                              <span>K/D <b style={{ color: '#F5F7F9' }}>{m.kd.toFixed(2)}</b></span>
-                              <span>{m.kills}/{m.deaths}/{m.assists}</span>
-                              <span style={{ color: '#C8F24C' }}>{m.w}승 {m.l}패</span>
-                              {!!m.mvp && <span style={{ color: '#FFD166' }}>경기 MVP {m.mvp}회</span>}
-                            </div>
+                            {statLine([
+                              ['평균 ACS', m.acs],
+                              ['K/D', m.kd.toFixed(2)],
+                              ['K/D/A', `${m.kills}/${m.deaths}/${m.assists}`],
+                              ['승패', `${m.w}-${m.l}`, '#C8F24C'],
+                              ...(m.mvp ? [['경기 MVP', `${m.mvp}회`, '#FFD166']] : [])
+                            ], { marginTop: 10 })}
                           </div>
                         </button>
                       )}
@@ -3260,7 +3276,7 @@ export default function Page() {
                   // 배경 문구 · 머리부터 발끝까지 전신 초상화)이고, 기록은 왼쪽에만 놓아 요원을 가리지 않는다.
                   // 모든 카드가 같은 높이 · 같은 배치: 부문 → 기록 · 1위 → 그 판 자세한 기록 → 2~3위.
                   // 같은 순위(공동)는 한 줄로 묶는다.
-                  const fameTile = (c, ci, th) => {
+                  const fameTile = (c, dir, th) => {
                     const groups = [];
                     c.rows.forEach((r) => {
                       const g = groups[groups.length - 1];
@@ -3285,14 +3301,14 @@ export default function Page() {
                       !!m.plants && ['설치', m.plants],
                       !!m.defuses && ['해체', m.defuses],
                       !!m.clutches && ['클러치', m.clutches],
-                      m.mvp === 'match' && ['MVP', '경기'],
-                      m.mvp === 'team' && ['MVP', '팀']
+                      m.mvp === 'match' && ['MVP', '경기', '#FFD166'],
+                      m.mvp === 'team' && ['MVP', '팀', '#C6CDD4']
                     ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
                     const names = (g) => g.rows.map((r) => r.id).join(' · ');
                     return (
                       <div key={c.key} data-lift="1" className="fameTile" style={{
-                        position: 'relative', overflow: 'hidden', borderRadius: 18, height: 250, border: '1px solid rgba(255,255,255,.08)',
+                        position: 'relative', overflow: 'hidden', borderRadius: 20, height: 270, border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 18px 40px rgba(0,0,0,.35)',
                         ...(art
                           ? agentCardBg(art, ['auto 100%', 'right 14px center'])
                           : {
@@ -3302,7 +3318,7 @@ export default function Page() {
                               : `radial-gradient(60% 120% at 85% 50%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
                             backgroundSize: 'cover', backgroundPosition: 'center'
                           }),
-                        animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 45}ms`
+                        animation: `${dir < 0 ? 'slideInL' : 'slideInR'} .45s cubic-bezier(.2,.7,.3,1) both`
                       }}>
                         {art
                           ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />
@@ -3322,15 +3338,7 @@ export default function Page() {
                               {!!matchLine && <div style={{ ...line, marginTop: 5, fontFamily: "'IBM Plex Mono'", fontSize: 11, color: 'rgba(232,234,236,.72)' }}>{matchLine}</div>}
                             </div>
                           </div>
-                          {!!stats.length && (
-                            <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 54, overflow: 'hidden' }}>
-                              {stats.map(([k, v]) => (
-                                <span key={k + v} style={{ flex: 'none', fontSize: 11, color: 'rgba(232,234,236,.7)', background: 'rgba(11,13,16,.5)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 7, padding: '3px 8px', textShadow: 'none' }}>
-                                  {k} <b style={{ fontFamily: "'IBM Plex Mono'", color: '#F5F7F9' }}>{v}</b>
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {!!stats.length && statLine(stats, { marginTop: 14 })}
                           {!!rest.length && (
                             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,.1)' }}>
                               {rest.map((g) => (
@@ -3346,7 +3354,7 @@ export default function Page() {
                       </div>
                     );
                   };
-                  const section = (cats, th) => (
+                  const section = (cats, th, k) => (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
                         <div>
@@ -3355,16 +3363,41 @@ export default function Page() {
                         </div>
                         <div style={{ fontSize: 12, color: '#8B949E', paddingBottom: 2 }}>{th.sub}</div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {cats.map((c, ci) => fameTile(c, ci, th))}
-                      </div>
+                      {(() => {
+                        const n = cats.length;
+                        const i = Math.min(fameIdx[k] || 0, n - 1);
+                        const go = (d) => { fameDir.current = d; setFameIdx((s) => ({ ...s, [k]: (i + d + n) % n })); };
+                        const arrow = (d, t) => (
+                          <button onClick={() => go(d)} aria-label={d < 0 ? '이전 부문' : '다음 부문'} style={{ width: 36, height: 36, flex: 'none', borderRadius: 999, background: 'rgba(27,32,39,.8)', border: '1px solid #333B45', color: '#E8EAEC', cursor: 'pointer', fontSize: 12 }}>{t}</button>
+                        );
+                        return (
+                          <>
+                            <div
+                              onTouchStart={(e) => { fameTouch.current = e.touches[0].clientX; }}
+                              onTouchEnd={(e) => { const dx = e.changedTouches[0].clientX - (fameTouch.current ?? e.changedTouches[0].clientX); fameTouch.current = null; if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); }}
+                            >
+                              {fameTile(cats[i], fameDir.current, th)}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              {arrow(-1, '◀')}
+                              <div data-scrollx="1" style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
+                                {cats.map((c, ci) => (
+                                  <button key={c.key} onClick={() => { fameDir.current = ci < i ? -1 : 1; setFameIdx((s) => ({ ...s, [k]: ci })); }} style={{ ...pill(ci === i, th.color), flex: 'none', padding: '7px 12px', fontSize: 12 }}>{c.icon} {c.label}</button>
+                                ))}
+                              </div>
+                              <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{i + 1} / {n}</span>
+                              {arrow(1, '▶')}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   );
                   if (!fameBoard.fame.length) return <div style={{ padding: '34px 18px', fontSize: 13, color: '#8B949E' }}>아직 저장된 경기가 없습니다.</div>;
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 34, animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both' }}>
-                      {section(fameBoard.fame, themes.fame)}
-                      {!!fameBoard.shame.length && section(fameBoard.shame, themes.shame)}
+                      {section(fameBoard.fame, themes.fame, 'fame')}
+                      {!!fameBoard.shame.length && section(fameBoard.shame, themes.shame, 'shame')}
                     </div>
                   );
                 })()}
