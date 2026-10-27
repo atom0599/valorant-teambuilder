@@ -154,15 +154,23 @@ export default function FamePodium({ cats, kind, agentArt }) {
         tabIndex={0}
         onKeyDown={onKey}
         style={art?.colors[0] ? { '--c0': art.colors[0].slice(0, 7) } : undefined}
-        onPointerDown={(e) => { if (!e.target.closest('button')) x0.current = e.clientX; }}
-        onPointerUp={(e) => { if (x0.current == null) return; const dx = e.clientX - x0.current; x0.current = null; if (dx < -50) go(1); else if (dx > 50) go(-1); }}
+        // 좌우로 밀기. 버튼을 누른 건 밀기로 치지 않고, 무대 밖에서 손을 떼면 시작점을 버린다 —
+        // 남아 있던 시작점 때문에 다음 화살표 클릭이 반대쪽 밀기와 겹쳐 제자리에 머무는 일이 있었다.
+        onPointerDown={(e) => { x0.current = e.target.closest('button') ? null : e.clientX; }}
+        onPointerUp={(e) => {
+          const start = x0.current;
+          x0.current = null;
+          if (start == null || e.target.closest('button')) return;
+          const dx = e.clientX - start;
+          if (dx < -50) go(1); else if (dx > 50) go(-1);
+        }}
         onPointerCancel={() => { x0.current = null; }}
         onPointerMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           e.currentTarget.style.setProperty('--px', ((e.clientX - r.left) / r.width - .5).toFixed(3));
           e.currentTarget.style.setProperty('--py', ((e.clientY - r.top) / r.height - .5).toFixed(3));
         }}
-        onPointerLeave={(e) => { e.currentTarget.style.setProperty('--px', 0); e.currentTarget.style.setProperty('--py', 0); }}
+        onPointerLeave={(e) => { x0.current = null; e.currentTarget.style.setProperty('--px', 0); e.currentTarget.style.setProperty('--py', 0); }}
       >
         <div className="psText" style={{ backgroundImage: art?.text ? `url(${art.text})` : 'none' }} />
         <div className="psLayer"><div className="psBeam b2" /><div className="psBeam b3" /><div className="psPend"><div className="psCord" /><div className="psBulb" /><div className="psBeam b1" /></div></div>

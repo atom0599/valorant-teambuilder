@@ -222,9 +222,10 @@ button:active { transform: scale(.97); }
   background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.14); color: #E8EAEC; font-size: 12px; transition: border-color .2s, background .2s; }
 .psNav:hover { border-color: var(--th); background: rgba(10,12,15,.8); }
 .psNav.l { left: 16px; } .psNav.r { right: 16px; }
-.psDots { position: absolute; left: 0; right: 0; bottom: 24px; z-index: 9; display: flex; justify-content: center; gap: 6px; }
-.psDots button { width: 8px; height: 4px; padding: 0; border: none; border-radius: 999px; background: rgba(255,255,255,.2); cursor: pointer; transition: width .4s cubic-bezier(.2,.7,.3,1), background .4s; }
-.psDots button.on { width: 28px; background: var(--th); box-shadow: 0 0 10px var(--th); }
+.psDots { position: absolute; left: 0; right: 0; bottom: 16px; z-index: 9; display: flex; justify-content: center; gap: 0; }
+/* 막대는 4px로 보이지만 누르는 자리는 위아래 · 양옆으로 넉넉하게 (투명한 여백 + content-box 배경) */
+.psDots button { box-sizing: content-box; width: 8px; height: 4px; padding: 8px 3px; border: none; border-radius: 999px; background: rgba(255,255,255,.2); background-clip: content-box; cursor: pointer; transition: width .4s cubic-bezier(.2,.7,.3,1), background .4s; }
+.psDots button.on { width: 28px; background-color: var(--th); }
 
 /* ----- 불명예: 축하가 아니라 우울하게, 하지만 색은 살아 있게 -----
    비 내리는 한밤의 뒷골목. 남보라 · 짙은 청록 밤하늘에 1위 요원 색이 은은하게 번지고, 흔들리는
@@ -266,7 +267,6 @@ button:active { transform: scale(.97); }
 .ps.shame .psReflect { opacity: .35; }
 .ps.shame .psFog { opacity: .95; background: radial-gradient(45% 55% at 25% 60%, rgba(110,120,200,.26), transparent 70%), radial-gradient(45% 55% at 75% 55%, rgba(170,90,160,.2), transparent 70%); }
 .ps.shame .psVignette { background: radial-gradient(110% 85% at 50% 40%, transparent 45%, rgba(0,0,0,.8) 100%); }
-.ps.shame .psDots button.on { box-shadow: 0 0 8px var(--th); }
 /* 좁은 무대: 단상 글씨를 줄이고 화살표는 아래로 */
 /* 단상이 좁으면 1위 스탯 줄은 숨기고 마우스 툴팁에서만 */
 @container (max-width: 760px) {
