@@ -114,6 +114,7 @@ button:active { transform: scale(.97); }
    요원이 가운데~오른쪽(가로 35~78%)에 서 있다. 요원 위에는 글자를 올리지 않는다 —
    명예의 전당은 기록 칸 / 요원 칸을 나누고, 하이라이트는 초상화 자리를 padding-right로 비운다. */
 .agentPortrait { position: absolute; pointer-events: none; user-select: none; max-width: none; filter: drop-shadow(0 12px 28px rgba(0,0,0,.4)); }
+.fameRoulette { --fame-w: 76%; }
 .fameTile .fameBody { padding: 22px 200px 18px 26px; }
 /* 카드 높이에 맞춰 머리부터 발끝까지 다 보이게(이미지 위 10%는 빈 공간), 몸이 오른쪽 끝에 오도록 이미지 폭의 19%만큼 밀어 둔다. */
 .fameTile .agentPortrait, .playerCard .agentPortrait { height: 104%; top: -6%; right: 0; transform: translateX(19%); transform-origin: 50% 100%; transition: transform .6s cubic-bezier(.2,.7,.3,1); }
@@ -124,6 +125,7 @@ button:active { transform: scale(.97); }
 .hlCard .agentPortrait { height: 104%; top: -6%; right: 0; transform: translateX(19%); }
 .hlCard .hlTop, .hlCard .hlRest { padding-right: 270px; }
 @media (max-width: 640px) {
+  .fameRoulette { --fame-w: 84%; }
   .fameTile .fameBody { padding: 18px 118px 16px 20px; }
   .hlCard .agentPortrait { height: 250px; top: -6px; right: -96px; transform: none; }
   .hlCard .hlTop { padding-right: 118px; }

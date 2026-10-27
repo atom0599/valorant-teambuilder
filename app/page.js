@@ -133,7 +133,6 @@ export default function Page() {
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
   const [fameIdx, setFameIdx] = useState({ fame: 0, shame: 0 }); // 명예 / 불명예의 전당에서 보고 있는 부문
-  const fameDir = useRef(1); // 넘긴 방향 (카드가 들어오는 쪽)
   const fameTouch = useRef(null); // 스와이프 시작 x
   const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 · 하이라이트 MVP · 선수 상세 카드)
 
@@ -2125,14 +2124,14 @@ export default function Page() {
   }
 
   /* ---------- style helpers ---------- */
-  // 스탯 한 줄 (하이라이트 MVP · 명예의 전당 카드 공용). [이름, 값, 값 색] 목록.
+  // 스탯 한 줄 (하이라이트 MVP · 명예의 전당 카드 공용). [이름, 값, 값 색] 목록 (이름이 null이면 값만).
   // 한국어가 고정폭 글꼴로 넘어가면 높이가 달라 줄이 삐뚤어 보여서, 이름과 값 모두
   // 일반 글꼴로 쓰고 기준선(baseline)에 맞춘다.
   const statLine = (items, style) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 16, rowGap: 6, ...style }}>
       {items.map(([k, v, color]) => (
-        <span key={k} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-          <span style={{ fontSize: 11, color: 'rgba(232,234,236,.62)' }}>{k}</span>
+        <span key={k || v} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+          {k && <span style={{ fontSize: 11, color: 'rgba(232,234,236,.62)' }}>{k}</span>}
           <b style={{ fontFamily: "'Archivo'", fontSize: 14, fontWeight: 800, letterSpacing: '-.01em', color: color || '#F5F7F9' }}>{v}</b>
         </span>
       ))}
@@ -3276,7 +3275,7 @@ export default function Page() {
                   // 배경 문구 · 머리부터 발끝까지 전신 초상화)이고, 기록은 왼쪽에만 놓아 요원을 가리지 않는다.
                   // 모든 카드가 같은 높이 · 같은 배치: 부문 → 기록 · 1위 → 그 판 자세한 기록 → 2~3위.
                   // 같은 순위(공동)는 한 줄로 묶는다.
-                  const fameTile = (c, dir, th) => {
+                  const fameTile = (c, active, onPick, th) => {
                     const groups = [];
                     c.rows.forEach((r) => {
                       const g = groups[groups.length - 1];
@@ -3301,8 +3300,8 @@ export default function Page() {
                       !!m.plants && ['설치', m.plants],
                       !!m.defuses && ['해체', m.defuses],
                       !!m.clutches && ['클러치', m.clutches],
-                      m.mvp === 'match' && ['MVP', '경기', '#FFD166'],
-                      m.mvp === 'team' && ['MVP', '팀', '#C6CDD4']
+                      m.mvp === 'match' && [null, '경기 MVP', '#FFD166'],
+                      m.mvp === 'team' && [null, '팀 MVP', '#C6CDD4']
                     ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
                     const names = (g) => g.rows.map((r) => r.id).join(' · ');
@@ -3318,8 +3317,10 @@ export default function Page() {
                               : `radial-gradient(60% 120% at 85% 50%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
                             backgroundSize: 'cover', backgroundPosition: 'center'
                           }),
-                        animation: `${dir < 0 ? 'slideInL' : 'slideInR'} .45s cubic-bezier(.2,.7,.3,1) both`
-                      }}>
+                        // 룰렛 트랙의 한 칸: 가운데 카드만 또렷하게, 양옆은 작고 어둡게. 옆 카드를 누르면 그쪽으로 돈다.
+                        flex: '0 0 var(--fame-w)', transform: active ? 'scale(1)' : 'scale(.88)', opacity: active ? 1 : .5,
+                        transition: 'transform .55s cubic-bezier(.2,.7,.3,1), opacity .55s', cursor: active ? 'default' : 'pointer'
+                      }} onClick={active ? undefined : onPick}>
                         {art
                           ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />
                           : <div aria-hidden="true" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 160, display: 'grid', placeItems: 'center', fontSize: 64 }}>{c.icon}</div>}
@@ -3366,23 +3367,28 @@ export default function Page() {
                       {(() => {
                         const n = cats.length;
                         const i = Math.min(fameIdx[k] || 0, n - 1);
-                        const go = (d) => { fameDir.current = d; setFameIdx((s) => ({ ...s, [k]: (i + d + n) % n })); };
+                        const pick = (to) => setFameIdx((s) => ({ ...s, [k]: to }));
+                        const go = (d) => pick((i + d + n) % n);
                         const arrow = (d, t) => (
                           <button onClick={() => go(d)} aria-label={d < 0 ? '이전 부문' : '다음 부문'} style={{ width: 36, height: 36, flex: 'none', borderRadius: 999, background: 'rgba(27,32,39,.8)', border: '1px solid #333B45', color: '#E8EAEC', cursor: 'pointer', fontSize: 12 }}>{t}</button>
                         );
                         return (
                           <>
-                            <div
+                            {/* 가로 룰렛: 카드를 한 줄로 늘어놓고 지금 카드가 가운데 오게 트랙을 민다.
+                                카드 폭 --fame-w, 간격 16px. 퍼센트는 트랙(=보이는 칸) 폭 기준. */}
+                            <div className="fameRoulette" style={{ overflow: 'hidden', margin: '0 -4px', padding: '6px 0' }}
                               onTouchStart={(e) => { fameTouch.current = e.touches[0].clientX; }}
                               onTouchEnd={(e) => { const dx = e.changedTouches[0].clientX - (fameTouch.current ?? e.changedTouches[0].clientX); fameTouch.current = null; if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); }}
                             >
-                              {fameTile(cats[i], fameDir.current, th)}
+                              <div style={{ display: 'flex', gap: 16, transform: `translateX(calc((100% - var(--fame-w)) / 2 - ${i} * (var(--fame-w) + 16px)))`, transition: 'transform .6s cubic-bezier(.22,.8,.25,1)' }}>
+                                {cats.map((c, ci) => fameTile(c, ci === i, () => pick(ci), th))}
+                              </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               {arrow(-1, '◀')}
                               <div data-scrollx="1" style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
                                 {cats.map((c, ci) => (
-                                  <button key={c.key} onClick={() => { fameDir.current = ci < i ? -1 : 1; setFameIdx((s) => ({ ...s, [k]: ci })); }} style={{ ...pill(ci === i, th.color), flex: 'none', padding: '7px 12px', fontSize: 12 }}>{c.icon} {c.label}</button>
+                                  <button key={c.key} onClick={() => pick(ci)} style={{ ...pill(ci === i, th.color), flex: 'none', padding: '7px 12px', fontSize: 12 }}>{c.icon} {c.label}</button>
                                 ))}
                               </div>
                               <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{i + 1} / {n}</span>
