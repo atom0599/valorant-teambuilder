@@ -133,7 +133,9 @@ export default function Page() {
   const [titleDex, setTitleDex] = useState(false); // 칭호 탭의 칭호 도감 펼침
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
   const [fameIdx, setFameIdx] = useState({ fame: 0, shame: 0 }); // 명예 / 불명예의 전당에서 보고 있는 부문
-  const fameTouch = useRef(null); // 스와이프 시작 x
+  const [fameDrag, setFameDrag] = useState(null); // 끄는 중인 룰렛 { k, dx }
+  const fameStart = useRef(null); // 끌기 시작 { k, x, moved }
+  const fameJustDragged = useRef(false); // 끌고 놓은 직후의 클릭은 카드 선택으로 치지 않음
   const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 · 하이라이트 MVP · 선수 상세 카드)
 
   const [apiSource, setApiSource] = useState(null);
@@ -3271,11 +3273,11 @@ export default function Page() {
                   const rankBadge = (r, size) => (
                     <span title={r.tied ? `공동 ${r.rank}위` : `${r.rank}위`} style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: size, height: size, padding: r.tied ? '0 5px' : 0, borderRadius: 6, fontFamily: "'Archivo'", fontWeight: 800, fontSize: size > 18 ? 11 : 10, color: medals[r.rank - 1].fg, background: medals[r.rank - 1].bg, whiteSpace: 'nowrap' }}>{r.tied ? `공동 ${r.rank}` : r.rank}</span>
                   );
-                  // 부문 하나 = 가로로 긴 카드 한 줄. 카드 배경 전체가 1위 기록 요원(색 그라데이션 · 위키
-                  // 배경 문구 · 머리부터 발끝까지 전신 초상화)이고, 기록은 왼쪽에만 놓아 요원을 가리지 않는다.
-                  // 모든 카드가 같은 높이 · 같은 배치: 부문 → 기록 · 1위 → 그 판 자세한 기록 → 2~3위.
-                  // 같은 순위(공동)는 한 줄로 묶는다.
-                  const fameTile = (c, active, onPick, th) => {
+                  // 부문 하나 = 세로 카드 한 장. 위쪽은 1위 기록 요원 칸(색 그라데이션 · 위키 배경 문구 ·
+                  // 머리부터 발끝까지 전신, 글자는 올리지 않음), 아래쪽은 기록: 부문 → 큰 기록 → 1위 ·
+                  // 그 판 정보 → 그 판 자세한 기록 → 2~3위. 같은 순위(공동)는 한 줄로 묶는다.
+                  // d = 가운데 카드에서 몇 칸 떨어졌는지 (룰렛에서 양옆 카드는 기울고 작고 흐리게).
+                  const fameTile = (c, d, onPick, th) => {
                     const groups = [];
                     c.rows.forEach((r) => {
                       const g = groups[groups.length - 1];
@@ -3286,6 +3288,7 @@ export default function Page() {
                     const top = lead.rows[0];
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
                     const art = agentArt(top.agent);
+                    const c0 = art?.colors[0] || '#1F2A36', c1 = art?.colors[1] || '#0F1923';
                     const m = top.m;
                     // 그 판 정보: 공동 1위면 누구 경기인지 앞에 붙인다.
                     const matchLine = m
@@ -3305,52 +3308,65 @@ export default function Page() {
                     ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
                     const names = (g) => g.rows.map((r) => r.id).join(' · ');
+                    const active = d === 0;
                     return (
-                      <div key={c.key} data-lift="1" className="fameTile" style={{
-                        position: 'relative', overflow: 'hidden', borderRadius: 20, height: 270, border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 18px 40px rgba(0,0,0,.35)',
-                        ...(art
-                          ? agentCardBg(art, ['auto 100%', 'right 14px center'])
-                          : {
-                            backgroundColor: '#0F1923',
-                            backgroundImage: mapBg
-                              ? `linear-gradient(90deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.8) 55%,rgba(11,13,16,.55) 100%), url(${mapBg})`
-                              : `radial-gradient(60% 120% at 85% 50%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
-                            backgroundSize: 'cover', backgroundPosition: 'center'
-                          }),
-                        // 룰렛 트랙의 한 칸: 가운데 카드만 또렷하게, 양옆은 작고 어둡게. 옆 카드를 누르면 그쪽으로 돈다.
-                        flex: '0 0 var(--fame-w)', transform: active ? 'scale(1)' : 'scale(.88)', opacity: active ? 1 : .5,
-                        transition: 'transform .55s cubic-bezier(.2,.7,.3,1), opacity .55s', cursor: active ? 'default' : 'pointer'
-                      }} onClick={active ? undefined : onPick}>
-                        {art
-                          ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" />
-                          : <div aria-hidden="true" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 160, display: 'grid', placeItems: 'center', fontSize: 64 }}>{c.icon}</div>}
-                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
-                        <div className="fameBody" style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', textShadow: art ? '0 1px 8px rgba(0,0,0,.5)' : undefined }}>
-                          <div style={{ ...line, fontSize: 13, fontWeight: 700, color: th.color }}>
-                            {c.icon} {c.label}{c.note && <span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(232,234,236,.5)', marginLeft: 8 }}>{c.note}</span>}
+                      <div key={c.key} className="fameTile" onClick={active ? undefined : onPick} style={{
+                        flex: '0 0 var(--fame-w)', position: 'relative', borderRadius: 22, padding: 1,
+                        // 얇은 금속 테두리: 바깥 1px에 테마 색 그라데이션.
+                        background: active ? `linear-gradient(160deg,${th.color} 0%,rgba(255,255,255,.1) 32%,rgba(255,255,255,.04) 68%,${th.color}88 100%)` : 'rgba(255,255,255,.08)',
+                        boxShadow: active ? `0 30px 60px rgba(0,0,0,.55), 0 0 46px ${th.glow}` : '0 14px 30px rgba(0,0,0,.35)',
+                        transform: active ? 'none' : `perspective(1100px) rotateY(${d < 0 ? 10 : -10}deg) scale(.86)`,
+                        opacity: active ? 1 : Math.abs(d) === 1 ? .5 : .18,
+                        transition: 'transform .6s cubic-bezier(.22,.8,.25,1), opacity .6s, box-shadow .6s',
+                        cursor: active ? 'grab' : 'pointer', userSelect: 'none'
+                      }}>
+                        <div style={{ height: 600, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
+                          <div style={{
+                            position: 'relative', height: 300, flex: 'none', overflow: 'hidden',
+                            ...(art
+                              ? {
+                                backgroundColor: c1,
+                                backgroundImage: `${art.text ? `url(${art.text}), ` : ''}radial-gradient(75% 65% at 50% 42%,${c0} 0%,${c1} 100%)`,
+                                backgroundSize: `${art.text ? 'auto 96%, ' : ''}cover`,
+                                backgroundPosition: `${art.text ? 'center 40%, ' : ''}center`,
+                                backgroundRepeat: 'no-repeat'
+                              }
+                              : {
+                                backgroundImage: mapBg
+                                  ? `linear-gradient(180deg,rgba(11,13,16,.25) 0%,rgba(11,13,16,.7) 75%,${c1} 100%), url(${mapBg})`
+                                  : `radial-gradient(75% 65% at 50% 42%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
+                                backgroundSize: 'cover', backgroundPosition: 'center'
+                              })
+                          }}>
+                            {/* 발밑 빛 */}
+                            <div style={{ position: 'absolute', left: '18%', right: '18%', bottom: 4, height: 26, borderRadius: '50%', background: `radial-gradient(closest-side, ${art ? c0 : th.glow}, transparent)`, opacity: .9 }} />
+                            {art
+                              ? <img className="agentPortrait" src={art.portrait} alt="" aria-hidden="true" draggable={false} />
+                              : <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 84, filter: 'drop-shadow(0 12px 28px rgba(0,0,0,.55))' }}>{c.icon}</div>}
                           </div>
-                          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
-                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', textShadow: 'none', filter: 'drop-shadow(0 2px 10px rgba(0,0,0,.45))' }}>{top.value}</div>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                                {rankBadge(lead, 20)}
-                                <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{names(lead)}</span>
+                          <div style={{ height: 1, flex: 'none', background: `linear-gradient(90deg,transparent,${th.color}aa,transparent)` }} />
+                          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '16px 20px 18px' }}>
+                            <div style={{ ...line, fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.16em', color: th.color }}>{c.icon} {c.label}</div>
+                            {c.note && <div style={{ ...line, fontSize: 10, color: '#6B737C', marginTop: 3 }}>{c.note}</div>}
+                            <div style={{ marginTop: 8, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 50, lineHeight: 1, letterSpacing: '-.035em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 4px 18px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
+                            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                              {rankBadge(lead, 20)}
+                              <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{names(lead)}</span>
+                            </div>
+                            {!!matchLine && <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(232,234,236,.6)', wordBreak: 'keep-all' }}>{matchLine}</div>}
+                            {!!stats.length && statLine(stats, { marginTop: 12, columnGap: 12 })}
+                            {!!rest.length && (
+                              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.08)' }}>
+                                {rest.map((g) => (
+                                  <div key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                    {rankBadge(g, 18)}
+                                    <span style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#DDE2E7' }}>{names(g)}</span>
+                                    <span style={{ flex: 'none', fontFamily: "'Archivo'", fontSize: 13, fontWeight: 800, color: 'rgba(232,234,236,.7)' }}>{g.value}</span>
+                                  </div>
+                                ))}
                               </div>
-                              {!!matchLine && <div style={{ ...line, marginTop: 5, fontFamily: "'IBM Plex Mono'", fontSize: 11, color: 'rgba(232,234,236,.72)' }}>{matchLine}</div>}
-                            </div>
+                            )}
                           </div>
-                          {!!stats.length && statLine(stats, { marginTop: 14 })}
-                          {!!rest.length && (
-                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,.1)' }}>
-                              {rest.map((g) => (
-                                <div key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                  {rankBadge(g, 18)}
-                                  <span style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#DDE2E7' }}>{names(g)}</span>
-                                  <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: 'rgba(232,234,236,.6)' }}>{g.value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
@@ -3369,29 +3385,60 @@ export default function Page() {
                         const i = Math.min(fameIdx[k] || 0, n - 1);
                         const pick = (to) => setFameIdx((s) => ({ ...s, [k]: to }));
                         const go = (d) => pick((i + d + n) % n);
+                        const dx = fameDrag?.k === k ? fameDrag.dx : 0;
+                        // 끌기: 손가락/마우스를 따라 트랙이 움직이고, 놓으면 끈 거리만큼 가까운 카드로 붙는다.
+                        const end = (e) => {
+                          const st = fameStart.current;
+                          fameStart.current = null;
+                          if (!st || st.k !== k || !st.moved) return;
+                          const card = e.currentTarget.querySelector('.fameTile');
+                          const step = (card ? card.offsetWidth : 300) + 18;
+                          const moved = e.clientX - st.x;
+                          let steps = Math.round(-moved / step);
+                          if (!steps && Math.abs(moved) > 50) steps = moved < 0 ? 1 : -1;
+                          pick(Math.max(0, Math.min(n - 1, i + steps)));
+                          setFameDrag(null);
+                          fameJustDragged.current = true;
+                          setTimeout(() => { fameJustDragged.current = false; }, 0);
+                        };
                         const arrow = (d, t) => (
-                          <button onClick={() => go(d)} aria-label={d < 0 ? '이전 부문' : '다음 부문'} style={{ width: 36, height: 36, flex: 'none', borderRadius: 999, background: 'rgba(27,32,39,.8)', border: '1px solid #333B45', color: '#E8EAEC', cursor: 'pointer', fontSize: 12 }}>{t}</button>
+                          <button onClick={() => go(d)} aria-label={d < 0 ? '이전 부문' : '다음 부문'} style={{ width: 38, height: 38, flex: 'none', borderRadius: 999, background: 'rgba(15,19,24,.7)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,.12)', color: '#E8EAEC', cursor: 'pointer', fontSize: 11 }}>{t}</button>
                         );
                         return (
                           <>
-                            {/* 가로 룰렛: 카드를 한 줄로 늘어놓고 지금 카드가 가운데 오게 트랙을 민다.
-                                카드 폭 --fame-w, 간격 16px. 퍼센트는 트랙(=보이는 칸) 폭 기준. */}
-                            <div className="fameRoulette" style={{ overflow: 'hidden', margin: '0 -4px', padding: '6px 0' }}
-                              onTouchStart={(e) => { fameTouch.current = e.touches[0].clientX; }}
-                              onTouchEnd={(e) => { const dx = e.changedTouches[0].clientX - (fameTouch.current ?? e.changedTouches[0].clientX); fameTouch.current = null; if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); }}
+                            {/* 가로 룰렛: 세로 카드를 한 줄로 늘어놓고 지금 카드가 가운데 오게 트랙을 민다.
+                                카드 폭 --fame-w, 간격 18px. 50%는 트랙(=보이는 칸) 폭 기준. */}
+                            <div className="fameRoulette" style={{ overflow: 'hidden', padding: '14px 0 18px', touchAction: 'pan-y' }}
+                              onPointerDown={(e) => { if (e.pointerType === 'mouse' && e.button !== 0) return; fameStart.current = { k, x: e.clientX, moved: false }; }}
+                              onPointerMove={(e) => {
+                                const st = fameStart.current;
+                                if (!st || st.k !== k) return;
+                                const d = e.clientX - st.x;
+                                if (!st.moved) {
+                                  if (Math.abs(d) < 6) return;
+                                  st.moved = true;
+                                  e.currentTarget.setPointerCapture(e.pointerId);
+                                }
+                                setFameDrag({ k, dx: d });
+                              }}
+                              onPointerUp={end}
+                              onPointerCancel={end}
                             >
-                              <div style={{ display: 'flex', gap: 16, transform: `translateX(calc((100% - var(--fame-w)) / 2 - ${i} * (var(--fame-w) + 16px)))`, transition: 'transform .6s cubic-bezier(.22,.8,.25,1)' }}>
-                                {cats.map((c, ci) => fameTile(c, ci === i, () => pick(ci), th))}
+                              <div style={{
+                                display: 'flex', gap: 18,
+                                transform: `translateX(calc(50% - var(--fame-w) / 2 - ${i} * (var(--fame-w) + 18px) + ${dx}px))`,
+                                transition: dx ? 'none' : 'transform .6s cubic-bezier(.22,.8,.25,1)'
+                              }}>
+                                {cats.map((c, ci) => fameTile(c, ci - i, () => { if (!fameJustDragged.current) pick(ci); }, th))}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
                               {arrow(-1, '◀')}
-                              <div data-scrollx="1" style={{ flex: 1, minWidth: 0, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                 {cats.map((c, ci) => (
-                                  <button key={c.key} onClick={() => pick(ci)} style={{ ...pill(ci === i, th.color), flex: 'none', padding: '7px 12px', fontSize: 12 }}>{c.icon} {c.label}</button>
+                                  <button key={c.key} onClick={() => pick(ci)} aria-label={`${ci + 1}번째 부문`} style={{ width: ci === i ? 26 : 8, height: 4, padding: 0, border: 'none', borderRadius: 999, cursor: 'pointer', background: ci === i ? th.color : 'rgba(255,255,255,.18)', transition: 'width .4s cubic-bezier(.2,.7,.3,1), background .4s' }} />
                                 ))}
                               </div>
-                              <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{i + 1} / {n}</span>
                               {arrow(1, '▶')}
                             </div>
                           </>
