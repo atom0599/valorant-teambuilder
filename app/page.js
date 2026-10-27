@@ -3126,13 +3126,13 @@ export default function Page() {
                   </div>
                 </div>
 
-                <div style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                {isAdmin && <div style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>방금 끝난 내전 저장</div>
                     <div style={{ fontSize: 12, color: quickMsg ? '#E5C04C' : '#8B949E', marginTop: 3 }}>{quickMsg || '경기가 끝나면 버튼 한 번으로 최근 12시간 안의 내전 결과를 Riot 기록에서 가져와 저장합니다.'}</div>
                   </div>
                   <button onClick={quickImportLatest} disabled={quickImporting} style={{ background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: quickImporting ? 'default' : 'pointer', opacity: quickImporting ? .6 : 1, flex: 'none' }}>{quickImporting ? '불러오는 중…' : '내전 결과 불러오기'}</button>
-                </div>
+                </div>}
 
                 {isAdmin && (
                   <div style={{ background: '#14181D', border: '1px dashed #2C333C', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -3307,11 +3307,16 @@ export default function Page() {
                       m.mvp === 'team' && [null, '팀 MVP', '#C6CDD4']
                     ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
-                    const names = (g) => g.rows.map((r) => r.id).join(' · ');
+                    // 공동 순위는 한 줄. 이름을 다 쓰면 넘칠 만큼 길면(3명 이상이거나 길이가 길면) "누구 외 N명".
+                    const names = (g) => {
+                      const all = g.rows.map((r) => r.id).join(' · ');
+                      return g.rows.length > 1 && (g.rows.length > 2 || all.length > 24) ? `${g.rows[0].id} 외 ${g.rows.length - 1}명` : all;
+                    };
                     const active = d === 0;
                     return (
                       <div key={c.key} className="fameTile" onClick={active ? undefined : onPick} style={{
-                        flex: '0 0 var(--fame-w)', position: 'relative', borderRadius: 22, padding: 1,
+                        // 폭을 딱 고정해야(긴 이름이 카드를 늘리지 않게) 넘길 때마다 정확히 가운데에 온다.
+                        flex: '0 0 var(--fame-w)', width: 'var(--fame-w)', minWidth: 0, position: 'relative', borderRadius: 22, padding: 1,
                         // 얇은 금속 테두리: 바깥 1px에 테마 색 그라데이션.
                         background: active ? `linear-gradient(160deg,${th.color} 0%,rgba(255,255,255,.1) 32%,rgba(255,255,255,.04) 68%,${th.color}88 100%)` : 'rgba(255,255,255,.08)',
                         boxShadow: active ? `0 30px 60px rgba(0,0,0,.55), 0 0 46px ${th.glow}` : '0 14px 30px rgba(0,0,0,.35)',
@@ -3320,7 +3325,7 @@ export default function Page() {
                         transition: 'transform .6s cubic-bezier(.22,.8,.25,1), opacity .6s, box-shadow .6s',
                         cursor: active ? 'grab' : 'pointer', userSelect: 'none'
                       }}>
-                        <div style={{ height: 600, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
+                        <div style={{ height: 620, borderRadius: 21, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: `linear-gradient(180deg,${c1} 0%,#0B0D10 100%)` }}>
                           <div style={{
                             position: 'relative', height: 300, flex: 'none', overflow: 'hidden',
                             ...(art
@@ -3353,7 +3358,7 @@ export default function Page() {
                               {rankBadge(lead, 20)}
                               <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{names(lead)}</span>
                             </div>
-                            {!!matchLine && <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(232,234,236,.6)', wordBreak: 'keep-all' }}>{matchLine}</div>}
+                            {!!matchLine && <div style={{ ...line, marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(232,234,236,.6)' }}>{matchLine}</div>}
                             {!!stats.length && statLine(stats, { marginTop: 12, columnGap: 12 })}
                             {!!rest.length && (
                               <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.08)' }}>
@@ -3387,17 +3392,18 @@ export default function Page() {
                         const go = (d) => pick((i + d + n) % n);
                         const dx = fameDrag?.k === k ? fameDrag.dx : 0;
                         // 끌기: 손가락/마우스를 따라 트랙이 움직이고, 놓으면 끈 거리만큼 가까운 카드로 붙는다.
-                        const end = (e) => {
+                        // 브라우저가 끌기를 취소하면(pointercancel, 세로 스크롤로 판단 등) 그 자리에 멈추지 않고 지금 카드를 가운데로 되돌린다.
+                        const end = (e, cancel) => {
                           const st = fameStart.current;
                           fameStart.current = null;
-                          if (!st || st.k !== k || !st.moved) return;
+                          setFameDrag(null);
+                          if (!st || st.k !== k || !st.moved || cancel) return;
                           const card = e.currentTarget.querySelector('.fameTile');
                           const step = (card ? card.offsetWidth : 300) + 18;
-                          const moved = e.clientX - st.x;
+                          const moved = st.dx || 0;
                           let steps = Math.round(-moved / step);
                           if (!steps && Math.abs(moved) > 50) steps = moved < 0 ? 1 : -1;
                           pick(Math.max(0, Math.min(n - 1, i + steps)));
-                          setFameDrag(null);
                           fameJustDragged.current = true;
                           setTimeout(() => { fameJustDragged.current = false; }, 0);
                         };
@@ -3419,10 +3425,12 @@ export default function Page() {
                                   st.moved = true;
                                   e.currentTarget.setPointerCapture(e.pointerId);
                                 }
+                                st.dx = d;
                                 setFameDrag({ k, dx: d });
                               }}
-                              onPointerUp={end}
-                              onPointerCancel={end}
+                              onPointerUp={(e) => end(e, false)}
+                              onPointerCancel={(e) => end(e, true)}
+                              onLostPointerCapture={(e) => { if (fameStart.current?.k === k) end(e, true); }}
                             >
                               <div style={{
                                 display: 'flex', gap: 18,
@@ -3540,18 +3548,18 @@ export default function Page() {
                           )}
                           <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 16 }}>
                             <div>
-                              <div style={{ fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>승률</div>
+                              <div style={{ fontSize: 11, color: '#C6CDD4', letterSpacing: '.06em' }}>승률</div>
                               <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 44, lineHeight: 1, color: '#C8F24C' }}>{statRate}%</div>
                             </div>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 6 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8B949E' }}>
-                                <span>{statRec.wins}승 {statRec.losses}패</span>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '4px 10px', fontSize: 13, fontWeight: 700, color: '#F5F7F9' }}>
+                                <span style={{ whiteSpace: 'nowrap' }}>{statRec.wins}승 {statRec.losses}패</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', background: 'rgba(11,13,16,.6)', borderRadius: 999, padding: '2px 8px 2px 4px' }}>
                                   {statTier?.tierIcon && <img src={statTier.tierIcon} alt="" style={{ width: 16, height: 16 }} />}
                                   {tierPill(statTier?.tier).label}
                                 </span>
                               </div>
-                              <div style={{ position: 'relative', height: 8, borderRadius: 999, background: '#22282F', overflow: 'hidden' }}>
+                              <div style={{ position: 'relative', height: 8, borderRadius: 999, background: 'rgba(255,255,255,.16)', overflow: 'hidden' }}>
                                 <div style={{ position: 'absolute', inset: 0, width: `${statRate}%`, borderRadius: 999, transformOrigin: 'left', background: 'linear-gradient(90deg,#8FBF2E,#C8F24C)', animation: 'growBar .7s cubic-bezier(.2,.7,.3,1) both' }} />
                               </div>
                             </div>
