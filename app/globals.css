@@ -218,11 +218,14 @@ button:active { transform: scale(.97); }
 .psTip .t2 { font-size: 11px; color: rgba(232,234,236,.6); margin-top: 4px; line-height: 1.5; }
 .psTip .psMini { justify-content: flex-start; }
 /* 넘기기 */
-.psNav { position: absolute; top: 50%; z-index: 9; width: 44px; height: 44px; border-radius: 999px; transform: translateY(-50%); cursor: pointer;
+.psNav { position: absolute; top: 50%; z-index: 11; width: 44px; height: 44px; border-radius: 999px; transform: translateY(-50%); cursor: pointer;
   background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.14); color: #E8EAEC; font-size: 12px; transition: border-color .2s, background .2s; }
 .psNav:hover { border-color: var(--th); background: rgba(10,12,15,.8); }
 .psNav.l { left: 16px; } .psNav.r { right: 16px; }
-.psDots { position: absolute; left: 0; right: 0; bottom: 16px; z-index: 9; display: flex; justify-content: center; gap: 0; }
+/* 막대 줄은 무대 폭 전체를 차지하는 상자라, 좁은 무대에서 아래로 내려온 화살표를 덮어 가운데를 누르면
+   클릭이 막대 줄로 가 버렸다 — 줄 자체는 클릭을 통과시키고 막대만 받는다. 화살표는 그보다 위에. */
+.psDots { position: absolute; left: 0; right: 0; bottom: 16px; z-index: 9; display: flex; justify-content: center; gap: 0; pointer-events: none; }
+.psDots button { pointer-events: auto; }
 /* 막대는 4px로 보이지만 누르는 자리는 위아래 · 양옆으로 넉넉하게 (투명한 여백 + content-box 배경) */
 .psDots button { box-sizing: content-box; width: 8px; height: 4px; padding: 8px 3px; border: none; border-radius: 999px; background: rgba(255,255,255,.2); background-clip: content-box; cursor: pointer; transition: width .4s cubic-bezier(.2,.7,.3,1), background .4s; }
 .psDots button.on { width: 28px; background-color: var(--th); }
