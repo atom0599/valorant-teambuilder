@@ -3275,7 +3275,7 @@ export default function Page() {
                   );
                   // 부문 하나 = 세로 카드 한 장. 위쪽은 1위 기록 요원 칸(색 그라데이션 · 위키 배경 문구 ·
                   // 머리부터 발끝까지 전신, 글자는 올리지 않음), 아래쪽은 기록: 부문 → 큰 기록 → 1위 ·
-                  // 그 판 정보 → 그 판 자세한 기록 → 2~3위. 같은 순위(공동)는 한 줄로 묶는다.
+                  // 그 판 정보 → 그 판 K/D/A · ACS · HS → 2~3위. 같은 순위(공동)는 한 줄로 묶는다.
                   // d = 가운데 카드에서 몇 칸 떨어졌는지 (룰렛에서 양옆 카드는 기울고 작고 흐리게).
                   const fameTile = (c, d, onPick, th) => {
                     const groups = [];
@@ -3297,14 +3297,7 @@ export default function Page() {
                     const stats = m ? [
                       m.kills != null && ['K/D/A', `${m.kills}/${m.deaths ?? 0}/${m.assists ?? 0}`],
                       m.acs != null && ['ACS', m.acs],
-                      m.hsPct != null && ['HS', `${m.hsPct}%`],
-                      m.firstKills != null && ['첫 킬', m.firstKills],
-                      m.firstDeaths != null && ['첫 데스', m.firstDeaths],
-                      !!m.plants && ['설치', m.plants],
-                      !!m.defuses && ['해체', m.defuses],
-                      !!m.clutches && ['클러치', m.clutches],
-                      m.mvp === 'match' && [null, '경기 MVP', '#FFD166'],
-                      m.mvp === 'team' && [null, '팀 MVP', '#C6CDD4']
+                      m.hsPct != null && ['HS', `${m.hsPct}%`]
                     ].filter(Boolean) : [];
                     const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
                     // 공동 순위(2명 이상)는 늘 "누구 외 N명" 한 줄로 쓰고, 마우스를 올리면 전원 이름이 뜬다.
