@@ -3343,7 +3343,6 @@ export default function Page() {
                           <div style={{ height: 1, flex: 'none', background: `linear-gradient(90deg,transparent,${th.color}aa,transparent)` }} />
                           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '16px 20px 18px' }}>
                             <div style={{ ...line, fontSize: 16, fontWeight: 800, letterSpacing: '-.01em', color: th.color }}>{c.icon} {c.label}</div>
-                            {c.note && <div style={{ ...line, fontSize: 10, color: '#6B737C', marginTop: 3 }}>{c.note}</div>}
                             <div style={{ marginTop: 8, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.035em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 4px 18px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
                             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                               {rankBadge(lead, 20)}
