@@ -317,9 +317,9 @@ button:active { transform: scale(.97); }
 .hlDust i:nth-child(13) { left: 18%; animation-delay: 5.6s; width: 2px; height: 2px } .hlDust i:nth-child(14) { left: 50%; animation-delay: 3.8s; width: 2px; height: 2px }
 .hlDust i:nth-child(15) { left: 74%; animation-delay: 6.6s; width: 2px; height: 2px } .hlDust i:nth-child(16) { left: 34%; animation-delay: 2.9s; width: 2px; height: 2px }
 @keyframes hlDust { 0% { transform: translateY(0); opacity: 0 } 10% { opacity: .9 } 80% { opacity: .5 } 100% { transform: translateY(-520px) translateX(18px); opacity: 0 } }
-/* MVP는 날을 넘길 때마다 번쩍이며 올라온다 (translate 속성이라 위치용 transform과 겹쳐도 됨) */
+/* MVP는 날을 넘길 때마다 아래에서 올라온다 (translate 속성이라 위치용 transform과 겹쳐도 됨) */
 .hlRise { animation: hlRise .9s cubic-bezier(.2,.8,.25,1) both; }
-@keyframes hlRise { 0% { opacity: 0; translate: 0 50px; filter: brightness(2.8) drop-shadow(0 0 30px #fff) } 55% { opacity: 1; filter: brightness(1.5) drop-shadow(0 0 18px rgba(255,255,255,.5)) } 100% { opacity: 1; translate: 0 0 } }
+@keyframes hlRise { 0% { opacity: 0; translate: 0 50px } 100% { opacity: 1; translate: 0 0 } } /* 몸에서 빛나는 효과 없이 올라오기만 */
 .hlVignette { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: radial-gradient(130% 100% at 50% 40%, transparent 60%, rgba(0,0,0,.55) 100%); }
 .hlNav { width: 32px; height: 32px; border-radius: 999px; background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.16); color: #E8EAEC; cursor: pointer; font-size: 10px; transition: border-color .2s; }
 .hlNav:hover:not(:disabled) { border-color: #FFD166; }
