@@ -3255,8 +3255,9 @@ export default function Page() {
                   const rankBadge = (r, size) => (
                     <span title={r.tied ? `공동 ${r.rank}위` : `${r.rank}위`} style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, minWidth: size, height: size, padding: r.tied ? '0 5px' : 0, borderRadius: 6, fontFamily: "'Archivo'", fontWeight: 800, fontSize: size > 18 ? 11 : 10, color: medals[r.rank - 1].fg, background: medals[r.rank - 1].bg, whiteSpace: 'nowrap' }}>{r.tied ? `공동 ${r.rank}` : r.rank}</span>
                   );
-                  // 부문 하나 = 가로로 긴 카드 한 줄. 왼쪽은 기록, 오른쪽은 1위 기록 요원의 일러스트
-                  // (색 그라데이션 · 위키 배경 문구 · 전신 초상화). 요원 칸에는 글자를 올리지 않는다.
+                  // 부문 하나 = 가로로 긴 카드 한 줄. 모든 카드가 같은 높이 · 같은 칸 배치:
+                  // 왼쪽 기록 칸(부문 → 기록 → 1위 → 아래에 2~3위), 오른쪽 요원 칸(색 그라데이션 ·
+                  // 위키 배경 문구 · 머리부터 발끝까지 전신 초상화). 요원 칸에는 글자를 올리지 않는다.
                   const fameTile = (c, ci, th) => {
                     const leaders = c.rows.filter((r) => r.rank === 1);
                     const rest = c.rows.filter((r) => r.rank !== 1);
@@ -3264,48 +3265,36 @@ export default function Page() {
                     const mapBg = top.map && !String(top.map).includes(',') ? MAP_IMG[top.map] : null;
                     const art = agentArt(top.agent);
                     const c0 = art?.colors[0] || '#1F2A36', c1 = art?.colors[1] || '#0F1923';
-                    // 날짜 · 맵 · 요원 · 점수 한 줄.
-                    const subOf = (r) => (r.date ? [fmtDate(r.date), r.map, r.agent ? agentKo(r.agent) : null, r.score ? `${r.score} ${r.result}` : null].filter(Boolean).join(' · ') : r.sub);
+                    const sub = top.date ? [fmtDate(top.date), top.map, top.agent ? agentKo(top.agent) : null, top.score ? `${top.score} ${top.result}` : null].filter(Boolean).join(' · ') : top.sub;
+                    const line = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 };
                     return (
                       <div key={c.key} data-lift="1" className="fameTile" style={{
-                        position: 'relative', overflow: 'hidden', borderRadius: 18, display: 'flex',
+                        position: 'relative', overflow: 'hidden', borderRadius: 18, display: 'flex', height: 260,
                         background: `linear-gradient(90deg,#0E1217 0%,${c1} 100%)`, border: '1px solid rgba(255,255,255,.08)',
                         animation: 'fadeUp .45s cubic-bezier(.2,.7,.3,1) both', animationDelay: `${ci * 45}ms`
                       }}>
                         <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: th.bar }} />
-                        <div className="fameInfo" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: '18px 20px 18px 24px' }}>
-                          {/* 부문 이름. 한국어는 글자 단위로 줄바꿈돼서 낱말이 잘리니 keep-all. */}
-                          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '2px 10px' }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: th.color, wordBreak: 'keep-all' }}>{c.icon} {c.label}</span>
-                            {c.note && <span style={{ fontSize: 10, color: '#6B737C' }}>{c.note}</span>}
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: '18px 18px 16px 24px' }}>
+                          <div style={{ ...line, fontSize: 13, fontWeight: 700, color: th.color }}>
+                            {c.icon} {c.label}{c.note && <span style={{ fontSize: 10, fontWeight: 400, color: '#6B737C', marginLeft: 8 }}>{c.note}</span>}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 18px', minWidth: 0 }}>
-                            <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: .95, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 12px ${th.glow})` }}>{top.value}</div>
-                            <div style={{ flex: '1 1 150px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {leaders.map((r) => (
-                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                  {/* 1위 요원은 오른쪽 일러스트로 보이니, 아이콘은 다른 요원으로 공동 1위를 한 사람만. */}
-                                  {r.agentIcon && !(art && r.agent === top.agent) && <img src={r.agentIcon} alt={agentKo(r.agent) || ''} style={{ flex: 'none', width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,255,255,.14)' }} />}
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                                      {rankBadge(r, 20)}
-                                      <span style={{ fontSize: 15, fontWeight: 800, color: '#F5F7F9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{r.id}</span>
-                                    </div>
-                                    {!!subOf(r) && <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E', marginTop: 4, lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{subOf(r)}</div>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                          <div style={{ marginTop: 10, fontFamily: "'Archivo'", fontWeight: 800, fontSize: 46, lineHeight: 1, letterSpacing: '-.03em', background: th.text, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: `drop-shadow(0 2px 12px ${th.glow})`, alignSelf: 'flex-start' }}>{top.value}</div>
+                          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                            {rankBadge(top, 20)}
+                            <span style={{ ...line, fontSize: 15, fontWeight: 800, color: '#F5F7F9' }}>{top.id}</span>
                           </div>
+                          {!!sub && <div style={{ ...line, marginTop: 4, fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#8B949E' }}>{sub}</div>}
+                          {leaders.length > 1 && <div style={{ ...line, marginTop: 3, fontSize: 11, color: '#C8D0D8' }}>공동 1위 · {leaders.slice(1).map((r) => r.id).join(', ')}</div>}
                           {!!rest.length && (
-                            <div style={{ marginTop: 'auto', display: 'flex', flexWrap: 'wrap', gap: '6px 16px', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,.08)' }}>
-                              {rest.map((r) => (
-                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
+                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 9, borderTop: '1px solid rgba(255,255,255,.08)' }}>
+                              {(rest.length > 3 ? rest.slice(0, 2) : rest).map((r) => (
+                                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                                   {rankBadge(r, 18)}
-                                  <span style={{ minWidth: 0, fontSize: 12, fontWeight: 600, color: '#C8D0D8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.id}</span>
+                                  <span style={{ ...line, flex: 1, fontSize: 12, fontWeight: 600, color: '#C8D0D8' }}>{r.id}</span>
                                   <span style={{ flex: 'none', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#8B949E' }}>{r.value}</span>
                                 </div>
                               ))}
+                              {rest.length > 3 && <div style={{ ...line, fontSize: 11, color: '#8B949E' }}>외 {rest.slice(2).map((r) => r.id).join(', ')}</div>}
                             </div>
                           )}
                         </div>
@@ -3314,19 +3303,19 @@ export default function Page() {
                           ...(art
                             ? {
                               backgroundColor: c1,
-                              backgroundImage: `${art.text ? `url(${art.text}), ` : ''}radial-gradient(80% 110% at 55% 25%,${c0} 0%,${c1} 90%)`,
-                              backgroundSize: `${art.text ? 'auto 115%, ' : ''}cover`,
+                              backgroundImage: `${art.text ? `url(${art.text}), ` : ''}radial-gradient(85% 70% at 50% 45%,${c0} 0%,${c1} 100%)`,
+                              backgroundSize: `${art.text ? 'auto 100%, ' : ''}cover`,
                               backgroundPosition: `${art.text ? 'center, ' : ''}center`,
                               backgroundRepeat: 'no-repeat'
                             }
                             : {
-                              backgroundImage: mapBg ? `url(${mapBg})` : `radial-gradient(80% 110% at 55% 25%, ${th.glow} 0%, rgba(15,25,35,0) 85%)`,
+                              backgroundImage: mapBg ? `url(${mapBg})` : `radial-gradient(85% 70% at 50% 45%, ${th.glow} 0%, rgba(15,25,35,0) 100%)`,
                               backgroundSize: 'cover', backgroundPosition: 'center'
                             })
                         }}>
                           {art
                             ? <img className="agentPortrait" src={art.portrait} alt="" />
-                            : <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 64, background: mapBg ? 'rgba(11,13,16,.45)' : 'transparent' }}>{c.icon}</div>}
+                            : <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontSize: 60, background: mapBg ? 'rgba(11,13,16,.45)' : 'transparent' }}>{c.icon}</div>}
                         </div>
                       </div>
                     );
