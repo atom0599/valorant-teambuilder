@@ -8,7 +8,7 @@ import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
-import FamePodium from './FamePodium';
+import FamePodium, { CountUp } from './FamePodium';
 import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
@@ -2299,9 +2299,8 @@ export default function Page() {
                   const names = (ids) => short(ids[0]) + (ids.length > 1 ? ` 외 ${ids.length - 1}명` : '');
                   const m = hl.mvp;
                   const mvpBg = m && (MAP_IMG[m.map] || MAP_IMG[String(m.map).split(',')[0]?.trim()]);
-                  // MVP 요원 일러스트가 있으면 카드 전체 배경을 그 요원으로 (색 · 배경 문구 · 전신 초상화).
+                  // MVP 요원 일러스트가 있으면 카드 전체가 그 요원의 무대 (색 · 배경 문구 · 전신 초상화 · 조명).
                   const mvpArt = m && agentArt(m.agent);
-                  const ts = mvpArt ? { textShadow: '0 1px 10px rgba(0,0,0,.55)' } : null;
                   const rows = [
                     hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
                     hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
@@ -2309,76 +2308,76 @@ export default function Page() {
                     hl.close && { key: 'close', icon: '😰', label: '최대 접전', who: hl.close.map, ctx: '경기 보기', value: hl.close.score.replace(/\s/g, ''), unit: '', onClick: () => openMatch(hl.close.date) }
                   ].filter(Boolean);
                   const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
+                  // 기록 칸은 늘 네 칸(최다 킬 · 최고 ACS · 전승 · 최대 접전) — 없는 날은 빈 칸으로 두어 날마다 크기가 같다.
+                  const tiles = [
+                    ['kills', '💥', '최다 킬'], ['acs', '📈', '최고 ACS'], ['streak', '🔥', '전승'], ['close', '😰', '최대 접전']
+                  ].map(([key, icon, label]) => rows.find((r) => r.key === key) || { key, icon, label, empty: true });
                   return (
-                    <div data-lift="1" className={mvpArt ? 'hlCard' : undefined} style={{
-                      position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 546, // 내전 날을 넘겨도 카드 크기가 같게
-                      ...(mvpArt ? agentCardBg(mvpArt, ['auto 92%', 'right 36px center']) : { background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)' })
+                    <div data-lift="1" className={`hlStage${mvpArt ? ' hlCard' : ''}`} style={{
+                      position: 'relative', overflow: 'hidden', borderRadius: 22, padding: 20, display: 'flex', flexDirection: 'column', gap: 16, minHeight: 540, // 내전 날을 넘겨도 카드 크기가 같게
+                      ...(mvpArt?.colors[0] ? { '--c0': mvpArt.colors[0].slice(0, 7) } : {})
                     }}>
-                      {mvpArt && <img className="agentPortrait" src={mvpArt.portrait} alt="" aria-hidden="true" />}
-                      <div className="hlTop" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, ...ts }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#C8F24C', letterSpacing: '.16em' }}>MATCH DAY RECAP</div>
-                          <div style={{ fontFamily: "'Archivo'", fontSize: 22, fontWeight: 800, letterSpacing: '-.02em', marginTop: 4 }}>{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
-                          <div style={{ fontSize: 11, color: '#8B949E', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hlDay.count}경기 · {mapsPlayed}</div>
-                        </div>
-                        {hlDays.length > 1 && (
-                          <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
-                            {[['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
-                              <button key={t} title={title} disabled={off} onClick={() => setHlIndex(to)} style={{ width: 30, height: 30, borderRadius: 999, background: 'transparent', border: `1px solid ${off ? '#20262E' : '#3A424C'}`, color: off ? '#3A424C' : '#C6CDD4', cursor: off ? 'default' : 'pointer', fontSize: 10 }}>{t}</button>
-                            ))}
+                      {/* 무대 연출: 흐르는 배경 문구 · MVP에게 떨어지는 핀 조명 · 요원 색 후광 · 떠오르는 금가루 */}
+                      {mvpArt && <>
+                        <div className="hlText" style={{ backgroundImage: mvpArt.text ? `url(${mvpArt.text})` : 'none' }} />
+                        <div className="hlAura" />
+                        <div className="hlBeam" />
+                        <div className="hlDust">{Array.from({ length: 16 }, (_, k) => <i key={k} />)}</div>
+                        <img key={`mvp-${hlDay.start}`} className="agentPortrait hlRise" src={mvpArt.portrait} alt="" aria-hidden="true" />
+                      </>}
+                      <div className="hlVignette" />
+                      <div className="hlTop" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, textShadow: '0 1px 10px rgba(0,0,0,.55)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#C8F24C', letterSpacing: '.2em' }}>MATCH DAY RECAP</div>
+                            <div style={{ fontFamily: "'Archivo'", fontSize: 22, fontWeight: 800, letterSpacing: '-.02em', marginTop: 4 }}>{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
+                            <div style={{ fontSize: 11, color: 'rgba(232,234,236,.6)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hlDay.count}경기 · {mapsPlayed}</div>
                           </div>
+                          {hlDays.length > 1 && (
+                            <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
+                              {[['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
+                                <button key={t} className="hlNav" title={title} disabled={off} onClick={() => setHlIndex(to)}>{t}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {m && (
+                          <button key={`mvpinfo-${hlDay.start}`} className="hlMvp" onClick={() => openPlayer(m.id)} style={mvpArt ? undefined : { padding: '18px 18px', borderRadius: 16, border: '1px solid rgba(255,209,102,.3)', backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                            {!mvpArt && (m.agentIcon
+                              ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 72, height: 72, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
+                              : <div style={{ width: 72, height: 72, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 34, border: '2px solid #E8B23D' }}>👑</div>)}
+                            <div style={{ minWidth: 0 }}>
+                              <span className="hlCrown">👑 {isToday ? 'TODAY' : 'DAY'} MVP{m.agent ? ` · ${agentKo(m.agent)}` : ''}</span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 8 }}>
+                                <span className="hlMvpName">{short(m.id)}</span>
+                                {String(m.id).includes('#') && <span style={{ fontSize: 11, color: 'rgba(232,234,236,.55)', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
+                              </div>
+                              {statLine([
+                                ['평균 ACS', <CountUp key={`acs-${hlDay.start}`} value={String(m.acs)} dur={1100} />],
+                                ['K/D', m.kd.toFixed(2)],
+                                ['K/D/A', `${m.kills}/${m.deaths}/${m.assists}`],
+                                ['승패', `${m.w}-${m.l}`, '#C8F24C'],
+                                ...(m.mvp ? [['경기 MVP', `${m.mvp}회`, '#FFD166']] : [])
+                              ], { marginTop: 10 })}
+                            </div>
+                          </button>
                         )}
                       </div>
 
-                      {m && (
-                        <button onClick={() => openPlayer(m.id)} style={{
-                          position: 'relative', overflow: 'hidden', textAlign: 'left', cursor: 'pointer', color: '#F5F7F9', display: 'flex', alignItems: 'center', gap: 18,
-                          ...(mvpArt
-                            // 카드 배경이 이미 MVP 요원이라 배너는 테두리 없이 글자만.
-                            ? { background: 'transparent', border: 'none', padding: '14px 0 18px', textShadow: 'inherit' }
-                            : { border: '1px solid rgba(255,209,102,.35)', borderRadius: 16, padding: '22px 20px', boxShadow: '0 18px 40px rgba(0,0,0,.35)', backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' })
-                        }}>
-                          {!mvpArt && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg,#FFE29A,#E8B23D)' }} />}
-                          {mvpArt ? null : m.agentIcon
-                            ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
-                            : <div style={{ width: 76, height: 76, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 36, border: '2px solid #E8B23D' }}>👑</div>}
-                          <div style={{ position: 'relative', minWidth: 0 }}>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, fontWeight: 700, letterSpacing: '.18em', color: '#FFD166' }}>👑 {isToday ? 'TODAY' : 'DAY'} MVP{mvpArt && m.agent ? ` · ${agentKo(m.agent)}` : ''}</div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 4 }}>
-                              <span style={{ fontFamily: "'Archivo'", fontSize: mvpArt ? 'clamp(28px,5vw,40px)' : 'clamp(22px,4vw,30px)', fontWeight: 800, letterSpacing: '-.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textShadow: 'none', filter: mvpArt ? 'drop-shadow(0 2px 8px rgba(0,0,0,.5))' : undefined, background:'linear-gradient(180deg,#FFF3CC 0%,#F5C451 60%,#D99A1E 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{short(m.id)}</span>
-                              {String(m.id).includes('#') && <span style={{ fontSize: 11, color: '#8B949E', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
-                            </div>
-                            {statLine([
-                              ['평균 ACS', m.acs],
-                              ['K/D', m.kd.toFixed(2)],
-                              ['K/D/A', `${m.kills}/${m.deaths}/${m.assists}`],
-                              ['승패', `${m.w}-${m.l}`, '#C8F24C'],
-                              ...(m.mvp ? [['경기 MVP', `${m.mvp}회`, '#FFD166']] : [])
-                            ], { marginTop: 10 })}
-                          </div>
-                        </button>
-                      )}
-                      </div>
-
-                      <div className="hlRest" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, ...ts }}>
-                      {/* 날마다 줄 수(2~4)가 달라도 카드 크기가 같도록 기록 칸은 늘 4줄 높이. */}
-                      {!!rows.length && (
-                        <div style={{ minHeight: 228 }}>
-                          {rows.map((r, i) => (
-                            <button key={r.key} onClick={r.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? `1px solid ${mvpArt ? 'rgba(255,255,255,.1)' : '#20262E'}` : 'none', color: '#E8EAEC', padding: '11px 4px', cursor: 'pointer' }}>
-                              {r.img
-                                ? <img src={r.img} alt="" style={{ width: 34, height: 34, borderRadius: 8, flex: 'none' }} />
-                                : <div style={{ width: 34, height: 34, borderRadius: 8, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 18, background: '#1B2027' }}>{r.icon}</div>}
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em' }}>{r.img ? `${r.icon} ` : ''}{r.label}</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.who} <span style={{ fontWeight: 400, fontSize: 11, color: mvpArt ? 'rgba(232,234,236,.6)' : '#6B737C' }}>{r.ctx}</span></div>
+                      <div className="hlRest" style={{ position: 'relative', marginTop: 'auto' }}>
+                        <div className="hlTiles">
+                          {tiles.map((r, i) => (
+                            <button key={`${r.key}-${hlDay.start}`} className={`hlTile${r.empty ? ' empty' : ''}`} disabled={r.empty} onClick={r.onClick} style={{ animationDelay: `${120 + i * 70}ms` }}>
+                              <div className="hlTileHead">
+                                {r.img ? <img src={r.img} alt="" /> : <span className="ic">{r.icon}</span>}
+                                <span>{r.label}</span>
                               </div>
-                              <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 20, letterSpacing: '-.02em', color: '#F5F7F9' }}>{r.value}{r.unit && <span style={{ fontSize: 11, fontWeight: 600, color: '#8B949E', marginLeft: 2 }}>{r.unit}</span>}</div>
+                              <div className="hlTileVal">{r.empty ? '—' : <>{r.value}{r.unit && <small>{r.unit}</small>}</>}</div>
+                              <div className="hlTileWho">{r.empty ? '이날은 없음' : <>{r.who} <span>{r.ctx}</span></>}</div>
                             </button>
                           ))}
                         </div>
-                      )}
                       </div>
                     </div>
                   );

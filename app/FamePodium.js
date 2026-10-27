@@ -41,7 +41,7 @@ const Mini = ({ stats }) => (stats.length ? (
 ) : null);
 
 // "40킬" · "5.00" · "53%" → 0부터 그 값까지 올라가는 숫자.
-function CountUp({ value, dur }) {
+export function CountUp({ value, dur }) {
   const [text, setText] = useState(value);
   useEffect(() => {
     const m = String(value).match(/^(\d+(?:\.\d+)?)(.*)$/);
