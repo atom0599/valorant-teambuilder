@@ -2311,7 +2311,7 @@ export default function Page() {
                   const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
                   return (
                     <div data-lift="1" className={mvpArt ? 'hlCard' : undefined} style={{
-                      position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', gap: 14,
+                      position: 'relative', overflow: 'hidden', border: '1px solid rgba(255,255,255,.07)', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 546, // 내전 날을 넘겨도 카드 크기가 같게
                       ...(mvpArt ? agentCardBg(mvpArt, ['auto 92%', 'right 36px center']) : { background: 'rgba(15,19,24,.84)', backdropFilter: 'blur(14px)' })
                     }}>
                       {mvpArt && <img className="agentPortrait" src={mvpArt.portrait} alt="" aria-hidden="true" />}
@@ -2362,8 +2362,9 @@ export default function Page() {
                       </div>
 
                       <div className="hlRest" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, ...ts }}>
+                      {/* 날마다 줄 수(2~4)가 달라도 카드 크기가 같도록 기록 칸은 늘 4줄 높이. */}
                       {!!rows.length && (
-                        <div>
+                        <div style={{ minHeight: 228 }}>
                           {rows.map((r, i) => (
                             <button key={r.key} onClick={r.onClick} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', background: 'transparent', border: 'none', borderTop: i ? `1px solid ${mvpArt ? 'rgba(255,255,255,.1)' : '#20262E'}` : 'none', color: '#E8EAEC', padding: '11px 4px', cursor: 'pointer' }}>
                               {r.img
@@ -2376,19 +2377,6 @@ export default function Page() {
                               <div style={{ flex: 'none', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 20, letterSpacing: '-.02em', color: '#F5F7F9' }}>{r.value}{r.unit && <span style={{ fontSize: 11, fontWeight: 600, color: '#8B949E', marginLeft: 2 }}>{r.unit}</span>}</div>
                             </button>
                           ))}
-                        </div>
-                      )}
-
-                      {!!hl.newTitles.length && (
-                        <div style={{ borderTop: `1px solid ${mvpArt ? 'rgba(255,255,255,.1)' : '#20262E'}`, paddingTop: 12 }}>
-                          <div style={{ fontSize: 10, color: '#8B949E', letterSpacing: '.04em', marginBottom: 8 }}>🏅 새로 받은 칭호</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {hl.newTitles.map((t) => (
-                              <button key={`${t.player}-${t.name}`} title={t.desc} onClick={() => { openPlayer(t.player); setDetailTab('title'); }} style={{ fontSize: 11, color: '#C6CDD4', background: '#1B2027', border: '1px solid #262C34', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}>
-                                {t.icon} <b style={{ color: '#E8EAEC' }}>{short(t.player)}</b> · {t.name}
-                              </button>
-                            ))}
-                          </div>
                         </div>
                       )}
                       </div>
