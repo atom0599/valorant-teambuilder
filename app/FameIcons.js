@@ -1,13 +1,13 @@
 // 명예의 전당 / 불명예의 전당 부문 아이콘. 실제 게임 에셋(valorant-api.com)을 public/fame에
 // 받아 두고 쓴다. 무기 킬피드 실루엣 · 요원 스킬 아이콘은 흰 그림이라 마스크로 무대 테마색을
-// 입히고, 레디언트 랭크 아이콘은 원래 금색 그대로(명예 무대와 같은 색), 아이언은
-// 불명예 무대 색에 맞춰 마스크로 칠한다. 스파이크는 게임 에셋에 단독 아이콘이
+// 입히고, 레디언트 랭크 아이콘은 원래 금색 그대로(명예 무대와 같은 색). 스파이크는 게임 에셋에 단독 아이콘이
 // 없어서 실제 스파이크 모형(넓은 머리 · 빛나는 세로 기둥 · 양옆 다리)을 따라 그렸다.
-// r = 가로/세로 비율(여백 잘라 낸 그림 기준), h = 높이(em, 기본 1.3).
+// r = 가로/세로 비율(여백 잘라 낸 그림 기준), h = 높이(em, 기본 1.1).
+// 옆으로 긴 총 · 칼은 높이를 줄여 제목 글자보다 커 보이지 않게 한다.
 const ICONS = {
   kills: { mask: 'vandal', r: 3.24, h: .72 }, // 밴달
   acs: { img: 'radiant' }, // 레디언트 랭크
-  hs: { mask: 'sheriff', r: 2.02, h: .95 }, // 셰리프 (원탭 권총)
+  hs: { mask: 'sheriff', r: 2.02, h: .85 }, // 셰리프 (원탭 권총)
   firstKills: { mask: 'tailwind', r: 1.22 }, // 제트 순풍 (진입)
   plants: { spike: true },
   assists: { mask: 'wingman', r: 1.08 }, // 게코 윙맨 (도우미)
@@ -16,7 +16,7 @@ const ICONS = {
   firstDeaths: { mask: 'neuraltheft', r: 1.53 }, // 사이퍼 신경 절도 (먼저 쓰러진 몸)
   lowKills: { mask: 'classic', r: 1.32 }, // 기본 권총 클래식
   mvpLoss: { mask: 'empress', r: 1.01 }, // 레이나 여제
-  lowAcs: { mask: 'iron', r: .75, h: 1.6 } // 아이언 랭크 (밝기를 투명도로 바꾼 그림이라 테마색으로 칠해짐)
+  lowAcs: { mask: 'zeropoint', r: 1 } // 케이/오 ZERO/point (점수 0)
 };
 
 const Spike = () => (
@@ -38,6 +38,6 @@ export default function FameIcon({ k }) {
   if (ic.spike) return <span className="psIcon spike" aria-hidden="true"><Spike /></span>;
   if (ic.img) return <img className="psIcon rank" src={`/fame/${ic.img}.png`} alt="" aria-hidden="true" />;
   const url = `url(/fame/${ic.mask}.png)`;
-  const h = ic.h || 1.3;
-  return <span className="psIcon mask" aria-hidden="true" style={{ height: `${h}em`, width: `${h * ic.r}em`, margin: h > 1.3 ? `${(1.3 - h) / 2}em 0` : undefined, WebkitMaskImage: url, maskImage: url }} />;
+  const h = ic.h || 1.1;
+  return <span className="psIcon mask" aria-hidden="true" style={{ height: `${h}em`, width: `${h * ic.r}em`, WebkitMaskImage: url, maskImage: url }} />;
 }

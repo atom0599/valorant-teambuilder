@@ -165,12 +165,12 @@ button:active { transform: scale(.97); }
 .psHud .en { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .32em; color: var(--th); }
 .psHud .ko { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: clamp(20px, 4.2cqw, 32px); letter-spacing: -.02em; margin-top: 6px; text-shadow: 0 6px 30px rgba(0,0,0,.6); }
 .psHud .ko { display: flex; align-items: center; justify-content: center; gap: .38em; }
-.psHud .psIcon { display: inline-block; flex: none; height: 1.3em; width: 1.3em; color: var(--th); }
+.psHud .psIcon { display: inline-block; flex: none; height: 1.1em; width: 1.1em; color: var(--th); }
 .psHud .psIcon.mask { background: var(--th); -webkit-mask: no-repeat center / contain; mask: no-repeat center / contain; filter: drop-shadow(0 0 6px var(--th)); }
-.psHud .psIcon.spike { height: 1.7em; width: 1.7em; margin: -.2em 0; }
+.psHud .psIcon.spike { height: 1.4em; width: 1.4em; margin: -.15em 0; }
 .psHud .psIcon.spike svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 6px var(--th)); }
 .psHud .psIcon.spike .glow { fill: #7FF3FF; filter: drop-shadow(0 0 2px #7FF3FF); }
-.psHud .psIcon.rank { height: 1.7em; width: auto; margin: -.2em 0; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,.6)); }
+.psHud .psIcon.rank { height: 1.4em; width: auto; margin: -.15em 0; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,.6)); }
 .psHud .line { width: 120px; height: 1px; margin: 12px auto 0; background: linear-gradient(90deg, transparent, var(--th), transparent); }
 .psHud > * { animation: psHud .7s cubic-bezier(.2,.7,.3,1) both; }
 .psHud .ko { animation-delay: .06s; } .psHud .line { animation-delay: .12s; }

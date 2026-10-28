@@ -236,6 +236,44 @@ export default function Page() {
     return () => clearTimeout(t);
   }, []);
 
+  // 새로고침해도 보던 자리 그대로: 화면 · 탭 · 보던 선수와 스크롤 위치를 이 탭(sessionStorage)에
+  // 기억해 두고 다시 연다. 새 탭으로 열면 홈부터. 스크롤은 기록을 불러와 페이지가 그만큼
+  // 길어질 때까지 몇 초 동안 다시 시도하고, 그 사이 사용자가 직접 스크롤하면 그만둔다.
+  const navRestored = useRef(false);
+  useEffect(() => {
+    let nav = null;
+    try { nav = JSON.parse(sessionStorage.getItem('nav') || 'null'); } catch {}
+    if (nav) {
+      if (nav.screen) setScreen(nav.screen);
+      if (nav.playersTab) setPlayersTab(nav.playersTab);
+      if (nav.statView) setStatView(nav.statView);
+      if (nav.statId !== undefined) setStatId(nav.statId);
+      if (nav.detailTab) setDetailTab(nav.detailTab);
+      if (nav.matchSort) setMatchSort(nav.matchSort);
+      if (nav.mateView) setMateView(nav.mateView);
+    }
+    navRestored.current = true;
+    const saveScroll = () => { try { sessionStorage.setItem('navScroll', String(window.scrollY)); } catch {} };
+    window.addEventListener('pagehide', saveScroll);
+    let y = 0;
+    try { y = Number(sessionStorage.getItem('navScroll')) || 0; } catch {}
+    if (!y) return () => window.removeEventListener('pagehide', saveScroll);
+    window.history.scrollRestoration = 'manual';
+    let tries = 0;
+    const stop = () => { clearInterval(timer); ['wheel', 'touchstart', 'keydown'].forEach((e) => window.removeEventListener(e, stop)); };
+    const timer = setInterval(() => {
+      tries += 1;
+      if (document.documentElement.scrollHeight - window.innerHeight >= y) { window.scrollTo(0, y); stop(); }
+      else if (tries > 60) { window.scrollTo(0, y); stop(); }
+    }, 100);
+    ['wheel', 'touchstart', 'keydown'].forEach((e) => window.addEventListener(e, stop, { passive: true }));
+    return () => { stop(); window.removeEventListener('pagehide', saveScroll); };
+  }, []);
+  useEffect(() => {
+    if (!navRestored.current) return;
+    try { sessionStorage.setItem('nav', JSON.stringify({ screen, playersTab, statView, statId, detailTab, matchSort, mateView })); } catch {}
+  }, [screen, playersTab, statView, statId, detailTab, matchSort, mateView]);
+
   // Restore which captain seat(s) this browser owns for this room, so a
   // refresh doesn't make it look like a stranger trying to steal an
   // already-claimed seat.
