@@ -194,7 +194,7 @@ export default function FamePodium({ cats, kind, agentArt }) {
         <canvas ref={canvasRef} className="psFx" />
         <div key={`hud-${c.key}`} className="psHud">
           <div className="en">{shame ? 'HALL OF SHAME' : 'HALL OF FAME'} · {EN[c.key] || ''}</div>
-          <div className="ko"><FameIcon k={c.key} className="psIcon" />{c.label}</div>
+          <div className="ko"><FameIcon k={c.key} />{c.label}</div>
           <div className="line" />
         </div>
         <div key={`pod-${c.key}`} className="psPodium">
