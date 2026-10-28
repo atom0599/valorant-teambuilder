@@ -2,7 +2,7 @@
 // 받아 두고 쓴다. 무기 킬피드 실루엣 · 요원 스킬 아이콘은 흰 그림이라 마스크로 무대 테마색을
 // 입히고, 레디언트 랭크 아이콘은 원래 금색 그대로(명예 무대와 같은 색). 게임 에셋에 맞는 그림이 없는
 // 둘은 직접 그렸다: 스파이크는 실제 스파이크 모형(넓은 머리 · 빛나는 세로 기둥 · 양옆 다리)을 따라,
-// MVP 받고 진 판은 두 조각으로 깨진 MVP 별.
+// MVP 받고 진 판은 두 조각으로 깨진 MVP 별, 최저 ACS는 아래로 곤두박질치는 점수 그래프.
 // r = 가로/세로 비율(여백 잘라 낸 그림 기준), h = 높이(em, 기본 1.1).
 // 옆으로 긴 총 · 칼은 높이를 줄여 제목 글자보다 커 보이지 않게 한다.
 const ICONS = {
@@ -17,7 +17,7 @@ const ICONS = {
   firstDeaths: { mask: 'runitback', r: 1.18 }, // 피닉스 역습 (먼저 죽고 다시 살아나기)
   lowKills: { mask: 'classic', r: 1.32 }, // 기본 권총 클래식
   mvpLoss: { svg: 'star' },
-  lowAcs: { mask: 'nullcmd', r: 1.02 } // 케이/오 NULL/cmd (아래로 꺾인 갈매기)
+  lowAcs: { svg: 'crash' }
 };
 
 const Spike = () => (
@@ -40,7 +40,15 @@ const BrokenStar = () => (
     <path transform="translate(.9 .3) rotate(7 12 17)" d="M12 3 14.35 9.26 21.04 9.56 15.8 13.74 17.58 20.19 12 16.5 11.2 13.5 13 10.5 11 7.5Z" />
   </svg>
 );
-const SVGS = { spike: Spike, star: BrokenStar };
+// 바닥 축 위에서 지그재그로 떨어지다 아래로 꽂히는 꺾은선.
+const Crash = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="square" strokeLinejoin="miter">
+    <path strokeWidth="1.6" strokeOpacity=".45" d="M3 3v18h18" />
+    <path strokeWidth="2.4" d="M5.5 5.5 9.5 10.5 12 8 17 16.5" />
+    <path fill="currentColor" stroke="none" d="M20.6 20.6 13.6 18.9 19 15.6Z" />
+  </svg>
+);
+const SVGS = { spike: Spike, star: BrokenStar, crash: Crash };
 
 export default function FameIcon({ k }) {
   const ic = ICONS[k];
