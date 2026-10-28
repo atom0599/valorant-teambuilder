@@ -167,8 +167,9 @@ button:active { transform: scale(.97); }
 .psHud .ko { display: flex; align-items: center; justify-content: center; gap: .38em; }
 .psHud .psIcon { display: inline-block; flex: none; height: 1.1em; width: 1.1em; color: var(--th); }
 .psHud .psIcon.mask { background: var(--th); -webkit-mask: no-repeat center / contain; mask: no-repeat center / contain; filter: drop-shadow(0 0 6px var(--th)); }
+.psHud .psIcon.svg svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 6px var(--th)); }
 .psHud .psIcon.spike { height: 1.4em; width: 1.4em; margin: -.15em 0; }
-.psHud .psIcon.spike svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 0 6px var(--th)); }
+.psHud .psIcon.star { height: 1.45em; width: 1.45em; margin: -.17em 0; }
 .psHud .psIcon.spike .glow { fill: #7FF3FF; filter: drop-shadow(0 0 2px #7FF3FF); }
 .psHud .psIcon.rank { height: 1.4em; width: auto; margin: -.15em 0; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(0,0,0,.6)); }
 .psHud .line { width: 120px; height: 1px; margin: 12px auto 0; background: linear-gradient(90deg, transparent, var(--th), transparent); }
