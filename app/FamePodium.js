@@ -24,6 +24,21 @@ function groupRows(rows) {
   });
   return groups;
 }
+// 단상 세 칸(가운데 · 왼쪽 · 오른쪽)에 순위 순서대로 한 명씩 세운다. 공동 1위가 둘이면
+// 2위 칸이 비지 않게 둘째 1위가 그 칸에 서고(번호는 I 그대로), 3위가 셋째 칸에 선다.
+// 마지막 칸에 사람이 넘치면 그 칸에서 같은 순위끼리 "누구 외 N명"으로 묶는다.
+function podiumSlots(groups) {
+  const slots = [];
+  for (const g of groups) {
+    for (let k = 0; k < g.rows.length && slots.length < 3; k++) {
+      const rows = slots.length === 2 ? g.rows.slice(k) : [g.rows[k]];
+      slots.push({ ...g, rows });
+      if (rows.length > 1) break;
+    }
+    if (slots.length === 3) break;
+  }
+  return slots;
+}
 // 공동 순위(2명 이상)는 "누구 외 N명", 마우스를 올리면 전원 이름.
 const names = (g) => (g.rows.length > 1 ? `${g.rows[0].id} 외 ${g.rows.length - 1}명` : g.rows[0].id);
 const allNames = (g) => (g.rows.length > 1 ? g.rows.map((r) => r.id).join(', ') : undefined);
@@ -139,10 +154,10 @@ export default function FamePodium({ cats, kind, agentArt }) {
   if (!n) return null;
   const c = cats[i];
   const groups = groupRows(c.rows);
-  const byRank = (rk) => groups.find((g) => g.rank === rk) || null;
+  const slots = podiumSlots(groups);
   const top = groups[0].rows[0];
   const art = agentArt(top.agent);
-  const order = [[2, byRank(2)], [1, groups[0]], [3, byRank(3)]];
+  const order = [[2, slots[1] || null], [1, slots[0]], [3, slots[2] || null]];
   const leds = shame ? ['#4FA3B8', '#E0566C', '#9B6BD0'] : ['#C9D2DA', 'var(--th)', '#E7B27E'];
 
   const onKey = (e) => { if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); };
@@ -204,7 +219,7 @@ export default function FamePodium({ cats, kind, agentArt }) {
               <div key={rk} className={`psStep g${rk}`} onPointerEnter={(e) => showTip(e, g, rk)} onPointerLeave={() => setTip(null)}>
                 <div className="psAgent">{a?.portrait && <img className="rise" src={a.portrait} alt={agentKo(r.agent) || ''} draggable={false} decoding="async" style={{ animationDelay: `${rk === 1 ? 0 : rk === 2 ? 180 : 320}ms` }} />}</div>
                 <div className="psBlock">
-                  <div className="psNum">{['', 'I', 'II', 'III'][rk]}</div>
+                  <div className="psNum">{['', 'I', 'II', 'III'][g?.rank ?? rk]}</div>
                   {g ? (
                     <>
                       <div className="psName" title={allNames(g)}>{names(g)}</div>
