@@ -6,6 +6,7 @@
 // 뒷골목(흔들리는 전구 · 네온 띠 · 보랏빛 비 · 색 바랜 요원). 스타일은 globals.css의 .ps*.
 import { useEffect, useRef, useState } from 'react';
 import { agentKo, fmtDate } from '../lib/constants';
+import FameIcon from './FameIcons';
 
 // 부문 영어 이름 (무대 위 작은 제목)
 const EN = {
@@ -193,7 +194,7 @@ export default function FamePodium({ cats, kind, agentArt }) {
         <canvas ref={canvasRef} className="psFx" />
         <div key={`hud-${c.key}`} className="psHud">
           <div className="en">{shame ? 'HALL OF SHAME' : 'HALL OF FAME'} · {EN[c.key] || ''}</div>
-          <div className="ko">{c.icon} {c.label}</div>
+          <div className="ko"><FameIcon k={c.key} className="psIcon" />{c.label}</div>
           <div className="line" />
         </div>
         <div key={`pod-${c.key}`} className="psPodium">
