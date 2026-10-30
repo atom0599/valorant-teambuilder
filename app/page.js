@@ -2119,8 +2119,9 @@ export default function Page() {
   const h1 = { fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(26px,5vw,34px)' };
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
   const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 72px';
-  // 스크롤 없이 한 화면에 — 칸은 내용 폭에 딱 맞게, 남는 폭은 이름 칸이 쓴다.
-  const rosterGrid = 'minmax(110px,1fr) 32px 32px 86px 36px 36px 38px 40px 92px 18px';
+  // 스크롤 없이 한 화면에. 이름 칸은 좁게 두고(긴 닉네임은 …) 티어 · 요원 ·
+  // 스탯 칸이 남는 폭을 나눠 가진다.
+  const rosterGrid = 'minmax(96px,0.9fr) minmax(40px,0.45fr) minmax(40px,0.45fr) minmax(104px,1.2fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
@@ -2392,9 +2393,9 @@ export default function Page() {
                   </div>
 
                   <div data-scrollx="1">
-                    <div style={{ minWidth: 660 }}>
+                    <div style={{ minWidth: 700 }}>
                       {!!roster.length && (
-                        <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 4px 8px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 12px 8px', fontSize: 12, color: '#8B949E', letterSpacing: '.06em' }}>
                           <div>이름</div><div>최고</div><div>현재</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>승률</div><div></div><div></div>
                         </div>
                       )}
@@ -2409,7 +2410,7 @@ export default function Page() {
                           return (
                             <div key={r.name} data-row="1" style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, alignItems: 'center', background: used ? 'rgba(200,242,76,.08)' : '#1B2027', border: `1px solid ${used ? 'rgba(200,242,76,.3)' : '#262C34'}`, borderRadius: 12, padding: '9px 12px' }}>
                               <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}{used && activeAccount !== r.name ? ` (${activeAccount} 로 참가중)` : ''}</div>
+                                <div title={r.name} style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}{used && activeAccount !== r.name ? ` (${activeAccount} 로 참가중)` : ''}</div>
                                 {!!r.realName && <div style={{ fontSize: 11, color: '#8B949E' }}>{r.realName}</div>}
                                 {!st?.matches && st?.error && (
                                   <div style={{ fontSize: 10, color: '#E5C04C', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -2418,8 +2419,8 @@ export default function Page() {
                                 )}
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                                   {(r.alts || []).map((a) => (
-                                    <span key={a} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8B949E', background: '#20262E', border: '1px solid #333B45', borderRadius: 999, padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                                      {a}
+                                    <span key={a} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#8B949E', background: '#20262E', border: '1px solid #333B45', borderRadius: 999, padding: '2px 7px', whiteSpace: 'nowrap', maxWidth: '100%', minWidth: 0 }}>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} title={a}>{a}</span>
                                       {isAdmin && <button onClick={() => removeAlt(r.name, a)} title="부계정 삭제" style={{ background: 'transparent', border: 'none', color: '#6B737C', cursor: 'pointer', fontSize: 11, lineHeight: 1, padding: 0 }}>×</button>}
                                     </span>
                                   ))}
@@ -2433,27 +2434,27 @@ export default function Page() {
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                 {personPeak(r.name)?.peakIcon
-                                  ? <img src={personPeak(r.name).peakIcon} alt={tierPill(personPeak(r.name).peak).label} title={`최고 ${tierPill(personPeak(r.name).peak).label}`} style={{ width: 28, height: 28 }} />
+                                  ? <img src={personPeak(r.name).peakIcon} alt={tierPill(personPeak(r.name).peak).label} title={`최고 ${tierPill(personPeak(r.name).peak).label}`} style={{ width: 34, height: 34 }} />
                                   : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>—</span>}
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                 {personTier(r.name)?.tierIcon
-                                  ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 28, height: 28 }} />
+                                  ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 34, height: 34 }} />
                                   : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{personTier(r.name) ? '언랭' : '—'}</span>}
                               </div>
                               <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                                 {(st?.topAgents || []).map((a) => (
                                   <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
-                                    {a.icon ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 24, height: 24, borderRadius: 6 }} /> : <div style={{ width: 24, height: 24, borderRadius: 6, background: '#252C34' }} />}
-                                    <span style={{ fontSize: 9, color: '#8B949E' }}>{a.pct}%</span>
+                                    {a.icon ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 30, height: 30, borderRadius: 7 }} /> : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34' }} />}
+                                    <span style={{ fontSize: 10, color: '#8B949E' }}>{a.pct}%</span>
                                   </div>
                                 ))}
                                 {!st?.topAgents?.length && <span style={{ fontSize: 11, color: '#6B737C' }}>—</span>}
                               </div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? st.acs : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? st.kd : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>{wr == null ? '—' : `${wr}%`}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 600 }}>{st?.matches ? st.acs : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15 }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 600 }}>{st?.matches ? st.kd : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 14, color: '#C6CDD4' }}>{wr == null ? '—' : `${wr}%`}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {!!r.alts?.length && !used && (
                                   <select value={chosenAccount} onChange={(e) => setAltPick((m) => ({ ...m, [r.name]: e.target.value }))} title="이번엔 어느 계정으로 참가시킬지 선택" style={{ fontSize: 10, background: '#1B2027', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 6, padding: '2px 4px' }}>
