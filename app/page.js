@@ -2119,7 +2119,8 @@ export default function Page() {
   const h1 = { fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(26px,5vw,34px)' };
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
   const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 72px';
-  const rosterGrid = 'minmax(0,1.1fr) 52px 52px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
+  // 스크롤 없이 한 화면에 — 칸은 내용 폭에 딱 맞게, 남는 폭은 이름 칸이 쓴다.
+  const rosterGrid = 'minmax(110px,1fr) 32px 32px 86px 36px 36px 38px 40px 92px 18px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
@@ -2391,10 +2392,10 @@ export default function Page() {
                   </div>
 
                   <div data-scrollx="1">
-                    <div style={{ minWidth: 940 }}>
+                    <div style={{ minWidth: 660 }}>
                       {!!roster.length && (
-                        <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 10, padding: '0 4px 8px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                          <div>이름</div><div>최고</div><div>현재</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>K</div><div>승률</div><div></div><div></div>
+                        <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 4px 8px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                          <div>이름</div><div>최고</div><div>현재</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>승률</div><div></div><div></div>
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2406,7 +2407,7 @@ export default function Page() {
                           const st = seasonStats[r.name];
                           const chosenAccount = altPick[r.name] || r.name;
                           return (
-                            <div key={r.name} data-row="1" style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 10, alignItems: 'center', background: used ? 'rgba(200,242,76,.08)' : '#1B2027', border: `1px solid ${used ? 'rgba(200,242,76,.3)' : '#262C34'}`, borderRadius: 12, padding: '9px 12px' }}>
+                            <div key={r.name} data-row="1" style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, alignItems: 'center', background: used ? 'rgba(200,242,76,.08)' : '#1B2027', border: `1px solid ${used ? 'rgba(200,242,76,.3)' : '#262C34'}`, borderRadius: 12, padding: '9px 12px' }}>
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}{used && activeAccount !== r.name ? ` (${activeAccount} 로 참가중)` : ''}</div>
                                 {!!r.realName && <div style={{ fontSize: 11, color: '#8B949E' }}>{r.realName}</div>}
@@ -2440,10 +2441,10 @@ export default function Page() {
                                   ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 28, height: 28 }} />
                                   : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{personTier(r.name) ? '언랭' : '—'}</span>}
                               </div>
-                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                                 {(st?.topAgents || []).map((a) => (
                                   <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
-                                    {a.icon ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 26, height: 26, borderRadius: 6 }} /> : <div style={{ width: 26, height: 26, borderRadius: 6, background: '#252C34' }} />}
+                                    {a.icon ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 24, height: 24, borderRadius: 6 }} /> : <div style={{ width: 24, height: 24, borderRadius: 6, background: '#252C34' }} />}
                                     <span style={{ fontSize: 9, color: '#8B949E' }}>{a.pct}%</span>
                                   </div>
                                 ))}
@@ -2452,7 +2453,6 @@ export default function Page() {
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? st.acs : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? st.kd : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13 }}>{st?.matches ? st.kills : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>{wr == null ? '—' : `${wr}%`}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {!!r.alts?.length && !used && (
