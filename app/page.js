@@ -139,7 +139,6 @@ export default function Page() {
   const [hlIndex, setHlIndex] = useState(0); // 홈 하이라이트에서 보고 있는 내전 날 (0 = 최근)
   const agentArt = useAgentArt(); // 요원 이름 → { portrait, text, colors } (명예의 전당 시상대 · 하이라이트 MVP · 선수 상세 카드)
 
-  const [apiSource, setApiSource] = useState(null);
   const [remoteOk, setRemoteOk] = useState(null);
   const [confirmNewRoom, setConfirmNewRoom] = useState(false);
   const confirmNewRoomTimer = useRef(null);
@@ -201,8 +200,6 @@ export default function Page() {
   // 값을 읽도록 ref로도 들고 있는다.
   const currentTiersRef = useRef(currentTiers);
   currentTiersRef.current = currentTiers;
-  const statsQueueRef = useRef(Promise.resolve());
-  const tierRefreshTriedRef = useRef(new Set());
   const lookupQueueRef = useRef(Promise.resolve());
   const rebalanceRankRef = useRef(0);
   // Snapshot of `players` as of the last time this client's copy actually
@@ -874,191 +871,6 @@ export default function Page() {
   // bar could linger over a step that no longer applies.
   useEffect(() => { setSelectedMap(null); }, [bp?.index, bp?.pending]);
 
-  /* ---------- tier + role lookup ---------- */
-  // `nameOverride` lets callers that just wrote a name into state (pickMember,
-  // fillFromRoster) pass it directly instead of reading players[i] from a
-  // closure that may still reflect the pre-write render (setTimeout(…, 0)
-  // does not guarantee the state update has flushed and been re-captured).
-  //
-  // All lookups funnel through lookupQueueRef so they run one player at a
-  // time (rank+role+auto-stats can be a dozen HenrikDev requests by itself).
-  // Without this, registering several people at once (fillFromRoster,
-  // lookupAll) fires that many requests concurrently and blows past
-  // HenrikDev's per-minute rate limit almost immediately.
-  function lookup(i, nameOverride, skipStats) {
-    const fullName = nameOverride ?? players[i]?.name;
-    if (!fullName?.trim()) return Promise.resolve();
-    if (players[i]?.loading) return Promise.resolve();
-    // Lookups are queued, so by the time one runs (or finishes) its slot may
-    // hold someone else — 넣었다 뺐다 quickly. Only ever touch the slot while
-    // it still holds the person being looked up.
-    const same = (x, n) => x.name.trim() === String(n).trim();
-    setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullName) ? { ...x, loading: true } : x)));
-    const task = lookupQueueRef.current
-      .then(() => runLookup(i, fullName, skipStats))
-      .catch(() => {
-        // If runLookup throws (network blip, bad response shape, etc.) this
-        // slot's `loading: true` set above would otherwise never get cleared
-        // — and since lookup() now refuses to re-queue a slot that's already
-        // loading, a single failure here would permanently wedge that player
-        // at "조회중…" with no way to retry.
-        setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullName) ? { ...x, loading: false, source: 'error', rankError: 'network' } : x)));
-      })
-      .then(() => new Promise((r) => setTimeout(r, 200)));
-    lookupQueueRef.current = task.catch(() => {});
-    return task;
-  }
-
-  async function runLookup(i, fullNameArg, skipStats) {
-    const same = (x, n) => x.name.trim() === String(n).trim();
-    setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullNameArg) ? { ...x, loading: true } : x)));
-    let fullName = fullNameArg;
-    const [name, tag] = fullName.split('#');
-
-    // Parse the body even on non-2xx — our API routes always return a JSON
-    // {error} payload, and that's the only way to show *why* it failed
-    // instead of silently making up a tier (see rankError below).
-    let [rankData, roleData] = await Promise.all([
-      fetch(`/api/rank?name=${encodeURIComponent(name || '')}&tag=${encodeURIComponent(tag || '')}`)
-        .then((r) => r.json()).catch(() => null),
-      fetch(`/api/role?name=${encodeURIComponent(name || '')}&tag=${encodeURIComponent(tag || '')}`)
-        .then((r) => r.json()).catch(() => null)
-    ]);
-
-    // Riot ID rename recovery: the by-name lookup 404s the instant someone
-    // renames (the old string just stops resolving to anyone), but their
-    // puuid — cached on the roster entry from the last time this succeeded,
-    // see rememberPuuid below — still resolves under HenrikDev's by-puuid
-    // endpoint. A hit there with a *different* current name means they
-    // renamed; auto-relink the roster (old name kept as a 부계정 so past
-    // records stay attached) instead of just failing "계정을 찾을 수 없음"
-    // forever.
-    let renamedFrom = null;
-    if (!rankData?.account) {
-      const entry = roster.find((r) => r.name === fullName || (r.alts || []).includes(fullName));
-      if (entry?.puuid) {
-        const byPuuid = await fetch(`/api/rank?puuid=${encodeURIComponent(entry.puuid)}`).then((r) => r.json()).catch(() => null);
-        const isOwnAlt = (entry.alts || []).some((a) => a.trim().toLowerCase() === String(byPuuid?.account || '').trim().toLowerCase());
-        if (byPuuid?.account && !isOwnAlt && byPuuid.account.trim().toLowerCase() !== fullName.trim().toLowerCase()) {
-          rankData = byPuuid;
-          renamedFrom = entry.name;
-          fullName = byPuuid.account;
-          const [n2, t2] = fullName.split('#');
-          roleData = await fetch(`/api/role?name=${encodeURIComponent(n2 || '')}&tag=${encodeURIComponent(t2 || '')}`).then((r) => r.json()).catch(() => null);
-        }
-      }
-    }
-    // The other direction: someone was looked up (or newly registered)
-    // under their *new* Riot ID. It resolves fine, but the puuid it comes
-    // back with already belongs to an existing roster entry under the old
-    // name — same account, so relink instead of treating them as a new
-    // person with an empty 전적.
-    if (!renamedFrom && rankData?.puuid) {
-      const lower = fullName.trim().toLowerCase();
-      const owner = roster.find((r) => r.puuid === rankData.puuid);
-      if (owner && owner.name.trim().toLowerCase() !== lower && !(owner.alts || []).some((a) => a.trim().toLowerCase() === lower)) {
-        renamedFrom = owner.name;
-      }
-    }
-    if (renamedFrom) {
-      relinkRosterName(renamedFrom, fullName);
-      setPlayers((arr) => arr.map((x, k) => (k === i && same(x, fullNameArg) ? { ...x, name: fullName } : x)));
-      window.alert(`"${renamedFrom}"의 Riot ID가 "${fullName}"로 바뀐 것을 감지해서 자동으로 연결했습니다.`);
-    }
-
-    let tier = null, source = null, rankError = null;
-    const idx = rankData ? TIERS.findIndex((t) => t.label === (rankData.peakTier || rankData.currentTier)) : -1;
-    if (idx >= 0) { tier = idx; source = 'api'; }
-    else {
-      source = 'error';
-      rankError = rankData?.error === 'HENRIKDEV_API_KEY not set' ? 'key_missing'
-        : rankData?.error?.includes('429') ? 'rate_limited'
-        : rankData?.error?.includes('404') ? 'not_found'
-        : rankData?.error ? 'api_error' : 'network';
-    }
-    setApiSource(source);
-    if (rankData?.puuid && !renamedFrom) rememberPuuid(fullName, rankData.puuid);
-    // 계정별로 저장 — 부계정 티어가 본계정 칸을 덮어쓰지 않게. 전체 전적은
-    // personTier로 그중 가장 높은 티어를 쓴다.
-    rememberCurrentTier(fullName, rankData);
-
-    let currentTier = rankData?.currentTier || null;
-    let currentTierIcon = rankData?.currentTierIcon || null;
-    let peakTierIcon = rankData?.peakTierIcon || null;
-    const agents = roleData?.topAgents || [];
-
-    // 본계정/부계정이 있으면 같은 사람의 다른 계정도 조회해서 티어가 더 높은
-    // 계정의 티어를 쓴다 (표시 + 밸런싱 둘 다). 비교 기준은 밸런싱과 같게
-    // 이번 시즌 티어, 없으면 최고 티어. 참가 계정(p.name)은 그대로 둔다 —
-    // 경기 기록은 실제로 뛴 계정으로 남아야 하니까.
-    let tierAccount = fullName;
-    const owner = roster.find((r) => r.name === fullName || (r.alts || []).includes(fullName));
-    const others = owner ? [owner.name, ...(owner.alts || [])].map((a) => a.trim()).filter((a) => a.includes('#') && a !== fullName.trim()) : [];
-    const baseOf = (cur, peakIdx) => {
-      const c = cur ? TIERS.findIndex((t) => t.label === cur) : -1;
-      return c >= 0 ? c : (peakIdx ?? -1);
-    };
-    for (const acc of others) {
-      // 12시간 안에 조회해 둔 계정은 다시 묻지 않는다 (HenrikDev 요청 하나에
-      // 서버 쪽에서 3초씩 걸려서, 부계정마다 새로 조회하면 등록이 느렸다).
-      const c = currentTiersRef.current[acc];
-      let d;
-      if (c && 'peak' in c && (c.at || 0) > Date.now() - 12 * 60 * 60 * 1000) {
-        d = { source: 'api', currentTier: c.tier != null ? TIERS[c.tier]?.label : null, currentTierIcon: c.tierIcon, peakTier: c.peak != null ? TIERS[c.peak]?.label : null, peakTierIcon: c.peakIcon };
-      } else {
-        const j = acc.indexOf('#');
-        d = await fetch(`/api/rank?name=${encodeURIComponent(acc.slice(0, j))}&tag=${encodeURIComponent(acc.slice(j + 1))}`).then((r) => r.json()).catch(() => null);
-        rememberCurrentTier(acc, d);
-      }
-      if (d?.source !== 'api') continue;
-      const peakIdx = TIERS.findIndex((t) => t.label === (d.peakTier || d.currentTier));
-      if (peakIdx < 0) continue;
-      if (baseOf(d.currentTier, peakIdx) > baseOf(currentTier, tier)) {
-        tier = peakIdx; source = 'api'; rankError = null;
-        currentTier = d.currentTier || null;
-        currentTierIcon = d.currentTierIcon || null;
-        peakTierIcon = d.peakTierIcon || null;
-        tierAccount = acc;
-      }
-    }
-    if (tierAccount !== fullName) setApiSource('api');
-
-    setPlayers((arr) => arr.map((x, k) => {
-      if (k !== i || !same(x, fullName)) return x;
-      // 포지션은 자동으로 채우지 않는다 — 등록하면 미정, 직접 고른다.
-      return { ...x, tier, source, rankError, agents, currentTier, currentTierIcon, peakTierIcon, tierAccount, loading: false };
-    }));
-
-    // Registering someone (fresh lookup, no cached stats yet) auto-loads their
-    // season stats too — no need to separately hit "새로고침". A manual
-    // re-lookup on an already-cached player won't re-fetch; use the refresh
-    // button for that. Awaited so it stays inside this player's turn in the
-    // lookup queue instead of racing the next player's requests.
-    //
-    // Skipped for bulk calls (전체 티어 조회/lookupAll): season stats alone can
-    // be ~10 HenrikDev requests per player (see /api/stats pagination), so
-    // bundling it into every player of a 10-person batch blew past the
-    // per-minute rate limit even with the queue pacing everyone above.
-    // Tier+role is only 2 requests/player — safe to batch. Use the "새로고침"
-    // button in 인원 관리 to pull stats separately.
-    //
-    // 기다리지 않고 따로 미뤄 둔다: 시즌 스탯은 최대 10번 요청(서버가 3초
-    // 간격으로 보냄)이라, 여기서 기다리면 다음 사람 티어 조회가 30초씩
-    // 밀렸다. queueSeasonStats는 대기 중인 티어 조회가 다 끝난 뒤에 돈다.
-    if (!skipStats) queueSeasonStats(fullName);
-  }
-
-  function queueSeasonStats(full) {
-    statsQueueRef.current = statsQueueRef.current.then(async () => {
-      let q;
-      do { q = lookupQueueRef.current; await q; } while (q !== lookupQueueRef.current);
-      if (seasonStatsRef.current[full]) return;
-      await fetchOneSeasonStats(full);
-    }).catch(() => {});
-  }
-
-  function lookupAll() { players.forEach((p, i) => { if (p.name.trim()) lookup(i, undefined, true); }); }
-
   // Caches this season's tier from an /api/rank response. Only a successful
   // lookup counts — a failed one says nothing about their tier. No current
   // tier (unplaced this season) is stored as null → "언랭", deliberately NOT
@@ -1606,18 +1418,6 @@ export default function Page() {
     });
     return m;
   }, [roster]);
-  // Caches the Riot puuid behind the roster entry whose *main* name it was
-  // looked up under — the one thing that keeps working after a rename — so
-  // a future lookup can recover via relinkRosterName. A lookup made under a
-  // 부계정 must not store that alt's puuid on the main entry (it used to,
-  // which later made the main look "renamed" to its own alt).
-  function rememberPuuid(name, puuid) {
-    const lower = String(name).trim().toLowerCase();
-    const entry = roster.find((r) => r.name.trim().toLowerCase() === lower);
-    if (!entry || entry.puuid === puuid) return;
-    if (roster.some((r) => r !== entry && r.puuid === puuid)) return;
-    persistRoster(roster.map((r) => (r === entry ? { ...r, puuid } : r)));
-  }
   function pickMember(name, pos, realName) {
     // Block registering the same person twice under two different accounts
     // (e.g. their main is already in while someone fat-fingers their alt in
@@ -1628,8 +1428,8 @@ export default function Page() {
     if (i < 0) return;
     // 포지션은 인원 관리에 저장된 값도, 요원 기록도 쓰지 않고 항상 미정으로
     // 시작한다. 참가자 등록 화면에서 직접 고른다.
-    setPlayers((arr) => arr.map((x, k) => (k === i ? { name, pos: '미정', tier: null, source: null, loading: false, realName: realName || '', groupId: null } : x)));
-    lookup(i, name);
+    // API는 부르지 않는다 — 티어는 인원 관리 새로고침으로 받아 둔 값을 쓴다.
+    setPlayers((arr) => arr.map((x, k) => (k === i ? { name, pos: '미정', tier: null, source: null, loading: false, realName: realName || '', groupId: null, ...cachedTierFields(name) } : x)));
   }
   function unpickMember(name) {
     setPlayers((arr) => cleanupGroups(arr.map((x) => (x.name.trim() === name ? { name: '', pos: '미정', tier: null, source: null, loading: false, realName: '', groupId: null } : x))));
@@ -1641,10 +1441,9 @@ export default function Page() {
     const next = players.map((p) => {
       if (p.name.trim() || k >= avail.length) return p;
       const m = avail[k++];
-      return { name: m.name, pos: '미정', tier: null, source: null, loading: false, realName: m.realName || '', groupId: null };
+      return { name: m.name, pos: '미정', tier: null, source: null, loading: false, realName: m.realName || '', groupId: null, ...cachedTierFields(m.name) };
     });
     setPlayers(next);
-    next.forEach((p, i) => { if (p.name.trim() && p.tier == null) lookup(i, p.name); });
   }
   function clearSlots() { setPlayers(emptyPlayers()); setTeamsLocal(null); setSel(null); clearTeamsRef.current = true; }
 
@@ -2025,6 +1824,56 @@ export default function Page() {
   // 본계정 + 부계정 중 이번 시즌 티어가 가장 높은 계정을 그 사람의 티어로.
   // currentTiers는 계정(Riot ID)별로 따로 저장되니 여기서 합친다. 어느
   // 계정도 조회된 적 없으면 null (호출하는 쪽이 경기 스냅샷으로 대신).
+  // 그 사람(본계정 + 부계정) 중 최고 티어가 가장 높은 계정의 값.
+  function personPeak(id) {
+    const entry = roster.find((r) => r.name === id);
+    let best = null;
+    [id, ...(entry?.alts || [])].forEach((a) => {
+      const t = currentTiers[a.trim()];
+      if (!t || t.peak == null) return;
+      if (!best || t.peak > best.peak) best = t;
+    });
+    return best;
+  }
+  // 참가자 칸에 넣을 티어 — 인원 관리 새로고침으로 받아 둔 캐시에서만.
+  // 본계정 · 부계정 중 이번 시즌 티어(없으면 최고 티어)가 높은 계정 기준
+  // (밸런싱과 같은 기준). 캐시에 아무것도 없으면 빈 값.
+  function cachedTierFields(name) {
+    const n = String(name).trim();
+    const owner = roster.find((r) => r.name === n || (r.alts || []).includes(n));
+    const accounts = [...new Set([n, ...(owner ? [owner.name, ...(owner.alts || [])] : [])].map((a) => a.trim()))];
+    const baseOf = (t) => (t.tier != null ? t.tier : (t.peak ?? -1));
+    let best = null, bestAcc = null;
+    accounts.forEach((a) => {
+      const t = currentTiers[a];
+      if (!t) return;
+      if (!best || baseOf(t) > baseOf(best)) { best = t; bestAcc = a; }
+    });
+    if (!best) return { tier: null, currentTier: null, currentTierIcon: null, peakTierIcon: null, tierAccount: null, source: null };
+    return {
+      tier: best.peak ?? best.tier ?? null,
+      currentTier: best.tier != null ? TIERS[best.tier]?.label || null : null,
+      currentTierIcon: best.tierIcon || null,
+      peakTierIcon: best.peakIcon || null,
+      tierAccount: bestAcc,
+      source: 'api'
+    };
+  }
+  // 인원 관리에서 새로고침하면 이미 등록된 참가자 티어도 따라 바뀌게.
+  useEffect(() => {
+    const keys = ['tier', 'currentTier', 'currentTierIcon', 'peakTierIcon', 'tierAccount', 'source'];
+    setPlayers((arr) => {
+      let changed = false;
+      const next = arr.map((p) => {
+        if (!p.name.trim()) return p;
+        const f = cachedTierFields(p.name);
+        if (f.source == null || keys.every((k) => (p[k] ?? null) === f[k])) return p;
+        changed = true;
+        return { ...p, ...f, loading: false };
+      });
+      return changed ? next : arr;
+    });
+  }, [currentTiers, roster]);
   function personTier(id) {
     const entry = roster.find((r) => r.name === id);
     let best = null;
@@ -2070,30 +1919,6 @@ export default function Page() {
   // Everyone the leaderboard actually ranks — excluded players never take a
   // rank or count toward the summary tiles.
   const rankedBoard = useMemo(() => board.filter((x) => !x.excluded), [board]);
-
-  // Opening 전체전적 fills in this season's tier for anyone not cached yet (or
-  // cached over 12h ago). Runs through lookupQueueRef, one player at a time,
-  // and tries each id at most once per page load so a failing lookup can't
-  // loop.
-  useEffect(() => {
-    if (screen !== 'stats') return;
-    const stale = Date.now() - 12 * 60 * 60 * 1000;
-    // 부계정도 같이 조회해야 본계정/부계정 중 높은 티어를 고를 수 있다.
-    const accounts = new Set(Object.keys(records));
-    roster.forEach((r) => { if (records[r.name]) (r.alts || []).forEach((a) => accounts.add(a.trim())); });
-    const ids = [...accounts].filter((id) => id.includes('#') && !tierRefreshTriedRef.current.has(id) && !((currentTiers[id]?.at || 0) > stale));
-    if (!ids.length) return;
-    ids.forEach((id) => tierRefreshTriedRef.current.add(id));
-    const task = lookupQueueRef.current.then(async () => {
-      for (const full of ids) {
-        const i = full.indexOf('#');
-        const d = await fetch(`/api/rank?name=${encodeURIComponent(full.slice(0, i))}&tag=${encodeURIComponent(full.slice(i + 1))}`).then((r) => r.json()).catch(() => null);
-        rememberCurrentTier(full, d);
-        await new Promise((r) => setTimeout(r, 250)); // spread requests out, avoid HenrikDev rate limit
-      }
-    });
-    lookupQueueRef.current = task.catch(() => {});
-  }, [screen, records, roster, currentTiers]);
 
   const boardList = useMemo(() => {
     const sorters = {
@@ -2293,8 +2118,8 @@ export default function Page() {
   const glass = { background: 'rgba(16,20,25,.72)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 22, padding: 18, boxShadow: '0 20px 50px rgba(0,0,0,.4)' };
   const h1 = { fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(26px,5vw,34px)' };
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
-  const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 92px 100px';
-  const rosterGrid = 'minmax(0,1.1fr) 60px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
+  const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 72px';
+  const rosterGrid = 'minmax(0,1.1fr) 52px 52px minmax(0,1.1fr) 48px 48px 44px 40px 52px 100px 24px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
@@ -2566,10 +2391,10 @@ export default function Page() {
                   </div>
 
                   <div data-scrollx="1">
-                    <div style={{ minWidth: 880 }}>
+                    <div style={{ minWidth: 940 }}>
                       {!!roster.length && (
                         <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 10, padding: '0 4px 8px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                          <div>이름</div><div>TIER</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>K</div><div>승률</div><div></div><div></div>
+                          <div>이름</div><div>최고</div><div>현재</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>K</div><div>승률</div><div></div><div></div>
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2577,7 +2402,6 @@ export default function Page() {
                           const accounts = [r.name, ...(r.alts || [])];
                           const activeAccount = accounts.find((acc) => players.some((p) => p.name.trim() === acc));
                           const used = !!activeAccount;
-                          const active = used ? players.find((p) => p.name.trim() === activeAccount) : null;
                           const wr = winrate(r.name);
                           const st = seasonStats[r.name];
                           const chosenAccount = altPick[r.name] || r.name;
@@ -2607,11 +2431,14 @@ export default function Page() {
                                 </div>
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                {active?.currentTierIcon
-                                  ? <img src={active.currentTierIcon} alt={active.currentTier || ''} title={active.currentTier || ''} style={{ width: 28, height: 28 }} />
-                                  : personTier(r.name)?.tierIcon
-                                    ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={tierPill(personTier(r.name).tier).label} style={{ width: 28, height: 28 }} />
-                                    : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>—</span>}
+                                {personPeak(r.name)?.peakIcon
+                                  ? <img src={personPeak(r.name).peakIcon} alt={tierPill(personPeak(r.name).peak).label} title={`최고 ${tierPill(personPeak(r.name).peak).label}`} style={{ width: 28, height: 28 }} />
+                                  : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>—</span>}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                {personTier(r.name)?.tierIcon
+                                  ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 28, height: 28 }} />
+                                  : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{personTier(r.name) ? '언랭' : '—'}</span>}
                               </div>
                               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 {(st?.topAgents || []).map((a) => (
@@ -2657,10 +2484,9 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>참가자 등록</div>
-                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록하면 이번 시즌 경쟁전 전체에서 가장 많이 쓴 요원 3개가 표시됩니다(시즌 기록을 받아오기 전에는 최근 10경기 기준). 포지션은 모두 미정으로 들어오니 직접 골라 주세요.</div>
+                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 티어 · 주 사용 요원 · ACS · K:D는 따로 조회하지 않고 인원 관리에서 새로고침해 둔 이번 시즌 경쟁전 기록을 그대로 씁니다. 포지션은 모두 미정으로 들어오니 직접 골라 주세요.</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button onClick={lookupAll} disabled={players.some((p) => p.loading)} style={{ background: '#1B2027', color: '#E8EAEC', border: '1px solid #333B45', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 600, cursor: players.some((p) => p.loading) ? 'default' : 'pointer', opacity: players.some((p) => p.loading) ? .6 : 1 }}>전체 티어 조회</button>
                     <button onClick={balance} style={{ background: '#FF4B57', color: '#0B0D10', border: 'none', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>5:5 자동 밸런싱</button>
                   </div>
                 </div>
@@ -2693,9 +2519,6 @@ export default function Page() {
                   </div>
                   </div>
                   <div style={{ flex: 1 }} />
-                  <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>
-                    {apiSource === 'api' ? 'HenrikDev API 연결됨' : apiSource === 'error' ? 'HenrikDev API 조회 실패' : '/api/rank 대기'}
-                  </div>
                 </div>
 
                 {(() => {
@@ -2723,10 +2546,10 @@ export default function Page() {
                   </div>
                 )}
                 <div data-scrollx="1" style={{ ...card, padding: 8 }}>
-                  <div style={{ minWidth: 720, display: 'grid', gridTemplateColumns: playerGrid, gap: 10, padding: '10px 14px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                    <div>#</div><div>RIOT ID</div><div>주 사용 요원</div><div>포지션</div><div>최고 티어</div><div>현재 티어</div><div>승률</div><div>조회</div>
+                  <div style={{ minWidth: 780, display: 'grid', gridTemplateColumns: playerGrid, gap: 10, padding: '10px 14px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                    <div>#</div><div>RIOT ID</div><div>주 사용 요원</div><div>포지션</div><div>최고 티어</div><div>현재 티어</div><div>ACS</div><div>K:D</div><div>승률</div>
                   </div>
-                  <div style={{ minWidth: 720, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ minWidth: 780, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {players.map((p, i) => {
                       const t = tierPill(p.tier); // 최고 티어 column — 현재 티어 has its own column
                       // Records are stored under the canonical (main) account
@@ -2752,8 +2575,7 @@ export default function Page() {
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
-                            {/* 인원 관리 AGENTS 칸과 같은 이번 시즌 경쟁전 전체 기준. 시즌 스탯이
-                                아직 안 왔거나 이번 시즌 경쟁전이 없으면 최근 10경기(/api/role)로. */}
+                            {/* 인원 관리 AGENTS 칸과 같은 이번 시즌 경쟁전 전체 기준 (없으면 예전에 등록하며 받아 둔 최근 10경기 값). */}
                             {(seasonStats[p.name.trim()]?.topAgents?.length ? seasonStats[p.name.trim()].topAgents : (p.agents || [])).map((a) => (
                               <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', width: 26 }}>
                                 {a.icon
@@ -2776,6 +2598,8 @@ export default function Page() {
                               <span style={{ fontSize: 11, color: '#E1424F' }} title={p.rankError || ''}>
                                 {p.rankError === 'rate_limited' ? 'API 요청 제한' : p.rankError === 'key_missing' ? 'API 키 미설정' : p.rankError === 'not_found' ? '계정을 찾을 수 없음' : 'API 조회 실패'}
                               </span>
+                            ) : p.name && p.source == null ? (
+                              <span style={{ fontSize: 11, color: '#6B737C' }} title="인원 관리에서 ↻ 새로고침을 누르면 채워집니다">미조회</span>
                             ) : (
                               <span style={t.style}>{t.label}</span>
                             )}
@@ -2789,14 +2613,13 @@ export default function Page() {
                               <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>언랭</span>
                             )}
                           </div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].acs : '—'}</div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].kd : '—'}</div>
                           <div style={wr == null
                             ? { fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }
                             : { display: 'inline-block', textAlign: 'center', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#0B0D10', background: wr >= 50 ? '#C8F24C' : '#E1424F', borderRadius: 999, padding: '4px 9px' }}>
                             {wr == null ? '—' : `${wr}%`}
                           </div>
-                          {!!p.name && (
-                            <button onClick={() => lookup(i)} disabled={p.loading} style={{ background: '#252C34', color: p.loading ? '#8B949E' : '#C8D0D8', border: '1px solid #333B45', borderRadius: 9, padding: '8px 0', fontSize: 12, cursor: p.loading ? 'default' : 'pointer', opacity: p.loading ? .6 : 1 }}>{p.tier == null ? '티어 조회' : '다시 조회'}</button>
-                          )}
                         </div>
                       );
                     })}
