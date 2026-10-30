@@ -190,6 +190,7 @@ export default function Page() {
 
   const [seasonStats, setSeasonStats] = useState({});
   const [seasonStatsLoading, setSeasonStatsLoading] = useState(false);
+  const [seasonStatsProgress, setSeasonStatsProgress] = useState(0); // 인원 관리 새로고침 진행률(%)
   const seasonStatsRef = useRef(seasonStats);
   seasonStatsRef.current = seasonStats;
   // Riot ID -> { tier (TIERS index | null), tierIcon, at } — this season's
@@ -1081,57 +1082,86 @@ export default function Page() {
   }
 
   /* ---------- season competitive stats (vlr.gg-style table) ---------- */
-  async function fetchOneSeasonStats(full) {
+  // id를 넘기면 서버가 그 이름으로 저장된 지난 결과에 새 경기만 더한다
+  // (증분 새로고침, /api/stats 참고). puuid로 조회하면 닉변해도 조회되고,
+  // 응답의 account로 지금 Riot ID를 알 수 있다.
+  async function requestSeasonStats(full, puuid, id) {
     const [name, tag] = full.split('#');
-    if (!name || !tag) return;
+    if (!puuid && (!name || !tag)) return null;
+    const q = puuid ? `puuid=${encodeURIComponent(puuid)}` : `name=${encodeURIComponent(name)}&tag=${encodeURIComponent(tag)}`;
     try {
-      const res = await fetch(`/api/stats?name=${encodeURIComponent(name)}&tag=${encodeURIComponent(tag)}`);
-      const data = res.ok ? await res.json() : { matches: 0, error: `http_${res.status}` };
-      setSeasonStats((s) => ({ ...s, [full]: data }));
-      // Only persist real successes — a transient rate-limit/error blip
-      // shouldn't overwrite good cached data that other clients rely on.
-      if (data.matches) {
-        fetch('/api/seasonstats', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: full, data })
-        }).catch(() => {});
-      }
+      const res = await fetch(`/api/stats?${q}${id ? `&id=${encodeURIComponent(id)}` : ''}`);
+      return res.ok ? await res.json() : { matches: 0, error: `http_${res.status}` };
     } catch (e) {
-      setSeasonStats((s) => ({ ...s, [full]: { matches: 0, error: String(e) } }));
+      return { matches: 0, error: String(e) };
     }
+  }
+  function storeSeasonStats(full, data) {
+    if (!data) return;
+    setSeasonStats((s) => ({ ...s, [full]: data }));
+    // Only persist real successes — a transient rate-limit/error blip
+    // shouldn't overwrite good cached data that other clients rely on.
+    if (data.matches) {
+      fetch('/api/seasonstats', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: full, data })
+      }).catch(() => {});
+    }
+  }
+  async function fetchOneSeasonStats(full) {
+    storeSeasonStats(full, await requestSeasonStats(full, null, full));
   }
 
   function fetchSeasonStats() {
     if (!roster.length || seasonStatsLoading) return;
     setSeasonStatsLoading(true);
+    setSeasonStatsProgress(0);
     // Goes through the same lookupQueueRef as registration lookups so a
     // manual refresh never runs concurrently with an in-flight auto-fetch.
     const task = lookupQueueRef.current.then(async () => {
-      // 닉변 확인 + 이번 시즌 티어 갱신. 닉변하면 예전 이름으로는 조회가
-      // 안 되니(시즌 스탯도 "조회 실패"로 남았다), puuid가 있는 사람은
-      // puuid로 지금 Riot ID를 받아와서 바뀌었으면 명단 이름을 바꾼다.
-      // puuid가 아직 없는 사람은 이름으로 조회해서 puuid를 저장해 둔다 —
+      // 한 사람당 보통 HenrikDev 요청 1번: puuid로 시즌 스탯을 증분 조회하면
+      // 그 응답에 지금 Riot ID(닉변 감지)와 최근 경기 티어가 같이 온다.
+      // 티어 조회(/api/rank)는 그 티어가 저장된 것과 다를 때만 한다.
+      // puuid가 아직 없는 사람은 이름으로 조회하고 puuid를 저장해 둔다 —
       // 그래야 다음에 닉변해도 잡힌다.
+      const members = rosterRef.current.filter((r) => r.name.includes('#'));
       const renames = [];
       const puuids = new Map();
-      for (const r of rosterRef.current) {
+      const stale = Date.now() - 12 * 60 * 60 * 1000;
+      let done = 0;
+      for (const r of members) {
         const full = r.name.trim();
-        const j = full.indexOf('#');
-        if (j < 0) continue;
-        const d = await fetch(r.puuid
-          ? `/api/rank?puuid=${encodeURIComponent(r.puuid)}`
-          : `/api/rank?name=${encodeURIComponent(full.slice(0, j))}&tag=${encodeURIComponent(full.slice(j + 1))}`
-        ).then((res) => res.json()).catch(() => null);
-        if (d?.source !== 'api' || !d.account) continue;
-        const lowerAcc = d.account.trim().toLowerCase();
-        const isOwnAlt = (r.alts || []).some((a) => a.trim().toLowerCase() === lowerAcc);
-        if (r.puuid && lowerAcc !== full.toLowerCase() && !isOwnAlt) {
-          renames.push([r.name, d.account.trim()]);
-          rememberCurrentTier(d.account.trim(), d);
-        } else {
-          rememberCurrentTier(full, d);
-          if (!r.puuid && d.puuid) puuids.set(r.name, d.puuid);
+        let puuid = r.puuid || null;
+        let data = await requestSeasonStats(full, puuid, full);
+        const lowerAcc = String(data?.account || '').trim().toLowerCase();
+        // 예전 버그로 부계정 puuid가 본계정에 붙어 있으면 부계정 스탯이 온다 —
+        // 그땐 이름으로 다시.
+        if (puuid && lowerAcc && (r.alts || []).some((a) => a.trim().toLowerCase() === lowerAcc)) {
+          puuid = null;
+          data = await requestSeasonStats(full, null, null);
         }
+        let key = full;
+        if (puuid && data?.account && String(data.account).trim().toLowerCase() !== full.toLowerCase()) {
+          key = data.account.trim();
+          renames.push([r.name, key]);
+        } else if (!r.puuid && data?.puuid) {
+          puuids.set(r.name, data.puuid);
+        }
+        storeSeasonStats(key, data);
+
+        const cached = currentTiersRef.current[key];
+        const cachedLabel = cached?.tier != null ? TIERS[cached.tier]?.label : null;
+        const needRank = !cached || (data?.matchTier ? data.matchTier !== cachedLabel : (cached.at || 0) < stale);
+        if (needRank) {
+          const j = key.indexOf('#');
+          const d = await fetch(puuid
+            ? `/api/rank?puuid=${encodeURIComponent(puuid)}`
+            : `/api/rank?name=${encodeURIComponent(key.slice(0, j))}&tag=${encodeURIComponent(key.slice(j + 1))}`
+          ).then((res) => res.json()).catch(() => null);
+          rememberCurrentTier(key, d);
+        }
+        done++;
+        setSeasonStatsProgress(Math.round((done / members.length) * 100));
       }
       let base = rosterRef.current;
       if (puuids.size) {
@@ -1142,12 +1172,6 @@ export default function Page() {
         window.alert(`닉네임이 바뀐 사람을 찾아 명단을 고쳤습니다 (기존 전적도 새 이름으로 옮김):\n${renames.map(([a, b]) => `${a} → ${b}`).join('\n')}`);
       } else if (base !== rosterRef.current) {
         persistRoster(base);
-      }
-      const renamed = new Map(renames);
-      const names = rosterRef.current.map((r) => (renamed.get(r.name) || r.name).trim()).filter(Boolean);
-      for (const full of names) {
-        await fetchOneSeasonStats(full);
-        await new Promise((r) => setTimeout(r, 250)); // spread requests out, avoid HenrikDev rate limit
       }
     });
     lookupQueueRef.current = task.catch(() => {});
@@ -2490,8 +2514,8 @@ export default function Page() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button onClick={storeCurrentAsRoster} style={{ background: '#252C34', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>현재 참가자 입력값 명단에 저장</button>
                       <button onClick={clearSlots} style={{ background: 'transparent', color: '#8B949E', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, cursor: 'pointer' }}>참가자 입력란 비우기</button>
-                      <button onClick={fetchSeasonStats} disabled={seasonStatsLoading} style={{ background: '#252C34', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, cursor: seasonStatsLoading ? 'default' : 'pointer', opacity: seasonStatsLoading ? .6 : 1 }}>
-                        {seasonStatsLoading ? '새로고침 중…' : '↻ 새로고침'}
+                      <button onClick={fetchSeasonStats} disabled={seasonStatsLoading} style={{ background: seasonStatsLoading ? `linear-gradient(90deg, rgba(200,242,76,.22) ${seasonStatsProgress}%, #252C34 ${seasonStatsProgress}%)` : '#252C34', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, cursor: seasonStatsLoading ? 'default' : 'pointer' }}>
+                        {seasonStatsLoading ? `새로고침 중… ${seasonStatsProgress}%` : '↻ 새로고침'}
                       </button>
                     </div>
                   </div>

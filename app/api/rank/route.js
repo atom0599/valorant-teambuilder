@@ -1,22 +1,7 @@
-import { TIERS } from '../../../lib/constants';
+import { toKoLabel } from '../../../lib/constants';
 import { henrikFetch } from '../../../lib/henrik';
 
 export const dynamic = 'force-dynamic';
-
-const KO = {
-  Iron: '아이언', Bronze: '브론즈', Silver: '실버', Gold: '골드', Platinum: '플래티넘',
-  Diamond: '다이아몬드', Ascendant: '초월자', Immortal: '불멸', Radiant: '레디언트'
-};
-
-function toKoLabel(patched) {
-  if (!patched) return null;
-  const m = String(patched).trim().match(/^([A-Za-z]+)\s*(\d)?$/);
-  if (!m) return null;
-  const base = KO[m[1]];
-  if (!base) return null;
-  const label = m[2] ? `${base} ${m[2]}` : base;
-  return TIERS.some((t) => t.label === label) ? label : base;
-}
 
 export async function GET(request) {
   const url = new URL(request.url);
