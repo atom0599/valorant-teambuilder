@@ -1119,60 +1119,95 @@ export default function Page() {
     // Goes through the same lookupQueueRef as registration lookups so a
     // manual refresh never runs concurrently with an in-flight auto-fetch.
     const task = lookupQueueRef.current.then(async () => {
-      // 한 사람당 보통 HenrikDev 요청 1번: puuid로 시즌 스탯을 증분 조회하면
-      // 그 응답에 지금 Riot ID(닉변 감지)와 최근 경기 티어가 같이 온다.
-      // 티어 조회(/api/rank)는 그 티어가 저장된 것과 다를 때만 한다.
-      // puuid가 아직 없는 사람은 이름으로 조회하고 puuid를 저장해 둔다 —
-      // 그래야 다음에 닉변해도 잡힌다.
+      // 한 사람당: 시즌 스탯 증분 조회 1번 + 티어 조회 1번(puuid로 — 지금
+      // Riot ID도 같이 온다. 경기 데이터의 이름은 그 경기 때 이름이라 마지막
+      // 경쟁전 뒤에 닉변하면 못 잡는다) + 부계정마다 1번. puuid가 아직 없는
+      // 계정은 이름으로 조회해서 puuid를 저장해 둔다 — 그래야 다음에 닉변해도
+      // 잡힌다 (이미 닉변해서 예전 이름이 안 되는 계정은 닉변 버튼으로).
+      const rankBy = (puuid, full) => {
+        const j = full.indexOf('#');
+        return fetch(puuid
+          ? `/api/rank?puuid=${encodeURIComponent(puuid)}`
+          : `/api/rank?name=${encodeURIComponent(full.slice(0, j))}&tag=${encodeURIComponent(full.slice(j + 1))}`
+        ).then((res) => res.json()).catch(() => null);
+      };
+      const lowerOf = (x) => String(x || '').trim().toLowerCase();
       const members = rosterRef.current.filter((r) => r.name.includes('#'));
-      const renames = [];
-      const puuids = new Map();
-      const stale = Date.now() - 12 * 60 * 60 * 1000;
+      const steps = members.reduce((n, r) => n + 1 + (r.alts || []).filter((a) => a.includes('#')).length, 0) || 1;
       let done = 0;
+      const tick = () => { done++; setSeasonStatsProgress(Math.round((done / steps) * 100)); };
+      const renames = [];
+      const altRenames = new Map(); // main name -> [[oldAlt, newAlt]]
+      const puuids = new Map();
+      const altPuuids = new Map(); // main name -> { alt: puuid }
       for (const r of members) {
         const full = r.name.trim();
+        const isOwnAlt = (acc) => (r.alts || []).some((a) => lowerOf(a) === lowerOf(acc));
         let puuid = r.puuid || null;
-        let data = await requestSeasonStats(full, puuid, full);
-        const lowerAcc = String(data?.account || '').trim().toLowerCase();
-        // 예전 버그로 부계정 puuid가 본계정에 붙어 있으면 부계정 스탯이 온다 —
-        // 그땐 이름으로 다시.
-        if (puuid && lowerAcc && (r.alts || []).some((a) => a.trim().toLowerCase() === lowerAcc)) {
+        let rank = await rankBy(puuid, full);
+        // 예전 버그로 부계정 puuid가 본계정에 붙어 있으면 부계정이 나온다 — 이름으로 다시.
+        if (puuid && rank?.account && isOwnAlt(rank.account)) {
           puuid = null;
-          data = await requestSeasonStats(full, null, null);
+          rank = await rankBy(null, full);
         }
         let key = full;
-        if (puuid && data?.account && String(data.account).trim().toLowerCase() !== full.toLowerCase()) {
-          key = data.account.trim();
-          renames.push([r.name, key]);
-        } else if (!r.puuid && data?.puuid) {
-          puuids.set(r.name, data.puuid);
+        if (rank?.source === 'api' && rank.account) {
+          if (puuid && lowerOf(rank.account) !== lowerOf(full)) {
+            key = rank.account.trim();
+            renames.push([r.name, key]);
+          } else if (!r.puuid && rank.puuid) {
+            puuids.set(r.name, rank.puuid);
+          }
+          rememberCurrentTier(key, rank);
         }
-        storeSeasonStats(key, data);
+        storeSeasonStats(key, await requestSeasonStats(key, puuid, full));
+        tick();
 
-        const cached = currentTiersRef.current[key];
-        const cachedLabel = cached?.tier != null ? TIERS[cached.tier]?.label : null;
-        const needRank = !cached || (data?.matchTier ? data.matchTier !== cachedLabel : (cached.at || 0) < stale);
-        if (needRank) {
-          const j = key.indexOf('#');
-          const d = await fetch(puuid
-            ? `/api/rank?puuid=${encodeURIComponent(puuid)}`
-            : `/api/rank?name=${encodeURIComponent(key.slice(0, j))}&tag=${encodeURIComponent(key.slice(j + 1))}`
-          ).then((res) => res.json()).catch(() => null);
-          rememberCurrentTier(key, d);
+        for (const alt of (r.alts || []).map((a) => a.trim()).filter((a) => a.includes('#'))) {
+          const ap = r.altPuuids?.[alt] || null;
+          const d = await rankBy(ap, alt);
+          if (d?.source === 'api' && d.account) {
+            let altKey = alt;
+            if (ap && lowerOf(d.account) !== lowerOf(alt)) {
+              altKey = d.account.trim();
+              altRenames.set(r.name, [...(altRenames.get(r.name) || []), [alt, altKey]]);
+            }
+            if (d.puuid && d.puuid !== ap) altPuuids.set(r.name, { ...(altPuuids.get(r.name) || {}), [altKey]: d.puuid });
+            if (ap) altPuuids.set(r.name, { ...(altPuuids.get(r.name) || {}), [altKey]: ap });
+            rememberCurrentTier(altKey, d);
+          }
+          tick();
         }
-        done++;
-        setSeasonStatsProgress(Math.round((done / members.length) * 100));
       }
       let base = rosterRef.current;
-      if (puuids.size) {
-        base = base.map((r) => (!r.puuid && puuids.has(r.name) && !base.some((x) => x.puuid === puuids.get(r.name)) ? { ...r, puuid: puuids.get(r.name) } : r));
+      if (puuids.size || altPuuids.size || altRenames.size) {
+        base = base.map((r) => {
+          let next = r;
+          if (!r.puuid && puuids.has(r.name) && !base.some((x) => x.puuid === puuids.get(r.name))) next = { ...next, puuid: puuids.get(r.name) };
+          const ar = altRenames.get(r.name);
+          if (ar) {
+            const to = new Map(ar);
+            const pu = { ...(next.altPuuids || {}) };
+            ar.forEach(([from]) => { delete pu[from]; });
+            next = { ...next, alts: (next.alts || []).map((a) => to.get(a.trim()) || a), altPuuids: pu };
+          }
+          if (altPuuids.has(r.name)) next = { ...next, altPuuids: { ...(next.altPuuids || {}), ...altPuuids.get(r.name) } };
+          return next;
+        });
       }
-      if (renames.length) {
-        await relinkRosterNames(renames, base);
-        window.alert(`닉네임이 바뀐 사람을 찾아 명단을 고쳤습니다 (기존 전적도 새 이름으로 옮김):\n${renames.map(([a, b]) => `${a} → ${b}`).join('\n')}`);
-      } else if (base !== rosterRef.current) {
-        persistRoster(base);
+      const allAltRenames = [...altRenames.values()].flat();
+      if (renames.length) await relinkRosterNames(renames, base);
+      else if (base !== rosterRef.current) persistRoster(base);
+      // 부계정으로 따로 쌓인 기록이 있으면 새 이름으로 옮긴다 (보통은 본계정
+      // 기록에 합쳐져 있어서 옮길 게 없다).
+      for (const [from, to] of allAltRenames) {
+        await fetch('/api/records', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from, to })
+        }).then((res) => res.json()).then((d) => { if (d.records) setRecords(d.records); }).catch(() => {});
       }
+      const lines = [...renames, ...allAltRenames].map(([a, b2]) => `${a} → ${b2}`);
+      if (lines.length) window.alert(`닉네임이 바뀐 계정을 찾아 명단을 고쳤습니다:\n${lines.join('\n')}`);
     });
     lookupQueueRef.current = task.catch(() => {});
     task.finally(() => setSeasonStatsLoading(false));
@@ -1563,7 +1598,12 @@ export default function Page() {
   // even when the Riot ID in it no longer matches the roster.
   const puuidAlias = useMemo(() => {
     const m = new Map();
-    roster.forEach((r) => { if (r.puuid) m.set(r.puuid, r.name); });
+    roster.forEach((r) => {
+      if (r.puuid) m.set(r.puuid, r.name);
+      // 부계정 puuid도 본계정 이름으로 — 부계정이 닉변해도 그 경기가 본인
+      // 전적으로 들어가게.
+      Object.values(r.altPuuids || {}).forEach((p) => { if (p && !m.has(p)) m.set(p, r.name); });
+    });
     return m;
   }, [roster]);
   // Caches the Riot puuid behind the roster entry whose *main* name it was

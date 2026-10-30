@@ -83,6 +83,10 @@ export async function POST(request) {
         if (puuid) {
           Object.keys(all).forEach((k) => {
             if (k === p.name || !(all[k].puuids || []).includes(puuid)) return;
+            // 여러 계정(본계정 + 부계정)이 합쳐진 기록은 옮기지 않는다 — 부계정
+            // 하나가 닉변했다고 그 사람 전적 전체가 부계정의 새 이름으로 넘어가
+            // 버렸다(본계정 이름은 그대로인데).
+            if ((all[k].puuids || []).some((x) => x !== puuid)) return;
             all[p.name] = mergeRecords(all[p.name], all[k]);
             delete all[k];
             renamed.push([k, p.name]);

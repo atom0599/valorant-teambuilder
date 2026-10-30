@@ -47,8 +47,17 @@ export async function POST(request) {
     // name) into the original, both previous entries' alts carry over.
     const prevs = [prevByName.get(name), puuid && prevByPuuid.get(puuid)].filter(Boolean);
     const prevAlts = [...new Set(prevs.flatMap((x) => x.alts || []))].filter((a) => a.toLowerCase() !== name.toLowerCase());
-    const finalAlts = (prevs.length && !admin && !sameSet(alts, prevAlts)) ? prevAlts : alts;
-    map.set(name, { name, pos: r.pos || '미정', realName: String(r?.realName || '').trim(), alts: finalAlts, puuid });
+    // 부계정별 puuid (부계정 닉변 감지용, app/page.js 새로고침). 이 필드를
+    // 모르는 예전 화면이 보낸 명단이어도 지워지지 않게 이전 값 위에 덮는다.
+    const prevAltPuuids = Object.assign({}, ...prevs.map((x) => x.altPuuids || {}));
+    const altPuuids = { ...prevAltPuuids, ...(r?.altPuuids && typeof r.altPuuids === 'object' ? r.altPuuids : {}) };
+    // 부계정 닉변(같은 puuid, 이름만 바뀜)은 관리자가 아니어도 통과 — 계정
+    // 목록 자체는 그대로니까. puuid를 아는 부계정은 puuid로 맞춰 본다.
+    const ident = (list, pu) => list.map((a) => pu[a] || a);
+    const sameAccounts = sameSet(ident(alts, altPuuids), ident(prevAlts, prevAltPuuids));
+    const finalAlts = (prevs.length && !admin && !sameSet(alts, prevAlts) && !sameAccounts) ? prevAlts : alts;
+    const keptAltPuuids = Object.fromEntries(finalAlts.filter((a) => altPuuids[a]).map((a) => [a, String(altPuuids[a])]));
+    map.set(name, { name, pos: r.pos || '미정', realName: String(r?.realName || '').trim(), alts: finalAlts, puuid, altPuuids: keptAltPuuids });
   });
   const roster = [...map.values()];
 
