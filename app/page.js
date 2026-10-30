@@ -2657,7 +2657,7 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>참가자 등록</div>
-                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록하면 최근 경쟁전 10경기에서 가장 많이 쓴 요원 3개가 표시됩니다. 포지션은 모두 미정으로 들어오니 직접 골라 주세요.</div>
+                    <div style={sub}>"인원 관리" 탭에서 등록한 사람만 여기 들어옵니다 (직접 입력 불가). 등록하면 이번 시즌 경쟁전 전체에서 가장 많이 쓴 요원 3개가 표시됩니다(시즌 기록을 받아오기 전에는 최근 10경기 기준). 포지션은 모두 미정으로 들어오니 직접 골라 주세요.</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button onClick={lookupAll} disabled={players.some((p) => p.loading)} style={{ background: '#1B2027', color: '#E8EAEC', border: '1px solid #333B45', borderRadius: 12, padding: '12px 18px', fontSize: 13, fontWeight: 600, cursor: players.some((p) => p.loading) ? 'default' : 'pointer', opacity: players.some((p) => p.loading) ? .6 : 1 }}>전체 티어 조회</button>
@@ -2752,7 +2752,9 @@ export default function Page() {
                             )}
                           </div>
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center', minWidth: 0 }}>
-                            {(p.agents || []).map((a) => (
+                            {/* 인원 관리 AGENTS 칸과 같은 이번 시즌 경쟁전 전체 기준. 시즌 스탯이
+                                아직 안 왔거나 이번 시즌 경쟁전이 없으면 최근 10경기(/api/role)로. */}
+                            {(seasonStats[p.name.trim()]?.topAgents?.length ? seasonStats[p.name.trim()].topAgents : (p.agents || [])).map((a) => (
                               <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flex: 'none', width: 26 }}>
                                 {a.icon
                                   ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 24, height: 24, borderRadius: 6 }} />
@@ -2760,7 +2762,7 @@ export default function Page() {
                                 <span style={{ fontSize: 10, color: '#8B949E' }}>{a.pct}%</span>
                               </div>
                             ))}
-                            {!(p.agents && p.agents.length) && <span style={{ fontSize: 12, color: '#6B737C' }}>—</span>}
+                            {!(p.agents?.length || seasonStats[p.name.trim()]?.topAgents?.length) && <span style={{ fontSize: 12, color: '#6B737C' }}>—</span>}
                           </div>
                           <select value={p.pos} onChange={(e) => setPlayers((arr) => arr.map((x, k) => (k === i ? { ...x, pos: e.target.value } : x)))} style={{ ...input, padding: '6px 4px', fontSize: 12, cursor: 'pointer' }}>
                             {POSITIONS.map((o) => <option key={o} value={o}>{o}</option>)}
