@@ -110,6 +110,10 @@ export default function Page() {
   const [scores, setScores] = useState({});
 
   const [roster, setRoster] = useState([]);
+  // 새로고침(fetchSeasonStats)은 한 사람씩 몇십 초에 걸쳐 도는데, 그 사이에
+  // 명단이 바뀌어도 끝날 때 최신 명단 위에 고치도록.
+  const rosterRef = useRef(roster);
+  rosterRef.current = roster;
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRealName, setNewMemberRealName] = useState('');
   const [altPick, setAltPick] = useState({}); // roster name -> which of their accounts to register with next
@@ -1098,12 +1102,49 @@ export default function Page() {
   }
 
   function fetchSeasonStats() {
-    const names = roster.map((r) => r.name.trim()).filter(Boolean);
-    if (!names.length || seasonStatsLoading) return;
+    if (!roster.length || seasonStatsLoading) return;
     setSeasonStatsLoading(true);
     // Goes through the same lookupQueueRef as registration lookups so a
     // manual refresh never runs concurrently with an in-flight auto-fetch.
     const task = lookupQueueRef.current.then(async () => {
+      // 닉변 확인 + 이번 시즌 티어 갱신. 닉변하면 예전 이름으로는 조회가
+      // 안 되니(시즌 스탯도 "조회 실패"로 남았다), puuid가 있는 사람은
+      // puuid로 지금 Riot ID를 받아와서 바뀌었으면 명단 이름을 바꾼다.
+      // puuid가 아직 없는 사람은 이름으로 조회해서 puuid를 저장해 둔다 —
+      // 그래야 다음에 닉변해도 잡힌다.
+      const renames = [];
+      const puuids = new Map();
+      for (const r of rosterRef.current) {
+        const full = r.name.trim();
+        const j = full.indexOf('#');
+        if (j < 0) continue;
+        const d = await fetch(r.puuid
+          ? `/api/rank?puuid=${encodeURIComponent(r.puuid)}`
+          : `/api/rank?name=${encodeURIComponent(full.slice(0, j))}&tag=${encodeURIComponent(full.slice(j + 1))}`
+        ).then((res) => res.json()).catch(() => null);
+        if (d?.source !== 'api' || !d.account) continue;
+        const lowerAcc = d.account.trim().toLowerCase();
+        const isOwnAlt = (r.alts || []).some((a) => a.trim().toLowerCase() === lowerAcc);
+        if (r.puuid && lowerAcc !== full.toLowerCase() && !isOwnAlt) {
+          renames.push([r.name, d.account.trim()]);
+          rememberCurrentTier(d.account.trim(), d);
+        } else {
+          rememberCurrentTier(full, d);
+          if (!r.puuid && d.puuid) puuids.set(r.name, d.puuid);
+        }
+      }
+      let base = rosterRef.current;
+      if (puuids.size) {
+        base = base.map((r) => (!r.puuid && puuids.has(r.name) && !base.some((x) => x.puuid === puuids.get(r.name)) ? { ...r, puuid: puuids.get(r.name) } : r));
+      }
+      if (renames.length) {
+        await relinkRosterNames(renames, base);
+        window.alert(`닉네임이 바뀐 사람을 찾아 명단을 고쳤습니다 (기존 전적도 새 이름으로 옮김):\n${renames.map(([a, b]) => `${a} → ${b}`).join('\n')}`);
+      } else if (base !== rosterRef.current) {
+        persistRoster(base);
+      }
+      const renamed = new Map(renames);
+      const names = rosterRef.current.map((r) => (renamed.get(r.name) || r.name).trim()).filter(Boolean);
       for (const full of names) {
         await fetchOneSeasonStats(full);
         await new Promise((r) => setTimeout(r, 250)); // spread requests out, avoid HenrikDev rate limit
@@ -1456,8 +1497,8 @@ export default function Page() {
   // Several at once (one customs import can reveal more than one rename) —
   // built off one roster snapshot, since separate persistRoster calls from
   // the same stale `roster` would each overwrite the previous one's rename.
-  function relinkRosterNames(pairs) {
-    let list = roster;
+  function relinkRosterNames(pairs, base = roster) {
+    let list = base;
     const moves = [];
     pairs.forEach(([oldName, newName]) => {
       const old = list.find((r) => r.name === oldName);
