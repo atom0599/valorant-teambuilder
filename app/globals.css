@@ -433,6 +433,15 @@ button:active { transform: scale(.97); }
 .rvPl .nm { display: flex; flex-direction: column; min-width: 0; }
 .rvPl .n { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rvPl .n .mvp { font-style: normal; margin-left: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 600; color: #0B0D10; background: #FFD166; border-radius: 4px; padding: 1px 4px; vertical-align: 1px; }
+.rvPl .n .mvp.team { color: #E8EAEC; background: rgba(255,255,255,.14); }
+.rvLineup.strip .rvPl { grid-template-columns: auto minmax(0, 1fr) var(--cols); }
+.rvSetAg { display: flex; gap: 3px; }
+.rvSetAg .sa { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 28px; }
+.rvSetAg .sa img, .rvSetAg .sa .noimg { width: 26px; height: 26px; border-radius: 7px; background: #252C34; }
+.rvSetAg .sa.off .noimg { background: transparent; border: 1px dashed #333B44; }
+.rvSetAg .sa i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 8px; line-height: 11px; letter-spacing: .02em; color: #6B737C; white-space: nowrap; padding: 0 3px; border-radius: 3px; }
+.rvSetAg .sa i.match { color: #0B0D10; background: #FFD166; font-weight: 600; }
+.rvSetAg .sa i.team { color: #E8EAEC; background: rgba(255,255,255,.16); font-weight: 600; }
 .rvPl .s { font-size: 10.5px; color: #8B949E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rvPl .kda, .rvPl .hs, .rvPl .acs { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C6CDD4; text-align: right; }
 .rvPl .acs { font-size: 14px; color: #E8EAEC; }

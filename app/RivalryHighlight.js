@@ -48,12 +48,14 @@ function aggregate(sets, side) {
   sets.forEach((s) => {
     const n = (s.score[0] + s.score[1]) || 1;
     s.sides[side].forEach((p) => {
-      const e = by.get(p.id) || { id: p.id, sets: 0, rounds: 0, acsW: 0, acsN: 0, hsW: 0, hsN: 0, kills: null, deaths: null, assists: null, firstKills: null, clutches: null, mvp: 0, agents: {} };
+      const e = by.get(p.id) || { id: p.id, sets: 0, rounds: 0, acsW: 0, acsN: 0, hsW: 0, hsN: 0, kills: null, deaths: null, assists: null, firstKills: null, clutches: null, mvp: 0, teamMvp: 0, agents: {}, perSet: {} };
       e.sets += 1;
       if (p.acs != null) { e.acsW += p.acs * n; e.acsN += n; }
       if (p.hsPct != null) { e.hsW += p.hsPct * n; e.hsN += n; }
       ['kills', 'deaths', 'assists', 'firstKills', 'clutches'].forEach((k) => { if (p[k] != null) e[k] = (e[k] || 0) + p[k]; });
       if (p.mvp === 'match') e.mvp += 1;
+      if (p.mvp === 'team') e.teamMvp += 1;
+      e.perSet[s.no] = { agent: p.agent, icon: p.agentIcon, mvp: p.mvp || null };
       if (p.agent) e.agents[p.agent] = { n: (e.agents[p.agent]?.n || 0) + 1, icon: p.agentIcon };
       by.set(p.id, e);
     });
@@ -261,8 +263,9 @@ function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, o
 function Lineup({ sr, sets, scope, rows, aceIds, teamName, realNameOf, openPlayer }) {
   const top = Math.max(1, ...rows.flat().map((p) => p.acs || 0));
   const wins = scope ? [sets[0].score[0], sets[0].score[1]] : sr.wins;
+  const strip = !scope && sr.sets.length > 1; // 전체: 세트마다 쓴 요원 · MVP를 줄지어
   return (
-    <div className="rvLineup">
+    <div className={`rvLineup${strip ? ' strip' : ''}`}>
       {[0, 1].map((t) => (
         <div key={t} className={`rvTeam t${t}`} style={{ '--tc': TEAM[t] }}>
           <div className="rvTeamHead"><span className="tn">{teamName(t)} <b>{wins[t]}</b></span><span className="cols"><span>K/D/A</span><span>HS</span><span>ACS</span></span></div>
@@ -270,10 +273,20 @@ function Lineup({ sr, sets, scope, rows, aceIds, teamName, realNameOf, openPlaye
             const rn = realNameOf(p.id);
             return (
               <button key={p.id} className={`rvPl${p.id === aceIds[t] ? ' ace' : ''}`} style={{ '--i': i }} onClick={() => openPlayer(p.id)}>
-                {p.agentIcon ? <img src={p.agentIcon} alt={agentKo(p.agent) || ''} /> : <span className="noimg" />}
+                {strip
+                  ? <span className="rvSetAg">{sr.sets.map((st) => {
+                      const x = p.perSet[st.no];
+                      return (
+                        <span key={st.no} className={`sa${x ? '' : ' off'}`} title={x ? `${st.no}세트 · ${agentKo(x.agent) || '—'}${x.mvp === 'match' ? ' · 경기 MVP' : x.mvp === 'team' ? ' · 팀 MVP' : ''}` : `${st.no}세트 안 뜀`}>
+                          {x?.icon ? <img src={x.icon} alt="" /> : <span className="noimg" />}
+                          <i className={x?.mvp || ''}>{x?.mvp === 'match' ? 'MVP' : x?.mvp === 'team' ? 'TEAM' : `${st.no}세트`}</i>
+                        </span>
+                      );
+                    })}</span>
+                  : p.agentIcon ? <img src={p.agentIcon} alt={agentKo(p.agent) || ''} /> : <span className="noimg" />}
                 <span className="nm">
-                  <span className="n">{short(p.id)}{p.mvp > 0 && <em className="mvp">MVP{p.mvp > 1 ? ` ×${p.mvp}` : ''}</em>}</span>
-                  <span className="s">{rn || agentKo(p.agent) || '—'}{!scope && p.sets < sr.sets.length ? ` · ${p.sets}세트` : ''}</span>
+                  <span className="n">{short(p.id)}{!strip && p.mvp > 0 && <em className="mvp">MVP</em>}{!strip && !p.mvp && p.teamMvp > 0 && <em className="mvp team">TEAM MVP</em>}</span>
+                  <span className="s">{rn || agentKo(p.agent) || '—'}</span>
                 </span>
                 <span className="kda">{p.kills == null ? '—' : `${p.kills}/${p.deaths}/${p.assists}`}</span>
                 <span className="hs">{p.hsPct == null ? '—' : `${p.hsPct}%`}</span>
