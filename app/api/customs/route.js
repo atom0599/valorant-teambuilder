@@ -101,6 +101,8 @@ export async function GET(request) {
           id: m.metadata.match_id,
           startedAt: m.metadata.started_at,
           map: m.metadata.map?.name || '',
+          // 라운드마다 이긴 팀 ('R' 레드 / 'B' 블루) — 홈 하이라이트의 흐름 그래프용
+          roundWinners: (Array.isArray(m.rounds) ? m.rounds : []).map((r) => (r.winning_team === 'Red' ? 'R' : 'B')).join(''),
           red: { rounds: redRounds, players: players.filter((p) => p.team_id === 'Red').map((p) => statFor(p, totalRounds, mvpOf, rounds)) },
           blue: { rounds: blueRounds, players: players.filter((p) => p.team_id === 'Blue').map((p) => statFor(p, totalRounds, mvpOf, rounds)) }
         });

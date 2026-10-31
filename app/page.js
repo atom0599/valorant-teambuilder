@@ -8,7 +8,8 @@ import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
 import PatchNotesScreen from './PatchNotesScreen';
-import FamePodium, { CountUp } from './FamePodium';
+import FamePodium from './FamePodium';
+import RivalryHighlight from './RivalryHighlight';
 import Pager from './Pager';
 import {
   POSITIONS, TIERS, ALL_MAPS, ROTATION, MAP_IMG, BG_SEQ,
@@ -1668,7 +1669,7 @@ export default function Page() {
           const redRosterHits = mt.red.players.filter(inRoster).length;
           const blueRosterHits = mt.blue.players.filter(inRoster).length;
           const koMap = engToKo[String(mt.map).toLowerCase()];
-          return { id: mt.id, startedAt: mt.startedAt, koMap, redRounds: mt.red.rounds, blueRounds: mt.blue.rounds, redPlayers, bluePlayers, redRosterHits, blueRosterHits };
+          return { id: mt.id, startedAt: mt.startedAt, koMap, redRounds: mt.red.rounds, blueRounds: mt.blue.rounds, roundWinners: mt.roundWinners || '', redPlayers, bluePlayers, redRosterHits, blueRosterHits };
         })
         // Need a real winner, and at least one roster member per side just
         // to decide this match is actually "ours" (not some unrelated
@@ -1732,6 +1733,8 @@ export default function Page() {
             maps: [m.koMap],
             date: Date.parse(m.startedAt) || undefined,
             matchKey: `customs:${m.id}`,
+            // A = 레드 팀 (아래 teams.A)
+            rounds: m.roundWinners ? m.roundWinners.replace(/R/g, 'A') : undefined,
             teams: {
               A: m.redPlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, firstKills: p.firstKills, firstDeaths: p.firstDeaths, plants: p.plants, defuses: p.defuses, clutches: p.clutches, puuid: p.puuid })),
               B: m.bluePlayers.map((p) => ({ name: p.name, tier: tierByName[p.name]?.tier ?? null, tierIcon: tierByName[p.name]?.tierIcon ?? null, agent: p.agent, agentIcon: p.agentIcon, kills: p.kills, deaths: p.deaths, assists: p.assists, acs: p.acs, hsPct: p.hsPct, combat: p.combat, mvp: p.mvp, firstKills: p.firstKills, firstDeaths: p.firstDeaths, plants: p.plants, defuses: p.defuses, clutches: p.clutches, puuid: p.puuid }))
@@ -2084,6 +2087,18 @@ export default function Page() {
   function openPlayer(id) {
     setScreen('stats'); setStatView('player'); setStatId(id); setStatMatchPage(0); setDetailTab('recent');
   }
+  // 하이라이트 라인업 · 에이스 이름 밑에 붙일 실명 (부계정이면 본계정의 실명).
+  const realNameOf = (id) => roster.find((r) => r.name === id || (r.alts || []).includes(id))?.realName || '';
+  // 라운드 기록 없이 저장된 내전 경기의 라운드별 승패를 한 번만 받아 채운다 (하이라이트 "흐름" 장).
+  const roundsTried = useRef(new Map());
+  const ensureRounds = useRef((matchKey) => {
+    if (!roundsTried.current.has(matchKey)) {
+      roundsTried.current.set(matchKey, fetch('/api/rounds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ matchKey }) })
+        .then((r) => r.json().then((d) => { if (r.ok && d.records) { setRecords(d.records); return true; } return false; }))
+        .catch(() => false));
+    }
+    return roundsTried.current.get(matchKey);
+  }).current;
   function openMatch(date) {
     const idx = matchLog.slice().sort((a, b) => b.date - a.date).findIndex((mt) => mt.date === date);
     setScreen('stats'); setStatView('match'); setMatchSort('newest');
@@ -2091,19 +2106,6 @@ export default function Page() {
   }
 
   /* ---------- style helpers ---------- */
-  // 스탯 한 줄 (하이라이트 MVP). [이름, 값, 값 색] 목록 (이름이 null이면 값만).
-  // 한국어가 고정폭 글꼴로 넘어가면 높이가 달라 줄이 삐뚤어 보여서, 이름과 값 모두
-  // 일반 글꼴로 쓰고 기준선(baseline)에 맞춘다.
-  const statLine = (items, style) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 16, rowGap: 6, ...style }}>
-      {items.map(([k, v, color]) => (
-        <span key={k || v} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap', lineHeight: 1.2 }}>
-          {k && <span style={{ fontSize: 11, color: 'rgba(232,234,236,.62)' }}>{k}</span>}
-          <b style={{ fontFamily: "'Archivo'", fontSize: 14, fontWeight: 800, letterSpacing: '-.01em', color: color || '#F5F7F9' }}>{v}</b>
-        </span>
-      ))}
-    </div>
-  );
   const pill = (active, accent = '#FF4B57') => ({
     borderRadius: 999, padding: '9px 15px', fontSize: 13, fontWeight: active ? 700 : 500, cursor: 'pointer',
     whiteSpace: 'nowrap', border: `1px solid ${active ? accent : '#262C34'}`,
@@ -2260,101 +2262,10 @@ export default function Page() {
                   </div>
                 </div>
 
-                {hl && (() => {
-                  // 자정을 넘겨 이어진 내전이면 "10월 17~18일"처럼 실제 경기 날짜로.
-                  const d0 = new Date(hl.matches[0].date), d1 = new Date(hl.matches[hl.matches.length - 1].date);
-                  const dayLabel = `${d0.getMonth() + 1}월 ${d0.getDate()}${d1.getDate() !== d0.getDate() ? `~${d1.getMonth() !== d0.getMonth() ? `${d1.getMonth() + 1}월 ` : ''}${d1.getDate()}` : ''}일`;
-                  const isToday = Date.now() >= hlDay.start && Date.now() < hlDay.end;
-                  const short = (id) => String(id).split('#')[0];
-                  const names = (ids) => short(ids[0]) + (ids.length > 1 ? ` 외 ${ids.length - 1}명` : '');
-                  const m = hl.mvp;
-                  const mvpBg = m && (MAP_IMG[m.map] || MAP_IMG[String(m.map).split(',')[0]?.trim()]);
-                  // MVP 요원 일러스트가 있으면 카드 전체가 그 요원의 무대 (색 · 배경 문구 · 전신 초상화 · 조명).
-                  const mvpArt = m && agentArt(m.agent);
-                  const rows = [
-                    hl.kills && { key: 'kills', icon: '💥', label: '최다 킬', who: short(hl.kills.id), ctx: `${hl.kills.mt.map}${hl.kills.agent ? ` · ${agentKo(hl.kills.agent)}` : ''}`, value: hl.kills.kills, unit: '킬', img: hl.kills.agentIcon, onClick: () => openMatch(hl.kills.mt.date) },
-                    hl.acs && { key: 'acs', icon: '📈', label: '최고 ACS', who: short(hl.acs.id), ctx: `${hl.acs.mt.map}${hl.acs.agent ? ` · ${agentKo(hl.acs.agent)}` : ''}`, value: hl.acs.acs, unit: '', img: hl.acs.agentIcon, onClick: () => openMatch(hl.acs.mt.date) },
-                    hl.firstKills && { key: 'firstKills', icon: '⚡', label: '최다 퍼스트 킬', who: short(hl.firstKills.id), ctx: `${hl.firstKills.mt.map}${hl.firstKills.agent ? ` · ${agentKo(hl.firstKills.agent)}` : ''}`, value: hl.firstKills.firstKills, unit: '번', img: hl.firstKills.agentIcon, onClick: () => openMatch(hl.firstKills.mt.date) },
-                    hl.close && { key: 'close', icon: '😰', label: '최대 접전', who: hl.close.map, ctx: '경기 보기', value: hl.close.score.replace(/\s/g, ''), unit: '', onClick: () => openMatch(hl.close.date) }
-                  ].filter(Boolean);
-                  const mapsPlayed = [...new Set(hl.matches.map((x) => x.map))].join(' · ');
-                  // 기록 칸은 늘 네 칸(최다 킬 · 최고 ACS · 최다 퍼스트 킬 · 최대 접전) — 없는 날은 빈 칸으로 두어 날마다 크기가 같다.
-                  const tiles = [
-                    ['kills', '💥', '최다 킬'], ['acs', '📈', '최고 ACS'], ['firstKills', '⚡', '최다 퍼스트 킬'], ['close', '😰', '최대 접전']
-                  ].map(([key, icon, label]) => rows.find((r) => r.key === key) || { key, icon, label, empty: true });
-                  return (
-                    <div data-lift="1" className={`hlStage${mvpArt ? ' hlCard' : ''}`} style={{
-                      position: 'relative', overflow: 'hidden', borderRadius: 22, padding: 20, display: 'flex', flexDirection: 'column', gap: 16, minHeight: 540, // 내전 날을 넘겨도 카드 크기가 같게
-                      ...(mvpArt?.colors[0] ? { '--c0': mvpArt.colors[0].slice(0, 7) } : {})
-                    }}>
-                      {/* 무대 연출: 흐르는 배경 문구 · MVP에게 떨어지는 핀 조명 · 요원 색 후광 · 떠오르는 금가루 */}
-                      {mvpArt && <>
-                        <div className="hlText" style={{ backgroundImage: mvpArt.text ? `url(${mvpArt.text})` : 'none' }} />
-                        <div className="hlAura" />
-                        <div className="hlBeam" />
-                        <div className="hlDust">{Array.from({ length: 16 }, (_, k) => <i key={k} />)}</div>
-                        <img key={`mvp-${hlDay.start}`} className="agentPortrait hlRise" src={mvpArt.portrait} alt="" aria-hidden="true" />
-                      </>}
-                      <div className="hlVignette" />
-                      <div className="hlTop" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 14, textShadow: '0 1px 10px rgba(0,0,0,.55)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, color: '#C8F24C', letterSpacing: '.2em' }}>MATCH DAY RECAP</div>
-                            <div style={{ fontFamily: "'Archivo'", fontSize: 22, fontWeight: 800, letterSpacing: '-.02em', marginTop: 4 }}>{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
-                            <div style={{ fontSize: 11, color: 'rgba(232,234,236,.6)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{hlDay.count}경기 · {mapsPlayed}</div>
-                          </div>
-                          {hlDays.length > 1 && (
-                            <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
-                              {[['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
-                                <button key={t} className="hlNav" title={title} disabled={off} onClick={() => setHlIndex(to)}>{t}</button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {m && (
-                          <button key={`mvpinfo-${hlDay.start}`} className="hlMvp" onClick={() => openPlayer(m.id)} style={mvpArt ? undefined : { padding: '18px 18px', borderRadius: 16, border: '1px solid rgba(255,209,102,.3)', backgroundImage: `linear-gradient(100deg,rgba(11,13,16,.94) 0%,rgba(11,13,16,.78) 45%,rgba(11,13,16,.35) 100%), url(${mvpBg || '/maps/ascent.png'})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                            {!mvpArt && (m.agentIcon
-                              ? <img src={m.agentIcon} alt={agentKo(m.agent) || ''} style={{ width: 72, height: 72, borderRadius: 14, flex: 'none', border: '2px solid #E8B23D', boxShadow: '0 0 24px rgba(232,178,61,.35)' }} />
-                              : <div style={{ width: 72, height: 72, borderRadius: 14, flex: 'none', display: 'grid', placeItems: 'center', fontSize: 34, border: '2px solid #E8B23D' }}>👑</div>)}
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <span className="hlCrown">👑 {isToday ? 'TODAY' : 'DAY'} MVP</span>
-                                {m.agent && <span className="hlAgentChip">{m.agentIcon && <img src={m.agentIcon} alt="" />}{agentKo(m.agent)}</span>}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, marginTop: 8 }}>
-                                <span className="hlMvpName">{short(m.id)}</span>
-                                {String(m.id).includes('#') && <span style={{ fontSize: 11, color: 'rgba(232,234,236,.55)', flex: 'none' }}>#{String(m.id).split('#')[1]}</span>}
-                              </div>
-                              {statLine([
-                                ['평균 ACS', <CountUp key={`acs-${hlDay.start}`} value={String(m.acs)} dur={1100} />],
-                                ['K/D', m.kd.toFixed(2)],
-                                ['K/D/A', `${m.kills}/${m.deaths}/${m.assists}`],
-                                ['승패', `${m.w}-${m.l}`, '#C8F24C'],
-                                ...(m.mvp ? [['경기 MVP', `${m.mvp}회`, '#FFD166']] : [])
-                              ], { marginTop: 10 })}
-                            </div>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="hlRest" style={{ position: 'relative', marginTop: 'auto' }}>
-                        <div className="hlTiles">
-                          {tiles.map((r, i) => (
-                            <button key={`${r.key}-${hlDay.start}`} className={`hlTile${r.empty ? ' empty' : ''}`} disabled={r.empty} onClick={r.onClick} style={{ animationDelay: `${120 + i * 70}ms` }}>
-                              <div className="hlTileHead">
-                                {r.img ? <img src={r.img} alt="" /> : <span className="ic">{r.icon}</span>}
-                                <span>{r.label}</span>
-                              </div>
-                              <div className="hlTileVal">{r.empty ? '—' : <>{r.value}{r.unit && <small>{r.unit}</small>}</>}</div>
-                              <div className="hlTileWho">{r.empty ? '이날은 없음' : <>{r.who} <span>{r.ctx}</span></>}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
+                {hl && (
+                  <RivalryHighlight hl={hl} hlDay={hlDay} hlDays={hlDays} hlIndex={hlIndex} setHlIndex={setHlIndex} agentArt={agentArt}
+                    realNameOf={realNameOf} openPlayer={openPlayer} openMatch={openMatch} ensureRounds={ensureRounds} />
+                )}
               </div>
             )}
 

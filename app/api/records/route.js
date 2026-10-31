@@ -113,6 +113,8 @@ export async function POST(request) {
           combat: p.combat ?? null, mvp: p.mvp ?? null,
           firstKills: p.firstKills ?? null, firstDeaths: p.firstDeaths ?? null,
           plants: p.plants ?? null, defuses: p.defuses ?? null, clutches: p.clutches ?? null,
+          // 라운드마다 이 선수 팀이 이겼는지 ('W'/'L'). body.rounds는 'A'/'B' 문자열.
+          rounds: typeof body.rounds === 'string' && body.rounds ? [...body.rounds].map((c) => (c === side ? 'W' : 'L')).join('') : null,
           matchKey
         }, ...(r.matches || [])];
         all[p.name] = r;

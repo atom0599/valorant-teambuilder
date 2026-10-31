@@ -120,14 +120,6 @@ button:active { transform: scale(.97); }
 /* 선수 상세 카드: 카드 높이에 맞춰 전신, 몸이 오른쪽 끝에 오게. */
 .playerCard .agentPortrait { height: 104%; top: -6%; right: 0; transform: translateX(24%); }
 .playerCard { padding-right: 132px !important; }
-/* 카드 높이에 맞춰 전신이 다 보이게, 몸이 오른쪽 끝에 오도록 이미지 폭의 19%만큼 밀어 둔다. */
-.hlCard .agentPortrait { height: 104%; top: -6%; right: 0; transform: translateX(19%); }
-.hlCard .hlTop, .hlCard .hlRest { padding-right: 270px; }
-@media (max-width: 640px) {
-  .hlCard .agentPortrait { height: 250px; top: -6px; right: -96px; transform: none; }
-  .hlCard .hlTop { padding-right: 118px; }
-  .hlCard .hlRest { padding-right: 0; }
-}
 
 /* ===================================================================
    명예의 전당 / 불명예의 전당 시상대 (app/FamePodium.js)
@@ -298,78 +290,169 @@ button:active { transform: scale(.97); }
   .psNav { top: auto; bottom: 12px; transform: none; width: 38px; height: 38px; }
 }
 
-/* ===================================================================
-   홈 내전 하이라이트 무대 (명예의 전당 시상대와 같은 연출)
-   MVP 요원 색이 깔린 무대에 흐르는 배경 문구, MVP에게 떨어지는 핀 조명, 요원 색 후광,
-   떠오르는 금가루. 날을 넘기면 MVP가 번쩍이며 올라오고 기록 칸이 차례로 떠오른다.
-   =================================================================== */
-.hlStage { --c0: #2a3340; border: 1px solid rgba(255,255,255,.08); box-shadow: 0 30px 60px rgba(0,0,0,.45);
-  background:
-    linear-gradient(90deg, rgba(8,10,13,.9) 0%, rgba(8,10,13,.55) 40%, rgba(8,10,13,0) 70%),
-    radial-gradient(55% 75% at 80% 40%, color-mix(in srgb, var(--c0) 75%, transparent) 0%, transparent 72%),
-    linear-gradient(135deg, #0b0d10 0%, color-mix(in srgb, var(--c0) 30%, #0b0d10) 100%);
-  transition: --c0 1s ease; }
-.hlStage:not(.hlCard) { background: radial-gradient(70% 70% at 80% 30%, rgba(255,209,102,.1), transparent 70%), rgba(15,19,24,.86); backdrop-filter: blur(14px); }
-.hlText { position: absolute; right: 30px; top: -10%; width: 320px; height: 120%; pointer-events: none; opacity: .4;
-  background-repeat: repeat-y; background-position: center 0; background-size: auto 50%; animation: psFlow 40s linear infinite; }
-.hlAura { position: absolute; right: 20px; bottom: 6%; width: 380px; height: 380px; border-radius: 50%; pointer-events: none; mix-blend-mode: screen;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--c0) 85%, white 12%) 0%, color-mix(in srgb, var(--c0) 40%, transparent) 45%, transparent 75%);
-  animation: hlPulse 4s ease-in-out infinite; }
-@keyframes hlPulse { 0%, 100% { transform: scale(.94); opacity: .55 } 50% { transform: scale(1.05); opacity: .85 } }
-.hlBeam { position: absolute; right: 30px; top: -30px; width: 320px; height: 110%; pointer-events: none; mix-blend-mode: screen; filter: blur(8px);
-  background: linear-gradient(180deg, rgba(255,248,230,.28) 0%, rgba(255,248,230,.07) 55%, transparent 85%); clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%); }
-.hlDust { position: absolute; right: 0; top: 0; bottom: 0; width: 55%; pointer-events: none; }
-.hlDust i { position: absolute; bottom: -6px; width: 3px; height: 3px; border-radius: 50%; background: #FFE2A0; box-shadow: 0 0 6px #FFD166; opacity: 0; animation: hlDust 7s linear infinite; }
-.hlDust i:nth-child(1) { left: 6%; animation-delay: 0s } .hlDust i:nth-child(2) { left: 14%; animation-delay: 2.6s; animation-duration: 8s }
-.hlDust i:nth-child(3) { left: 22%; animation-delay: 1.1s } .hlDust i:nth-child(4) { left: 30%; animation-delay: 4.2s; animation-duration: 9s }
-.hlDust i:nth-child(5) { left: 38%; animation-delay: .5s; animation-duration: 6s } .hlDust i:nth-child(6) { left: 46%; animation-delay: 3.3s }
-.hlDust i:nth-child(7) { left: 54%; animation-delay: 5.1s; animation-duration: 8.5s } .hlDust i:nth-child(8) { left: 62%; animation-delay: 1.8s }
-.hlDust i:nth-child(9) { left: 70%; animation-delay: 6s; animation-duration: 7.5s } .hlDust i:nth-child(10) { left: 78%; animation-delay: 2.2s }
-.hlDust i:nth-child(11) { left: 86%; animation-delay: 4.8s; animation-duration: 6.5s } .hlDust i:nth-child(12) { left: 93%; animation-delay: .9s }
-.hlDust i:nth-child(13) { left: 18%; animation-delay: 5.6s; width: 2px; height: 2px } .hlDust i:nth-child(14) { left: 50%; animation-delay: 3.8s; width: 2px; height: 2px }
-.hlDust i:nth-child(15) { left: 74%; animation-delay: 6.6s; width: 2px; height: 2px } .hlDust i:nth-child(16) { left: 34%; animation-delay: 2.9s; width: 2px; height: 2px }
-@keyframes hlDust { 0% { transform: translateY(0); opacity: 0 } 10% { opacity: .9 } 80% { opacity: .5 } 100% { transform: translateY(-520px) translateX(18px); opacity: 0 } }
-/* MVP는 날을 넘길 때마다 아래에서 올라온다 (translate 속성이라 위치용 transform과 겹쳐도 됨) */
-.hlRise { animation: hlRise .9s cubic-bezier(.2,.8,.25,1) both; }
-@keyframes hlRise { 0% { opacity: 0; translate: 0 50px } 100% { opacity: 1; translate: 0 0 } } /* 몸에서 빛나는 효과 없이 올라오기만 */
-.hlVignette { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: radial-gradient(130% 100% at 50% 40%, transparent 60%, rgba(0,0,0,.55) 100%); }
+/* 홈 내전 하이라이트 ◀ ▶ (내전 날 넘기기, app/RivalryHighlight.js) */
 .hlNav { width: 32px; height: 32px; border-radius: 999px; background: rgba(10,12,15,.55); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.16); color: #E8EAEC; cursor: pointer; font-size: 10px; transition: border-color .2s; }
 .hlNav:hover:not(:disabled) { border-color: #FFD166; }
 .hlNav:disabled { opacity: .3; cursor: default; }
-/* MVP */
-.hlMvp { position: relative; display: flex; align-items: center; gap: 18px; text-align: left; color: #F5F7F9; cursor: pointer; background: transparent; border: none; padding: 10px 0 6px; text-shadow: inherit; animation: fadeUp .6s cubic-bezier(.2,.7,.3,1) both; }
-.hlCrown { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .18em; color: #2b1e04; text-shadow: none;
-  background: linear-gradient(145deg, #FFE29A, #E8B23D); border-radius: 999px; padding: 4px 10px; box-shadow: 0 0 18px rgba(255,209,102,.35); }
-.hlAgentChip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #F5F7F9; text-shadow: none;
-  background: rgba(10,12,15,.6); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 3px 11px 3px 4px; }
-.hlAgentChip img { width: 20px; height: 20px; border-radius: 999px; }
-.hlMvpName { font-family: 'Archivo', sans-serif; font-size: clamp(32px, 5.6vw, 48px); font-weight: 800; line-height: 1; letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: none;
-  background: linear-gradient(180deg, #FFF6D6 0%, #F5C451 55%, #D99A1E 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 18px rgba(255,209,102,.3)); }
-/* 기록 네 칸: 유리 판 2 × 2 */
-.hlTiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.hlTile { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 104px; padding: 12px 14px; text-align: left; color: #E8EAEC; cursor: pointer; overflow: hidden;
-  background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), rgba(10,12,15,.55); backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,.09); border-radius: 14px; animation: fadeUp .55s cubic-bezier(.2,.7,.3,1) both;
-  transition: transform .25s cubic-bezier(.2,.7,.3,1), border-color .25s, box-shadow .25s; }
-.hlTile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, #FFE29A, #E8B23D); opacity: .8; }
-.hlTile:hover:not(:disabled) { transform: translateY(-3px); border-color: rgba(255,209,102,.45); box-shadow: 0 12px 30px rgba(0,0,0,.45), 0 0 20px rgba(255,209,102,.12); }
-.hlTile.empty { cursor: default; }
-.hlTile.empty > * { opacity: .4; } /* 떠오르는 애니메이션이 카드 opacity를 덮어써서 안쪽만 흐리게 */
-.hlTile.empty::before { opacity: .25; }
-.hlTileHead { display: flex; align-items: center; gap: 7px; font-size: 11px; color: rgba(232,234,236,.65); }
-.hlTileHead img { width: 22px; height: 22px; border-radius: 6px; }
-.hlTileHead .ic { width: 22px; height: 22px; display: grid; place-items: center; font-size: 14px; border-radius: 6px; background: rgba(255,255,255,.06); }
-.hlTileVal { font-family: 'Archivo', sans-serif; font-size: 26px; font-weight: 800; line-height: 1; letter-spacing: -.02em; text-shadow: none;
-  background: linear-gradient(180deg, #FFFFFF 0%, #FFE6A8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.hlTileVal small { font-size: 12px; font-weight: 700; margin-left: 2px; }
-.hlTileWho { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hlTileWho span { font-weight: 400; font-size: 11px; color: rgba(232,234,236,.55); }
-@media (max-width: 640px) {
-  .hlText { right: -20px; width: 200px; opacity: .3; }
-  .hlBeam, .hlAura { right: -40px; width: 240px; height: 240px; }
-  .hlBeam { height: 80%; }
-  .hlTile { min-height: 96px; padding: 10px 12px; }
-  .hlTileVal { font-size: 22px; }
-}
 
 @media (max-width: 640px) { .clipGrid { grid-template-columns: minmax(0, 1fr) !important; } }
+
+/* ===================================================================
+   홈 내전 하이라이트 (app/RivalryHighlight.js): 경기 하나를 세 장으로
+   01 에이스 대결 · 02 라인업 · 03 흐름. 이긴 팀 = 라임, 진 팀 = 빨강, 에이스 = 금색.
+   장을 넘기면(.on) 그 장의 애니메이션이 처음부터 다시 돈다.
+   =================================================================== */
+.rvCard { position: relative; overflow: hidden; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px; isolation: isolate;
+  background: rgba(15,19,24,.86); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
+.rvBg { position: absolute; inset: 0; z-index: -1; background-size: cover; background-position: center; opacity: .16; filter: saturate(.7); animation: rvBg 1.2s ease both, rvKb 24s ease-in-out infinite alternate; }
+.rvBg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,19,24,.4), rgba(15,19,24,.95) 70%); }
+@keyframes rvBg { from { opacity: 0 } }
+@keyframes rvKb { to { transform: scale(1.08) } }
+.rvHead { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
+.rvEyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #C8F24C; letter-spacing: .2em; }
+.rvTitle { font-family: 'Archivo', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 4px; }
+.rvSub { font-size: 11px; color: rgba(232,234,236,.6); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.rvGames { display: flex; gap: 6px; padding-bottom: 2px; scrollbar-width: none; }
+.rvGames::-webkit-scrollbar { display: none; }
+.rvGame { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; font-size: 12px; color: #C6CDD4; cursor: pointer;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); transition: border-color .2s, background .2s, color .2s; }
+.rvGame .no { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; }
+.rvGame b { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+.rvGame .hot { font-size: 11px; }
+.rvGame:hover { border-color: rgba(200,242,76,.4); }
+.rvGame.on { color: #0B0D10; background: #C8F24C; border-color: #C8F24C; font-weight: 700; }
+.rvGame.on .no { color: rgba(11,13,16,.6); }
+
+.rvTabs { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid rgba(255,255,255,.08); }
+.rvTab { background: none; border: none; color: #8B949E; font-size: 13px; font-weight: 600; padding: 8px 4px 10px; cursor: pointer; transition: color .2s; display: inline-flex; justify-content: center; align-items: baseline; gap: 6px; }
+.rvTab .n { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; }
+.rvTab.on { color: #E8EAEC; }
+.rvTab.on .n { color: #C8F24C; }
+.rvTabBar { position: absolute; left: 0; bottom: -1px; width: calc(100% / 3); height: 2px; background: #C8F24C; box-shadow: 0 0 12px rgba(200,242,76,.6); transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+
+.rvView { overflow: hidden; touch-action: pan-y; margin: 0 -20px; }
+.rvTrack { display: flex; transition: transform .55s cubic-bezier(.2,.8,.2,1); }
+.rvSlide { flex: 0 0 100%; min-width: 0; padding: 4px 20px; }
+.rvFoot { display: flex; justify-content: space-between; align-items: center; }
+.rvDots { display: flex; gap: 6px; }
+.rvDots button { width: 7px; height: 7px; border-radius: 999px; border: none; padding: 0; background: rgba(255,255,255,.2); cursor: pointer; transition: width .3s, background .3s; }
+.rvDots button.on { width: 22px; background: #C8F24C; }
+.rvLink { background: none; border: none; color: #8B949E; font-size: 12px; cursor: pointer; }
+.rvLink:hover { color: #C8F24C; }
+
+/* 01 에이스 대결 */
+.rvDuel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 1.35fr) minmax(0, 1fr); align-items: end; min-height: 360px; }
+.rvSide { position: relative; height: 100%; min-height: 360px; display: flex; flex-direction: column; justify-content: flex-end; }
+.rvPortrait { position: absolute; bottom: 52px; left: 50%; height: 320px; max-width: none; pointer-events: none; filter: drop-shadow(0 14px 24px rgba(0,0,0,.6)); }
+.rvPortrait.w { transform: translateX(-50%); }
+.rvPortrait.l { transform: translateX(-50%) scaleX(-1); }
+.rvPortrait.icon { height: 120px; bottom: 120px; border-radius: 24px; }
+.rvSlide.on .rvPortrait.w { animation: rvInW .8s cubic-bezier(.2,.8,.2,1) both; }
+.rvSlide.on .rvPortrait.l { animation: rvInL .8s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rvInW { from { opacity: 0; transform: translateX(-90%) } }
+@keyframes rvInL { from { opacity: 0; transform: translateX(-10%) scaleX(-1) } }
+.rvSide::before { content: ""; position: absolute; left: 10%; right: 10%; bottom: 40px; height: 200px; border-radius: 50%; filter: blur(30px); opacity: .35; pointer-events: none; }
+.rvSide.w::before { background: #C8F24C; }
+.rvSide.l::before { background: #FF4B57; }
+.rvAce { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(11,13,16,.72); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 9px 8px; cursor: pointer; color: #E8EAEC; min-width: 0; }
+.rvAce.w { border-color: rgba(200,242,76,.4); }
+.rvAce.l { border-color: rgba(255,75,87,.4); }
+.rvAce .k { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .16em; color: #FFD166; white-space: nowrap; }
+.rvAce .n { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -.02em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvAce .s { font-size: 11px; color: #8B949E; white-space: nowrap; }
+.rvAce .s em { font-style: normal; color: #4C9AFF; }
+.rvSlide.on .rvAce { animation: fadeUp .5s .5s cubic-bezier(.2,.7,.3,1) both; }
+.rvTape { display: flex; flex-direction: column; gap: 7px; padding: 0 10px 6px; }
+.rvScore { display: flex; justify-content: center; align-items: baseline; gap: 10px; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 46px; line-height: 1; letter-spacing: -.02em; }
+.rvScore span { color: #3A424C; font-size: 32px; }
+.rvSlide.on .rvScore { animation: rvPop .55s .15s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes rvPop { from { opacity: 0; transform: scale(.5) } }
+.rvMap { text-align: center; font-size: 11px; color: #8B949E; margin: -2px 0 6px; }
+.rvRow { display: grid; grid-template-columns: 44px 1fr 62px 1fr 44px; align-items: center; gap: 6px; }
+.rvRow .v { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #C6CDD4; }
+.rvRow .v.r { text-align: right; }
+.rvRow .v.best { color: #FFD166; font-weight: 600; }
+.rvRow .lab { text-align: center; font-size: 11px; color: #8B949E; white-space: nowrap; }
+.rvRow .bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
+.rvRow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.rvRow .bar.w i { right: 0; background: linear-gradient(270deg, #C8F24C, rgba(200,242,76,.35)); }
+.rvRow .bar.l i { left: 0; background: linear-gradient(90deg, #FF4B57, rgba(255,75,87,.35)); }
+.rvSlide.on .rvRow { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(.3s + var(--d) * .06s); }
+.rvSlide.on .rvRow .bar i { animation: rvBar .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(.45s + var(--d) * .08s); }
+@keyframes rvBar { from { width: 0 } }
+
+/* 02 라인업 */
+.rvLineup { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr); gap: 12px; align-items: center; }
+.rvTeam { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rvTeamHead, .rvPl { --cols: 64px 36px 34px; }
+.rvTeamHead { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 0 48px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .14em; color: #6B737C; }
+.rvTeamHead > span:first-child { font-weight: 600; }
+.rvTeamHead.w > span:first-child { color: #C8F24C; }
+.rvTeamHead.l > span:first-child { color: #FF4B57; }
+.rvTeamHead .cols { display: grid; grid-template-columns: var(--cols); gap: 6px; text-align: right; }
+.rvPl { position: relative; overflow: hidden; display: grid; grid-template-columns: 34px minmax(0, 1fr) var(--cols); gap: 6px; align-items: center; padding: 7px 10px 9px 8px; border-radius: 12px; text-align: left; color: #E8EAEC; cursor: pointer;
+  background: #1B2027; border: 1px solid #262C34; transition: border-color .2s; }
+.rvPl:hover { border-color: #3A424C; }
+.rvPl img, .rvPl .noimg { width: 34px; height: 34px; border-radius: 9px; background: #252C34; }
+.rvPl .nm { display: flex; flex-direction: column; min-width: 0; }
+.rvPl .n { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvPl .n .mvp { font-style: normal; margin-left: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 600; color: #0B0D10; background: #FFD166; border-radius: 4px; padding: 1px 4px; vertical-align: 1px; }
+.rvPl .s { font-size: 10.5px; color: #8B949E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvPl .kda, .rvPl .hs, .rvPl .acs { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C6CDD4; text-align: right; }
+.rvPl .acs { font-size: 14px; color: #E8EAEC; }
+.rvPl .fill { position: absolute; left: 0; bottom: 0; height: 2px; }
+.rvPl.w .fill { background: #C8F24C; }
+.rvPl.l .fill { background: #FF4B57; }
+.rvPl.ace { border-color: rgba(255,209,102,.5); background: linear-gradient(90deg, rgba(255,209,102,.1), #1B2027 60%); }
+.rvSlide.on .rvPl { animation: rvRowIn .45s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * .06s + .05s); }
+.rvSlide.on .rvTeam:last-child .rvPl { animation-name: rvRowInR; }
+.rvSlide.on .rvPl .fill { animation: rvBar .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * .06s + .35s); }
+@keyframes rvRowIn { from { opacity: 0; transform: translateX(-24px) } }
+@keyframes rvRowInR { from { opacity: 0; transform: translateX(24px) } }
+.rvMid { position: relative; height: 150px; display: grid; place-items: center; }
+.rvMid .ring { position: absolute; width: 96px; height: 96px; border-radius: 50%; border: 1px dashed rgba(255,255,255,.16); animation: rvSpin 16s linear infinite; }
+.rvMid .ring.r2 { width: 78px; height: 78px; border: 2px solid transparent; border-top-color: #C8F24C; border-bottom-color: #FF4B57; animation-duration: 3.2s; }
+@keyframes rvSpin { to { transform: rotate(360deg) } }
+.rvMid .sc { position: relative; text-align: center; }
+.rvMid .sc b { display: block; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -.02em; }
+.rvMid .sc span { font-size: 10px; color: #8B949E; }
+.rvSlide.on .rvMid .sc { animation: rvPop .5s .2s cubic-bezier(.2,1.5,.4,1) both; }
+
+/* 03 흐름 */
+.rvMomentum { display: flex; flex-direction: column; gap: 14px; }
+.rvChart { position: relative; height: 200px; margin: 22px 0 10px; }
+.rvChart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rvLine { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.rvSlide.on .rvLine { animation: rvDraw 2.4s .2s ease-in-out forwards; }
+@keyframes rvDraw { to { stroke-dashoffset: 0 } }
+.rvArea { opacity: 0; }
+.rvSlide.on .rvArea { animation: rvFade .8s 2.3s forwards; }
+@keyframes rvFade { to { opacity: 1 } }
+.rvDot { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(15,19,24,.9); opacity: 0; }
+.rvSlide.on .rvDot { animation: rvDot .3s forwards; }
+@keyframes rvDot { from { opacity: 0; transform: scale(0) } to { opacity: 1; transform: scale(1) } }
+.rvEv { --tx: -50%; position: absolute; transform: translate(var(--tx), -100%); white-space: nowrap; font-size: 10.5px; padding: 3px 7px; border-radius: 6px; background: #1B2027; border: 1px solid #333B45; color: #E8EAEC; opacity: 0; pointer-events: none; }
+.rvSlide.on .rvEv { animation: rvEv .35s forwards; }
+@keyframes rvEv { from { opacity: 0; transform: translate(var(--tx), -70%) } to { opacity: 1; transform: translate(var(--tx), -100%) } }
+.rvEv.end { --tx: -100%; }
+.rvAxis { position: absolute; left: 0; font-size: 10.5px; font-weight: 600; }
+.rvAxis.t { top: -20px; }
+.rvAxis.b { bottom: -20px; }
+.rvHalf { position: absolute; top: -18px; margin-left: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #6B737C; }
+.rvFacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.rvFacts > div { background: #1B2027; border: 1px solid #262C34; border-radius: 12px; padding: 9px 12px; }
+.rvFacts span { display: block; font-size: 10.5px; color: #8B949E; }
+.rvFacts b { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 15px; }
+.rvFacts em { font-style: normal; }
+.rvSlide.on .rvFacts > div { animation: fadeUp .4s 2.4s cubic-bezier(.2,.7,.3,1) both; }
+.rvEmpty { min-height: 240px; display: grid; place-items: center; text-align: center; font-size: 13px; color: #8B949E; padding: 0 20px; }
+
+@media (max-width: 760px) {
+  .rvDuel { grid-template-columns: 1fr 1fr; min-height: 0; }
+  .rvTape { grid-column: 1 / -1; order: 3; padding: 14px 0 0; }
+  .rvSide { min-height: 230px; }
+  .rvPortrait { height: 200px; }
+  .rvLineup { grid-template-columns: 1fr; }
+  .rvMid { height: 96px; order: -1; }
+}
