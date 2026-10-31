@@ -2396,7 +2396,7 @@ export default function Page() {
                     <div style={{ minWidth: 760 }}>
                       {!!roster.length && (
                         <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 12px 8px', fontSize: 12, color: '#8B949E', letterSpacing: '.06em' }}>
-                          <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>WIN%</div><div></div><div></div>
+                          <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div>AGENTS</div><div>K:D</div><div>ACS</div><div>HS%</div><div>WIN%</div><div></div><div></div>
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2451,9 +2451,9 @@ export default function Page() {
                                 ))}
                                 {!st?.topAgents?.length && <span style={{ fontSize: 11, color: '#6B737C' }}>—</span>}
                               </div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.kd : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.acs : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.kd : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{wr == null ? '—' : `${wr}%`}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {!!r.alts?.length && !used && (
@@ -2548,7 +2548,7 @@ export default function Page() {
                 )}
                 <div data-scrollx="1" style={{ ...card, padding: 8 }}>
                   <div style={{ minWidth: 900, display: 'grid', gridTemplateColumns: playerGrid, gap: 10, padding: '10px 14px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                    <div>#</div><div>RIOT ID</div><div>주 사용 요원</div><div>포지션</div><div>최고 티어</div><div>현재 티어</div><div>ACS</div><div>HS%</div><div>K:D</div><div>승률</div>
+                    <div>#</div><div>RIOT ID</div><div>주 사용 요원</div><div>포지션</div><div>최고 티어</div><div>현재 티어</div><div>K:D</div><div>ACS</div><div>HS%</div><div>승률</div>
                   </div>
                   <div style={{ minWidth: 900, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {players.map((p, i) => {
@@ -2614,9 +2614,9 @@ export default function Page() {
                               <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>언랭</span>
                             )}
                           </div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].kd : '—'}</div>
                           <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].acs : '—'}</div>
                           <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? `${seasonStats[p.name.trim()].hsPct}%` : '—'}</div>
-                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].kd : '—'}</div>
                           <div style={wr == null
                             ? { fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }
                             : { display: 'inline-block', textAlign: 'center', fontFamily: "'IBM Plex Mono'", fontSize: 12, fontWeight: 600, color: '#0B0D10', background: wr >= 50 ? '#C8F24C' : '#E1424F', borderRadius: 999, padding: '4px 9px' }}>
