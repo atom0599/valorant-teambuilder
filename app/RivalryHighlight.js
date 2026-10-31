@@ -136,7 +136,7 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
       {/* 두 팀 · 세트 스코어 */}
       <div className="rvVersus" key={`vs-${k}`}>
         {[0, 1].map((t) => (
-          <div key={t} className={`rvTeamBox t${t}`} style={{ '--tc': TEAM[t] }}>
+          <div key={t} className={`rvTeamBox t${t}${sr.wins[t] > sr.wins[1 - t] ? ' won' : sr.wins[t] < sr.wins[1 - t] ? ' lost' : ''}`} style={{ '--tc': TEAM[t] }}>
             <div className="nm">{t === 1 && teamName(t)}{sr.wins[t] !== sr.wins[1 - t] && <span className={`res${sr.wins[t] > sr.wins[1 - t] ? ' win' : ''}`}>{sr.wins[t] > sr.wins[1 - t] ? 'WIN' : 'LOSE'}</span>}{t === 0 && teamName(t)}</div>
             <div className="icons">{rows[t].slice(0, 5).map((p) => p.agentIcon ? <img key={p.id} src={p.agentIcon} alt="" title={short(p.id)} /> : <span key={p.id} />)}</div>
           </div>

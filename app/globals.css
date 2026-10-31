@@ -326,9 +326,13 @@ button:active { transform: scale(.97); }
 .rvTeamBox.t0 { padding-right: 80px; }
 .rvTeamBox.t1 { padding-left: 80px; }
 .rvTeamBox .nm { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -.01em; color: var(--tc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.rvTeamBox .res { display: inline-block; vertical-align: 2px; margin-right: 8px; padding: 2px 7px; border-radius: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .14em; color: #8B949E; background: rgba(255,255,255,.06); }
-.rvTeamBox.t1 .res { margin-right: 0; margin-left: 8px; }
-.rvTeamBox .res.win { color: #0B0D10; background: var(--tc); }
+.rvTeamBox .res { display: inline-block; vertical-align: 2px; margin-right: 9px; padding: 3px 9px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: .16em; line-height: 1.2; color: #8B949E; background: transparent; border: 1px solid #3A424C; }
+.rvTeamBox.t1 .res { margin-right: 0; margin-left: 9px; }
+.rvTeamBox .res.win { color: #0B0D10; background: #C8F24C; border-color: #C8F24C; box-shadow: 0 0 14px rgba(200,242,76,.45); }
+.rvTeamBox.won { border-color: var(--tc); }
+.rvTeamBox.lost { filter: saturate(.45); }
+.rvTeamBox.lost .nm { color: color-mix(in srgb, var(--tc) 60%, #8B949E); }
+.rvTeamBox.lost .icons img { opacity: .6; }
 .rvTeamBox .icons { display: flex; gap: 4px; }
 .rvTeamBox .icons img, .rvTeamBox .icons span { width: 26px; height: 26px; border-radius: 7px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); }
 .rvSetScore { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 8px; padding: 10px 20px 18px; border-radius: 18px;
