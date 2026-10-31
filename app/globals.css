@@ -326,7 +326,9 @@ button:active { transform: scale(.97); }
 .rvTeamBox.t0 { padding-right: 80px; }
 .rvTeamBox.t1 { padding-left: 80px; }
 .rvTeamBox .nm { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -.01em; color: var(--tc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.rvTeamBox .crown { margin-right: 6px; }
+.rvTeamBox .res { display: inline-block; vertical-align: 2px; margin-right: 8px; padding: 2px 7px; border-radius: 5px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .14em; color: #8B949E; background: rgba(255,255,255,.06); }
+.rvTeamBox.t1 .res { margin-right: 0; margin-left: 8px; }
+.rvTeamBox .res.win { color: #0B0D10; background: var(--tc); }
 .rvTeamBox .icons { display: flex; gap: 4px; }
 .rvTeamBox .icons img, .rvTeamBox .icons span { width: 26px; height: 26px; border-radius: 7px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); }
 .rvSetScore { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 8px; padding: 10px 20px 18px; border-radius: 18px;
@@ -375,8 +377,8 @@ button:active { transform: scale(.97); }
 .rvSlide.on .rvPortrait.t1 { animation: rvInR .8s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes rvInL { from { opacity: 0; transform: translateX(-90%) } }
 @keyframes rvInR { from { opacity: 0; transform: translateX(-10%) scaleX(-1) } }
-.rvAce { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(11,13,16,.75); backdrop-filter: blur(8px); border: 1px solid color-mix(in srgb, var(--tc) 45%, transparent); border-radius: 14px; padding: 9px 8px; cursor: pointer; color: #E8EAEC; min-width: 0; }
-.rvAce:hover { border-color: var(--tc); }
+.rvAce { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 6px 4px; cursor: pointer; color: #E8EAEC; min-width: 0; text-shadow: 0 2px 12px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8); }
+.rvAce:hover .n { color: var(--tc); }
 .rvAce .k { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .16em; color: #FFD166; white-space: nowrap; }
 .rvAce .n { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -.02em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rvAce .s { font-size: 11px; color: #8B949E; white-space: nowrap; }
