@@ -298,31 +298,52 @@ button:active { transform: scale(.97); }
 @media (max-width: 640px) { .clipGrid { grid-template-columns: minmax(0, 1fr) !important; } }
 
 /* ===================================================================
-   홈 내전 하이라이트 (app/RivalryHighlight.js): 경기 하나를 세 장으로
-   01 에이스 대결 · 02 라인업 · 03 흐름. 이긴 팀 = 라임, 진 팀 = 빨강, 에이스 = 금색.
-   장을 넘기면(.on) 그 장의 애니메이션이 처음부터 다시 돈다.
+   홈 내전 하이라이트 (app/RivalryHighlight.js): 그날 시리즈를 세 장으로
+   01 에이스 대결 · 02 라인업 · 03 흐름. 왼쪽 팀 = 청록, 오른쪽 팀 = 빨강(팀 밸런싱과 같은 색),
+   더 나은 기록 · 에이스 = 금색. 장을 넘기면(.on) 그 장의 애니메이션이 처음부터 다시 돈다.
    =================================================================== */
-.rvCard { position: relative; overflow: hidden; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px; isolation: isolate;
-  background: rgba(15,19,24,.86); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 30px 60px rgba(0,0,0,.45); }
-.rvBg { position: absolute; inset: 0; z-index: -1; background-size: cover; background-position: center; opacity: .16; filter: saturate(.7); animation: rvBg 1.2s ease both, rvKb 24s ease-in-out infinite alternate; }
-.rvBg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,19,24,.4), rgba(15,19,24,.95) 70%); }
+.rvCard { position: relative; overflow: hidden; border-radius: 24px; padding: 22px; display: flex; flex-direction: column; gap: 14px; isolation: isolate;
+  background: linear-gradient(160deg, rgba(20,25,31,.92), rgba(12,15,19,.94)); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 30px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05); }
+.rvCard::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 50% at 0% 0%, rgba(47,211,183,.12), transparent 70%), radial-gradient(60% 50% at 100% 0%, rgba(255,75,87,.12), transparent 70%); }
+.rvBg { position: absolute; inset: 0; z-index: -2; background-size: cover; background-position: center; opacity: .13; filter: saturate(.6); animation: rvBg 1.2s ease both, rvKb 24s ease-in-out infinite alternate; }
+.rvBg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12,15,19,.3), rgba(12,15,19,.96) 55%); }
 @keyframes rvBg { from { opacity: 0 } }
 @keyframes rvKb { to { transform: scale(1.08) } }
-.rvHead { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; }
-.rvEyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #C8F24C; letter-spacing: .2em; }
+.rvHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rvEyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #C8F24C; letter-spacing: .22em; }
 .rvTitle { font-family: 'Archivo', sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-top: 4px; }
-.rvSub { font-size: 11px; color: rgba(232,234,236,.6); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvPart { height: 32px; padding: 0 11px; border-radius: 999px; font-size: 12px; color: #C6CDD4; background: rgba(10,12,15,.55); border: 1px solid rgba(255,255,255,.14); cursor: pointer; }
+.rvPart.on { background: #E8EAEC; color: #0B0D10; border-color: #E8EAEC; font-weight: 700; }
 
-.rvGames { display: flex; gap: 6px; padding-bottom: 2px; scrollbar-width: none; }
-.rvGames::-webkit-scrollbar { display: none; }
-.rvGame { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; font-size: 12px; color: #C6CDD4; cursor: pointer;
-  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); transition: border-color .2s, background .2s, color .2s; }
-.rvGame .no { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; }
-.rvGame b { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
-.rvGame .hot { font-size: 11px; }
-.rvGame:hover { border-color: rgba(200,242,76,.4); }
-.rvGame.on { color: #0B0D10; background: #C8F24C; border-color: #C8F24C; font-weight: 700; }
-.rvGame.on .no { color: rgba(11,13,16,.6); }
+/* 두 팀 · 세트 스코어 */
+.rvVersus { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rvTeamBox { position: relative; overflow: hidden; border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--tc) 22%, transparent), rgba(255,255,255,.02) 70%); border: 1px solid color-mix(in srgb, var(--tc) 40%, transparent); animation: rvSlideL .6s cubic-bezier(.2,.8,.2,1) both; }
+.rvTeamBox.t1 { align-items: flex-end; text-align: right; background: linear-gradient(260deg, color-mix(in srgb, var(--tc) 22%, transparent), rgba(255,255,255,.02) 70%); animation-name: rvSlideR; }
+@keyframes rvSlideL { from { opacity: 0; transform: translateX(-30px) } }
+@keyframes rvSlideR { from { opacity: 0; transform: translateX(30px) } }
+.rvTeamBox.t0 { padding-right: 80px; }
+.rvTeamBox.t1 { padding-left: 80px; }
+.rvTeamBox .nm { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -.01em; color: var(--tc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.rvTeamBox .crown { margin-right: 6px; }
+.rvTeamBox .icons { display: flex; gap: 4px; }
+.rvTeamBox .icons img, .rvTeamBox .icons span { width: 26px; height: 26px; border-radius: 7px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); }
+.rvSetScore { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 8px; padding: 10px 20px 18px; border-radius: 18px;
+  background: #0E1115; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 30px rgba(0,0,0,.5); font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 34px; line-height: 1; animation: rvPopC .55s .2s cubic-bezier(.2,1.5,.4,1) both; }
+.rvSetScore span { color: #3A424C; font-size: 24px; }
+.rvSetScore em { position: absolute; left: 0; right: 0; bottom: 5px; text-align: center; font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 8px; font-weight: 500; letter-spacing: .2em; color: #6B737C; }
+@keyframes rvPopC { from { opacity: 0; transform: translate(-50%, -50%) scale(.5) } }
+
+.rvScopes { display: flex; gap: 6px; padding-bottom: 2px; scrollbar-width: none; }
+.rvScopes::-webkit-scrollbar { display: none; }
+.rvScope { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #C6CDD4; cursor: pointer;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); transition: border-color .2s, background .2s; }
+.rvScope span { font-weight: 400; color: #8B949E; }
+.rvScope b { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+.rvScope i { font-style: normal; }
+.rvScope:hover { border-color: rgba(255,255,255,.3); }
+.rvScope.on { background: rgba(200,242,76,.12); border-color: #C8F24C; color: #E8EAEC; }
 
 .rvTabs { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid rgba(255,255,255,.08); }
 .rvTab { background: none; border: none; color: #8B949E; font-size: 13px; font-weight: 600; padding: 8px 4px 10px; cursor: pointer; transition: color .2s; display: inline-flex; justify-content: center; align-items: baseline; gap: 6px; }
@@ -331,9 +352,9 @@ button:active { transform: scale(.97); }
 .rvTab.on .n { color: #C8F24C; }
 .rvTabBar { position: absolute; left: 0; bottom: -1px; width: calc(100% / 3); height: 2px; background: #C8F24C; box-shadow: 0 0 12px rgba(200,242,76,.6); transition: transform .45s cubic-bezier(.2,.8,.2,1); }
 
-.rvView { overflow: hidden; touch-action: pan-y; margin: 0 -20px; }
-.rvTrack { display: flex; transition: transform .55s cubic-bezier(.2,.8,.2,1); }
-.rvSlide { flex: 0 0 100%; min-width: 0; padding: 4px 20px; }
+.rvView { overflow: hidden; touch-action: pan-y; margin: 0 -22px; }
+.rvTrack { display: flex; align-items: flex-start; transition: transform .55s cubic-bezier(.2,.8,.2,1); }
+.rvSlide { flex: 0 0 100%; min-width: 0; padding: 4px 22px; }
 .rvFoot { display: flex; justify-content: space-between; align-items: center; }
 .rvDots { display: flex; gap: 6px; }
 .rvDots button { width: 7px; height: 7px; border-radius: 999px; border: none; padding: 0; background: rgba(255,255,255,.2); cursor: pointer; transition: width .3s, background .3s; }
@@ -342,58 +363,70 @@ button:active { transform: scale(.97); }
 .rvLink:hover { color: #C8F24C; }
 
 /* 01 에이스 대결 */
-.rvDuel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 1.35fr) minmax(0, 1fr); align-items: end; min-height: 360px; }
-.rvSide { position: relative; height: 100%; min-height: 360px; display: flex; flex-direction: column; justify-content: flex-end; }
-.rvPortrait { position: absolute; bottom: 52px; left: 50%; height: 320px; max-width: none; pointer-events: none; filter: drop-shadow(0 14px 24px rgba(0,0,0,.6)); }
-.rvPortrait.w { transform: translateX(-50%); }
-.rvPortrait.l { transform: translateX(-50%) scaleX(-1); }
-.rvPortrait.icon { height: 120px; bottom: 120px; border-radius: 24px; }
-.rvSlide.on .rvPortrait.w { animation: rvInW .8s cubic-bezier(.2,.8,.2,1) both; }
-.rvSlide.on .rvPortrait.l { animation: rvInL .8s cubic-bezier(.2,.8,.2,1) both; }
-@keyframes rvInW { from { opacity: 0; transform: translateX(-90%) } }
-@keyframes rvInL { from { opacity: 0; transform: translateX(-10%) scaleX(-1) } }
-.rvSide::before { content: ""; position: absolute; left: 10%; right: 10%; bottom: 40px; height: 200px; border-radius: 50%; filter: blur(30px); opacity: .35; pointer-events: none; }
-.rvSide.w::before { background: #C8F24C; }
-.rvSide.l::before { background: #FF4B57; }
-.rvAce { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(11,13,16,.72); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 9px 8px; cursor: pointer; color: #E8EAEC; min-width: 0; }
-.rvAce.w { border-color: rgba(200,242,76,.4); }
-.rvAce.l { border-color: rgba(255,75,87,.4); }
+.rvDuelWrap { display: flex; flex-direction: column; gap: 14px; }
+.rvDuel { display: grid; grid-template-columns: minmax(0, .8fr) minmax(280px, 1.6fr) minmax(0, .8fr); align-items: end; min-height: 340px; }
+.rvSide { position: relative; height: 100%; min-height: 340px; display: flex; flex-direction: column; justify-content: flex-end; }
+.rvSide::before { content: ""; position: absolute; left: 12%; right: 12%; bottom: 50px; height: 190px; border-radius: 50%; filter: blur(34px); opacity: .32; pointer-events: none; background: var(--tc); }
+.rvPortrait { position: absolute; bottom: 50px; left: 50%; height: 300px; max-width: none; pointer-events: none; filter: drop-shadow(0 14px 24px rgba(0,0,0,.6)); }
+.rvPortrait.t0 { transform: translateX(-50%); }
+.rvPortrait.t1 { transform: translateX(-50%) scaleX(-1); }
+.rvPortrait.icon { height: 110px; bottom: 120px; border-radius: 24px; }
+.rvSlide.on .rvPortrait.t0 { animation: rvInL .8s cubic-bezier(.2,.8,.2,1) both; }
+.rvSlide.on .rvPortrait.t1 { animation: rvInR .8s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rvInL { from { opacity: 0; transform: translateX(-90%) } }
+@keyframes rvInR { from { opacity: 0; transform: translateX(-10%) scaleX(-1) } }
+.rvAce { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; background: rgba(11,13,16,.75); backdrop-filter: blur(8px); border: 1px solid color-mix(in srgb, var(--tc) 45%, transparent); border-radius: 14px; padding: 9px 8px; cursor: pointer; color: #E8EAEC; min-width: 0; }
+.rvAce:hover { border-color: var(--tc); }
 .rvAce .k { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .16em; color: #FFD166; white-space: nowrap; }
-.rvAce .n { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -.02em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rvAce .n { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -.02em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rvAce .s { font-size: 11px; color: #8B949E; white-space: nowrap; }
 .rvAce .s em { font-style: normal; color: #4C9AFF; }
 .rvSlide.on .rvAce { animation: fadeUp .5s .5s cubic-bezier(.2,.7,.3,1) both; }
-.rvTape { display: flex; flex-direction: column; gap: 7px; padding: 0 10px 6px; }
-.rvScore { display: flex; justify-content: center; align-items: baseline; gap: 10px; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 46px; line-height: 1; letter-spacing: -.02em; }
-.rvScore span { color: #3A424C; font-size: 32px; }
-.rvSlide.on .rvScore { animation: rvPop .55s .15s cubic-bezier(.2,1.5,.4,1) both; }
-@keyframes rvPop { from { opacity: 0; transform: scale(.5) } }
-.rvMap { text-align: center; font-size: 11px; color: #8B949E; margin: -2px 0 6px; }
-.rvRow { display: grid; grid-template-columns: 44px 1fr 62px 1fr 44px; align-items: center; gap: 6px; }
+.rvTape { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 6px; }
+.rvTapeHead { text-align: center; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+.rvTapeHead span { display: block; font-family: 'IBM Plex Sans KR', sans-serif; font-weight: 400; font-size: 10.5px; color: #6B737C; margin-top: 2px; }
+.rvRow { display: grid; grid-template-columns: 46px 1fr 64px 1fr 46px; align-items: center; gap: 7px; }
 .rvRow .v { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #C6CDD4; }
 .rvRow .v.r { text-align: right; }
 .rvRow .v.best { color: #FFD166; font-weight: 600; }
 .rvRow .lab { text-align: center; font-size: 11px; color: #8B949E; white-space: nowrap; }
 .rvRow .bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
 .rvRow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
-.rvRow .bar.w i { right: 0; background: linear-gradient(270deg, #C8F24C, rgba(200,242,76,.35)); }
-.rvRow .bar.l i { left: 0; background: linear-gradient(90deg, #FF4B57, rgba(255,75,87,.35)); }
+.rvRow .bar.t0 i { right: 0; background: linear-gradient(270deg, #2FD3B7, rgba(47,211,183,.3)); }
+.rvRow .bar.t1 i { left: 0; background: linear-gradient(90deg, #FF4B57, rgba(255,75,87,.3)); }
 .rvSlide.on .rvRow { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(.3s + var(--d) * .06s); }
 .rvSlide.on .rvRow .bar i { animation: rvBar .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(.45s + var(--d) * .08s); }
 @keyframes rvBar { from { width: 0 } }
+/* 세트별 세부 */
+.rvPerSet { border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); overflow: hidden; }
+.rvPerSet .hd, .rvPerSet .row { display: grid; grid-template-columns: 110px 1fr 70px 1fr; align-items: center; gap: 10px; padding: 9px 14px; }
+.rvPerSet .hd { font-size: 10.5px; color: #8B949E; border-bottom: 1px solid rgba(255,255,255,.06); }
+.rvPerSet .hd span:nth-child(2) { color: #2FD3B7; }
+.rvPerSet .hd span:nth-child(4) { color: #FF4B57; text-align: right; }
+.rvPerSet .row + .row { border-top: 1px solid rgba(255,255,255,.05); }
+.rvPerSet .set { font-size: 13px; font-weight: 600; }
+.rvPerSet .set em { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; margin-right: 6px; }
+.rvPerSet .p { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8B949E; }
+.rvPerSet .p b { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 14px; color: #E8EAEC; }
+.rvPerSet .p span { font-family: 'IBM Plex Mono', monospace; }
+.rvPerSet .p .na { font-family: inherit; color: #4A525C; }
+.rvPerSet .p img { width: 20px; height: 20px; border-radius: 5px; }
+.rvPerSet .p.t1 { flex-direction: row-reverse; }
+.rvPerSet .sc { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #6B737C; }
+.rvPerSet .sc i { font-style: normal; font-weight: 600; }
+.rvSlide.on .rvPerSet .row { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(.9s + var(--d) * .08s); }
 
 /* 02 라인업 */
-.rvLineup { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr); gap: 12px; align-items: center; }
+.rvLineup { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .rvTeam { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.rvTeamHead, .rvPl { --cols: 64px 36px 34px; }
-.rvTeamHead { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 0 48px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .14em; color: #6B737C; }
-.rvTeamHead > span:first-child { font-weight: 600; }
-.rvTeamHead.w > span:first-child { color: #C8F24C; }
-.rvTeamHead.l > span:first-child { color: #FF4B57; }
+.rvTeamHead, .rvPl { --cols: 66px 36px 34px; }
+.rvTeamHead { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 2px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: .1em; color: #6B737C; }
+.rvTeamHead .tn { font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 0; color: var(--tc); }
+.rvTeamHead .tn b { margin-left: 4px; color: #E8EAEC; }
 .rvTeamHead .cols { display: grid; grid-template-columns: var(--cols); gap: 6px; text-align: right; }
 .rvPl { position: relative; overflow: hidden; display: grid; grid-template-columns: 34px minmax(0, 1fr) var(--cols); gap: 6px; align-items: center; padding: 7px 10px 9px 8px; border-radius: 12px; text-align: left; color: #E8EAEC; cursor: pointer;
-  background: #1B2027; border: 1px solid #262C34; transition: border-color .2s; }
-.rvPl:hover { border-color: #3A424C; }
+  background: rgba(27,32,39,.85); border: 1px solid #262C34; transition: border-color .2s; }
+.rvPl:hover { border-color: color-mix(in srgb, var(--tc) 60%, transparent); }
 .rvPl img, .rvPl .noimg { width: 34px; height: 34px; border-radius: 9px; background: #252C34; }
 .rvPl .nm { display: flex; flex-direction: column; min-width: 0; }
 .rvPl .n { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -401,58 +434,63 @@ button:active { transform: scale(.97); }
 .rvPl .s { font-size: 10.5px; color: #8B949E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rvPl .kda, .rvPl .hs, .rvPl .acs { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C6CDD4; text-align: right; }
 .rvPl .acs { font-size: 14px; color: #E8EAEC; }
-.rvPl .fill { position: absolute; left: 0; bottom: 0; height: 2px; }
-.rvPl.w .fill { background: #C8F24C; }
-.rvPl.l .fill { background: #FF4B57; }
-.rvPl.ace { border-color: rgba(255,209,102,.5); background: linear-gradient(90deg, rgba(255,209,102,.1), #1B2027 60%); }
+.rvPl .fill { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--tc); }
+.rvPl.ace { border-color: rgba(255,209,102,.5); background: linear-gradient(90deg, rgba(255,209,102,.1), rgba(27,32,39,.85) 60%); }
 .rvSlide.on .rvPl { animation: rvRowIn .45s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * .06s + .05s); }
-.rvSlide.on .rvTeam:last-child .rvPl { animation-name: rvRowInR; }
+.rvSlide.on .rvTeam.t1 .rvPl { animation-name: rvRowInR; }
 .rvSlide.on .rvPl .fill { animation: rvBar .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * .06s + .35s); }
 @keyframes rvRowIn { from { opacity: 0; transform: translateX(-24px) } }
 @keyframes rvRowInR { from { opacity: 0; transform: translateX(24px) } }
-.rvMid { position: relative; height: 150px; display: grid; place-items: center; }
-.rvMid .ring { position: absolute; width: 96px; height: 96px; border-radius: 50%; border: 1px dashed rgba(255,255,255,.16); animation: rvSpin 16s linear infinite; }
-.rvMid .ring.r2 { width: 78px; height: 78px; border: 2px solid transparent; border-top-color: #C8F24C; border-bottom-color: #FF4B57; animation-duration: 3.2s; }
-@keyframes rvSpin { to { transform: rotate(360deg) } }
-.rvMid .sc { position: relative; text-align: center; }
-.rvMid .sc b { display: block; font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -.02em; }
-.rvMid .sc span { font-size: 10px; color: #8B949E; }
-.rvSlide.on .rvMid .sc { animation: rvPop .5s .2s cubic-bezier(.2,1.5,.4,1) both; }
 
 /* 03 흐름 */
-.rvMomentum { display: flex; flex-direction: column; gap: 14px; }
-.rvChart { position: relative; height: 200px; margin: 22px 0 10px; }
-.rvChart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.rvLine { stroke-dasharray: 1; stroke-dashoffset: 1; }
-.rvSlide.on .rvLine { animation: rvDraw 2.4s .2s ease-in-out forwards; }
+.rvFlow { display: flex; flex-direction: column; gap: 14px; }
+.rvLegend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: #C6CDD4; }
+.rvLegend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.rvSet { border-radius: 16px; padding: 14px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); display: flex; flex-direction: column; gap: 10px; }
+.rvSlide.on .rvSet { animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--s, 0) * .12s); }
+.rvSetHead { display: flex; justify-content: space-between; align-items: baseline; }
+.rvSetHead .t { font-size: 14px; font-weight: 700; }
+.rvSetHead .t em { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; margin-right: 6px; }
+.rvSetHead .sc { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 20px; color: #3A424C; }
+.rvSetHead .sc i { font-style: normal; }
+.rvStrip { display: flex; gap: 8px; }
+.rvStrip .grp { display: flex; gap: 3px; min-width: 0; }
+.rvStrip .grp.ot { padding-left: 8px; border-left: 2px dashed rgba(255,209,102,.5); }
+.rvStrip .cell { flex: 1; min-width: 0; height: 18px; border-radius: 4px; display: grid; place-items: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: rgba(11,13,16,.75); }
+.rvStrip .cell.t0 { background: #2FD3B7; }
+.rvStrip .cell.t1 { background: #FF4B57; }
+.rvSlide.on .rvStrip .cell { animation: rvCell .3s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(.2s + var(--c) * 1s); }
+@keyframes rvCell { from { opacity: 0; transform: scaleY(.2) } }
+.rvFlow.single .rvStrip .cell { height: 30px; border-radius: 6px; }
+.rvHalves { display: flex; gap: 14px; font-size: 11.5px; color: #8B949E; }
+.rvHalves i { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+.rvNoRounds { font-size: 12px; color: #8B949E; padding: 6px 0; }
+.rvRace { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+.rvRaceChart { position: relative; height: 150px; margin-right: 26px; }
+.rvRaceChart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rvRaceLine { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.rvSlide.on .rvRaceLine { animation: rvDraw 1.8s .5s ease-in-out forwards; }
 @keyframes rvDraw { to { stroke-dashoffset: 0 } }
-.rvArea { opacity: 0; }
-.rvSlide.on .rvArea { animation: rvFade .8s 2.3s forwards; }
+.rvRaceChart .mark { position: absolute; top: -14px; margin-left: 4px; font-size: 9.5px; color: #6B737C; }
+.rvRaceChart .mark.ot { color: #FFD166; }
+.rvRaceChart .end { position: absolute; right: -26px; transform: translateY(-50%); font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 15px; opacity: 0; }
+.rvSlide.on .rvRaceChart .end { animation: rvFade .4s 2.2s forwards; }
 @keyframes rvFade { to { opacity: 1 } }
-.rvDot { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(15,19,24,.9); opacity: 0; }
-.rvSlide.on .rvDot { animation: rvDot .3s forwards; }
-@keyframes rvDot { from { opacity: 0; transform: scale(0) } to { opacity: 1; transform: scale(1) } }
-.rvEv { --tx: -50%; position: absolute; transform: translate(var(--tx), -100%); white-space: nowrap; font-size: 10.5px; padding: 3px 7px; border-radius: 6px; background: #1B2027; border: 1px solid #333B45; color: #E8EAEC; opacity: 0; pointer-events: none; }
-.rvSlide.on .rvEv { animation: rvEv .35s forwards; }
-@keyframes rvEv { from { opacity: 0; transform: translate(var(--tx), -70%) } to { opacity: 1; transform: translate(var(--tx), -100%) } }
-.rvEv.end { --tx: -100%; }
-.rvAxis { position: absolute; left: 0; font-size: 10.5px; font-weight: 600; }
-.rvAxis.t { top: -20px; }
-.rvAxis.b { bottom: -20px; }
-.rvHalf { position: absolute; top: -18px; margin-left: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #6B737C; }
-.rvFacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
-.rvFacts > div { background: #1B2027; border: 1px solid #262C34; border-radius: 12px; padding: 9px 12px; }
+.rvFacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.rvFacts > div { background: rgba(27,32,39,.85); border: 1px solid #262C34; border-radius: 12px; padding: 9px 12px; }
 .rvFacts span { display: block; font-size: 10.5px; color: #8B949E; }
 .rvFacts b { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 15px; }
-.rvFacts em { font-style: normal; }
-.rvSlide.on .rvFacts > div { animation: fadeUp .4s 2.4s cubic-bezier(.2,.7,.3,1) both; }
-.rvEmpty { min-height: 240px; display: grid; place-items: center; text-align: center; font-size: 13px; color: #8B949E; padding: 0 20px; }
+.rvFacts i { font-style: normal; }
 
 @media (max-width: 760px) {
   .rvDuel { grid-template-columns: 1fr 1fr; min-height: 0; }
   .rvTape { grid-column: 1 / -1; order: 3; padding: 14px 0 0; }
-  .rvSide { min-height: 230px; }
-  .rvPortrait { height: 200px; }
+  .rvSide { min-height: 220px; }
+  .rvPortrait { height: 190px; }
   .rvLineup { grid-template-columns: 1fr; }
-  .rvMid { height: 96px; order: -1; }
+  .rvPerSet .hd, .rvPerSet .row { grid-template-columns: 70px 1fr 54px 1fr; gap: 6px; padding: 8px 10px; }
+  .rvPerSet .p span { display: none; }
+  .rvSetScore { font-size: 26px; padding: 8px 14px 16px; }
+  .rvTeamBox .nm { font-size: 14px; }
+  .rvTeamBox .icons img, .rvTeamBox .icons span { width: 20px; height: 20px; }
 }

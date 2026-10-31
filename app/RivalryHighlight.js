@@ -1,43 +1,104 @@
 'use client';
-// 홈 "내전 하이라이트": 내전 날 하나를 골라, 그날 경기 하나를 세 장으로 넘겨 본다.
-//   01 에이스 대결 — 양 팀 에이스(경기 MVP · 팀 MVP)의 그 경기 스탯을 마주 놓고 비교
-//   02 라인업     — 열 명 전원의 그 경기 스탯
-//   03 흐름       — 라운드마다 누가 이겼는지 누적 점수 차 그래프 (라운드 기록이 없으면 불러온다)
-// 기본으로 보이는 경기는 그날 최대 접전, 없으면 마지막 경기.
+// 홈 "내전 하이라이트": 내전 날 하나를 같은 두 팀이 치른 시리즈(세트 여러 개)로 보고,
+// 세 장으로 넘겨 본다.
+//   01 에이스 대결 — 양 팀 에이스의 그날 전체 스탯 비교 + 세트별 세부
+//   02 라인업     — 열 명 전원 스탯
+//   03 흐름       — 세트마다 라운드를 누가 땄는지 (라운드 기록이 없으면 불러온다)
+// 위의 "전체 / 1세트 / 2세트 …"로 보는 범위를 고르면 세 장 모두 그 범위로 바뀐다.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { matchAwards } from '../lib/fame';
 import { MAP_IMG, agentKo } from '../lib/constants';
 import { CountUp } from './FamePodium';
 
-const WIN = '#C8F24C';
-const LOSE = '#FF4B57';
-const SLIDES = [['ACE DUEL', '에이스 대결'], ['LINEUP', '라인업'], ['MOMENTUM', '흐름']];
+const TEAM = ['#2FD3B7', '#FF4B57']; // 팀 밸런싱 화면과 같은 두 팀 색 (왼쪽 = 시리즈 이긴 팀)
+const SLIDES = ['에이스 대결', '라인업', '흐름'];
 const short = (id) => String(id).split('#')[0];
-const kdOf = (p) => (p.kills == null ? null : Math.round((p.deaths ? p.kills / p.deaths : p.kills) * 100) / 100);
 const scoreOf = (mt) => String(mt.score || '').split(/[:\-]/).map((s) => parseInt(s, 10));
 const mapImg = (map) => MAP_IMG[map] || MAP_IMG[String(map).split(',')[0]?.trim()] || '/maps/ascent.png';
+const overlap = (list, set) => list.filter((p) => set.has(p.id)).length;
 
-// 팀 에이스: 경기 MVP · 팀 MVP 중 그 팀 사람, 없으면 그 팀 ACS 1위.
-function acesOf(mt) {
-  const { mvp, teamMvp } = matchAwards(mt);
-  const pick = (team) => [mvp, teamMvp].find((p) => p && team.includes(p))
-    || team.filter((p) => p.acs != null).sort((a, b) => b.acs - a.acs)[0] || team[0] || null;
-  return { w: pick(mt.winners), l: pick(mt.losers), mvp };
+// 그날 경기들을 시리즈로 묶는다: 양 팀 명단이 5명 중 3명 이상 겹치면 같은 두 팀.
+// 팀이 새로 짜이면 다음 시리즈. 각 세트는 sides[0] = 시리즈 왼쪽 팀 선수들.
+function buildSeries(matches) {
+  const out = [];
+  let cur = null;
+  matches.forEach((mt) => {
+    const [ws, ls] = scoreOf(mt);
+    let aWon = null;
+    if (cur) {
+      if (overlap(mt.winners, cur.A) >= 3 && overlap(mt.losers, cur.B) >= 3) aWon = true;
+      else if (overlap(mt.winners, cur.B) >= 3 && overlap(mt.losers, cur.A) >= 3) aWon = false;
+    }
+    if (aWon == null) { cur = { A: new Set(), B: new Set(), sets: [] }; out.push(cur); aWon = true; }
+    (aWon ? mt.winners : mt.losers).forEach((p) => cur.A.add(p.id));
+    (aWon ? mt.losers : mt.winners).forEach((p) => cur.B.add(p.id));
+    cur.sets.push({ mt, sides: aWon ? [mt.winners, mt.losers] : [mt.losers, mt.winners], score: aWon ? [ws, ls] : [ls, ws], winner: aWon ? 0 : 1 });
+  });
+  // 세트를 더 많이 딴 팀을 왼쪽으로 (같으면 첫 세트 이긴 팀)
+  return out.map((s) => {
+    const wins = [0, 1].map((t) => s.sets.filter((x) => x.winner === t).length);
+    const flip = wins[1] > wins[0];
+    const sets = s.sets.map((x, i) => (flip ? { ...x, sides: [x.sides[1], x.sides[0]], score: [x.score[1], x.score[0]], winner: 1 - x.winner } : x)).map((x, i) => ({ ...x, no: i + 1 }));
+    return { sets, wins: flip ? [wins[1], wins[0]] : wins };
+  });
 }
 
-export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlIndex, agentArt, realNameOf, openPlayer, openMatch, ensureRounds }) {
-  const matches = hl.matches;
-  const [gameDate, setGameDate] = useState(null);
-  const [slide, setSlide] = useState(0);
-  const mt = matches.find((m) => m.date === gameDate) || hl.close || matches[matches.length - 1];
-  useEffect(() => { setGameDate(null); }, [hlDay.start]);
+// 선수별 합계: 킬 · 데스 · 어시 · 퍼스트 킬 · 클러치는 더하고, ACS · HS%는 라운드 수로 가중 평균.
+function aggregate(sets, side) {
+  const by = new Map();
+  sets.forEach((s) => {
+    const n = (s.score[0] + s.score[1]) || 1;
+    s.sides[side].forEach((p) => {
+      const e = by.get(p.id) || { id: p.id, sets: 0, rounds: 0, acsW: 0, acsN: 0, hsW: 0, hsN: 0, kills: null, deaths: null, assists: null, firstKills: null, clutches: null, mvp: 0, agents: {} };
+      e.sets += 1;
+      if (p.acs != null) { e.acsW += p.acs * n; e.acsN += n; }
+      if (p.hsPct != null) { e.hsW += p.hsPct * n; e.hsN += n; }
+      ['kills', 'deaths', 'assists', 'firstKills', 'clutches'].forEach((k) => { if (p[k] != null) e[k] = (e[k] || 0) + p[k]; });
+      if (p.mvp === 'match') e.mvp += 1;
+      if (p.agent) e.agents[p.agent] = { n: (e.agents[p.agent]?.n || 0) + 1, icon: p.agentIcon };
+      by.set(p.id, e);
+    });
+  });
+  return [...by.values()].map((e) => {
+    const [agent, a] = Object.entries(e.agents).sort((x, y) => y[1].n - x[1].n)[0] || [null, null];
+    return {
+      ...e, agent, agentIcon: a?.icon || null,
+      acs: e.acsN ? Math.round(e.acsW / e.acsN) : null,
+      hsPct: e.hsN ? Math.round(e.hsW / e.hsN) : null,
+      kd: e.kills == null ? null : Math.round((e.deaths ? e.kills / e.deaths : e.kills) * 100) / 100
+    };
+  }).sort((a, b) => (b.acs ?? -1) - (a.acs ?? -1));
+}
 
-  const d0 = new Date(matches[0].date), d1 = new Date(matches[matches.length - 1].date);
+// 라운드마다 이긴 팀 (0 = 왼쪽, 1 = 오른쪽). 선수 기록의 rounds('W'/'L')에서 읽는다.
+function roundSeq(set) {
+  const a = set.sides[0].find((p) => p.rounds)?.rounds;
+  if (a) return [...a].map((c) => (c === 'W' ? 0 : 1));
+  const b = set.sides[1].find((p) => p.rounds)?.rounds;
+  return b ? [...b].map((c) => (c === 'W' ? 1 : 0)) : null;
+}
+const matchKeyOf = (set) => [...set.sides[0], ...set.sides[1]].find((p) => p.matchKey)?.matchKey || null;
+
+export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlIndex, agentArt, realNameOf, openPlayer, openMatch, ensureRounds }) {
+  const series = useMemo(() => buildSeries(hl.matches), [hl.matches]);
+  // 세트가 가장 많은 시리즈부터 (같으면 나중 것)
+  const defaultSeries = series.reduce((best, s, i) => (s.sets.length >= series[best].sets.length ? i : best), 0);
+  const [seriesIdx, setSeriesIdx] = useState(null);
+  const [scope, setScope] = useState(0); // 0 = 전체, n = n세트
+  const [slide, setSlide] = useState(0);
+  useEffect(() => { setSeriesIdx(null); setScope(0); }, [hlDay.start]);
+  const sr = series[seriesIdx ?? defaultSeries] || series[0];
+  const sets = scope ? sr.sets.filter((s) => s.no === scope) : sr.sets;
+
+  // 에이스는 시리즈 전체 기준으로 고정 (절반 이상 세트를 뛴 사람 중 평균 ACS 1위)
+  const total = useMemo(() => [0, 1].map((t) => aggregate(sr.sets, t)), [sr]);
+  const aceIds = total.map((list) => (list.find((p) => p.sets * 2 >= sr.sets.length && p.acs != null) || list[0])?.id);
+  const rows = useMemo(() => [0, 1].map((t) => aggregate(sets, t)), [sets]);
+  const teamName = (t) => (aceIds[t] ? `팀 ${short(aceIds[t])}` : t ? '오른쪽 팀' : '왼쪽 팀');
+
+  const d0 = new Date(hl.matches[0].date), d1 = new Date(hl.matches[hl.matches.length - 1].date);
   const dayLabel = `${d0.getMonth() + 1}월 ${d0.getDate()}${d1.getDate() !== d0.getDate() ? `~${d1.getMonth() !== d0.getMonth() ? `${d1.getMonth() + 1}월 ` : ''}${d1.getDate()}` : ''}일`;
   const isToday = Date.now() >= hlDay.start && Date.now() < hlDay.end;
-  const mapsPlayed = [...new Set(matches.map((x) => x.map))].join(' · ');
 
-  // 좌우로 밀어서 넘기기 (세로 스크롤은 그대로)
   const drag = useRef(null);
   const go = (i) => setSlide(Math.max(0, Math.min(SLIDES.length - 1, i)));
   const onDown = (e) => { drag.current = { x: e.clientX, y: e.clientY }; };
@@ -48,263 +109,289 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(slide + (dx < 0 ? 1 : -1));
   };
 
-  const [sw, sl] = scoreOf(mt);
-  const aces = acesOf(mt);
-  const ctx = { mt, aces, agentArt, realNameOf, openPlayer, sw, sl };
+  const k = `${hlDay.start}-${seriesIdx ?? defaultSeries}-${scope}`;
+  const ctx = { sr, sets, scope, rows, total, aceIds, teamName, agentArt, realNameOf, openPlayer };
+  const bgMap = (scope ? sets[0] : sr.sets[sr.sets.length - 1]).mt.map;
 
   return (
     <div className="rvCard" data-lift="1">
-      <div className="rvBg" key={`bg-${mt.date}`} style={{ backgroundImage: `url(${mapImg(mt.map)})` }} />
+      <div className="rvBg" key={`bg-${bgMap}`} style={{ backgroundImage: `url(${mapImg(bgMap)})` }} />
       <div className="rvHead">
         <div style={{ minWidth: 0 }}>
           <div className="rvEyebrow">MATCH DAY RECAP</div>
           <div className="rvTitle">{isToday ? '오늘의' : dayLabel} 내전 하이라이트</div>
-          <div className="rvSub">{hlDay.count}경기 · {mapsPlayed}</div>
         </div>
-        {hlDays.length > 1 && (
-          <div style={{ display: 'flex', gap: 6, flex: 'none' }}>
-            {[['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
-              <button key={t} className="hlNav" title={title} disabled={off} onClick={() => setHlIndex(to)}>{t}</button>
-            ))}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 6, flex: 'none', alignItems: 'center' }}>
+          {series.length > 1 && series.map((s, i) => (
+            <button key={i} className={`rvPart${i === (seriesIdx ?? defaultSeries) ? ' on' : ''}`} onClick={() => { setSeriesIdx(i); setScope(0); }}>{i + 1}부</button>
+          ))}
+          {hlDays.length > 1 && [['◀', hlIndex + 1, hlIndex >= hlDays.length - 1, '이전 내전 날'], ['▶', hlIndex - 1, hlIndex <= 0, '다음 내전 날']].map(([t, to, off, title]) => (
+            <button key={t} className="hlNav" title={title} disabled={off} onClick={() => setHlIndex(to)}>{t}</button>
+          ))}
+        </div>
       </div>
 
-      <div className="rvGames" data-scrollx="1">
-        {matches.map((m, i) => {
-          const [a, b] = scoreOf(m);
-          return (
-            <button key={m.date} className={`rvGame${m === mt ? ' on' : ''}`} onClick={() => setGameDate(m.date)}>
-              <span className="no">G{i + 1}</span>
-              <span>{m.map}</span>
-              <b>{Number.isFinite(a) ? `${a}:${b}` : m.score}</b>
-              {m === hl.close && <span className="hot" title="그날 최대 접전">😰</span>}
-            </button>
-          );
-        })}
+      {/* 두 팀 · 세트 스코어 */}
+      <div className="rvVersus" key={`vs-${k}`}>
+        {[0, 1].map((t) => (
+          <div key={t} className={`rvTeamBox t${t}`} style={{ '--tc': TEAM[t] }}>
+            <div className="nm">{sr.wins[t] > sr.wins[1 - t] && <span className="crown">👑</span>}{teamName(t)}</div>
+            <div className="icons">{total[t].slice(0, 5).map((p) => p.agentIcon ? <img key={p.id} src={p.agentIcon} alt="" title={short(p.id)} /> : <span key={p.id} />)}</div>
+          </div>
+        ))}
+        <div className="rvSetScore">
+          <b style={{ color: TEAM[0] }}>{sr.wins[0]}</b><span>:</span><b style={{ color: TEAM[1] }}>{sr.wins[1]}</b>
+          <em>SET SCORE</em>
+        </div>
+      </div>
+
+      <div className="rvScopes" data-scrollx="1">
+        <button className={`rvScope${!scope ? ' on' : ''}`} onClick={() => setScope(0)}>전체 <span>{sr.sets.length}세트</span></button>
+        {sr.sets.map((s) => (
+          <button key={s.no} className={`rvScope${scope === s.no ? ' on' : ''}`} onClick={() => setScope(s.no)}>
+            {s.no}세트 <span>{s.mt.map}</span>
+            <b><i style={{ color: TEAM[0] }}>{s.score[0]}</i>:<i style={{ color: TEAM[1] }}>{s.score[1]}</i></b>
+          </button>
+        ))}
       </div>
 
       <div className="rvTabs">
-        {SLIDES.map(([en, ko], i) => (
-          <button key={en} className={`rvTab${slide === i ? ' on' : ''}`} onClick={() => go(i)}>
-            <span className="n">0{i + 1}</span>{ko}
-          </button>
+        {SLIDES.map((label, i) => (
+          <button key={label} className={`rvTab${slide === i ? ' on' : ''}`} onClick={() => go(i)}><span className="n">0{i + 1}</span>{label}</button>
         ))}
         <span className="rvTabBar" style={{ transform: `translateX(${slide * 100}%)` }} />
       </div>
 
       <div className="rvView" onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => { drag.current = null; }}>
         <div className="rvTrack" style={{ transform: `translateX(${-slide * 100}%)` }}>
-          <div className={`rvSlide${slide === 0 ? ' on' : ''}`} key={`s0-${mt.date}`}><AceDuel {...ctx} /></div>
-          <div className={`rvSlide${slide === 1 ? ' on' : ''}`} key={`s1-${mt.date}`}><Lineup {...ctx} /></div>
-          <div className={`rvSlide${slide === 2 ? ' on' : ''}`} key={`s2-${mt.date}`}><Momentum {...ctx} active={slide === 2} ensureRounds={ensureRounds} /></div>
+          <div className={`rvSlide${slide === 0 ? ' on' : ''}`} key={`s0-${k}`}><AceDuel {...ctx} /></div>
+          <div className={`rvSlide${slide === 1 ? ' on' : ''}`} key={`s1-${k}`}><Lineup {...ctx} /></div>
+          <div className={`rvSlide${slide === 2 ? ' on' : ''}`} key={`s2-${k}`}><Flow {...ctx} active={slide === 2} ensureRounds={ensureRounds} /></div>
         </div>
       </div>
 
       <div className="rvFoot">
-        <div className="rvDots">
-          {SLIDES.map(([en], i) => <button key={en} className={slide === i ? 'on' : ''} onClick={() => go(i)} aria-label={en} />)}
-        </div>
-        <button className="rvLink" onClick={() => openMatch(mt.date)}>경기 상세 보기 →</button>
+        <div className="rvDots">{SLIDES.map((label, i) => <button key={label} className={slide === i ? 'on' : ''} onClick={() => go(i)} aria-label={label} />)}</div>
+        <button className="rvLink" onClick={() => openMatch((scope ? sets[0] : sr.sets[sr.sets.length - 1]).mt.date)}>경기 상세 보기 →</button>
       </div>
     </div>
   );
 }
 
-function Portrait({ p, art, side }) {
-  if (art?.portrait) return <img className={`rvPortrait ${side}`} src={art.portrait} alt="" aria-hidden="true" />;
-  return p?.agentIcon ? <img className={`rvPortrait icon ${side}`} src={p.agentIcon} alt="" aria-hidden="true" /> : null;
-}
-
-function AceTag({ p, side, label, realNameOf, openPlayer }) {
-  if (!p) return <div className={`rvAce ${side}`} />;
+function AceCard({ p, t, label, art, realNameOf, openPlayer }) {
+  if (!p) return <div className={`rvSide t${t}`} />;
   const rn = realNameOf(p.id);
   return (
-    <button className={`rvAce ${side}`} onClick={() => openPlayer(p.id)}>
-      <span className="k">{label}{p.mvp === 'match' ? ' · 경기 MVP' : p.mvp === 'team' ? ' · 팀 MVP' : ''}</span>
-      <span className="n">{short(p.id)}</span>
-      <span className="s">{p.agent ? agentKo(p.agent) : '—'}{rn ? <em> · {rn}</em> : null}</span>
-    </button>
+    <div className={`rvSide t${t}`} style={{ '--tc': TEAM[t] }}>
+      {art?.portrait
+        ? <img className={`rvPortrait t${t}`} src={art.portrait} alt="" aria-hidden="true" />
+        : p.agentIcon && <img className={`rvPortrait icon t${t}`} src={p.agentIcon} alt="" aria-hidden="true" />}
+      <button className="rvAce" onClick={() => openPlayer(p.id)}>
+        <span className="k">{label}</span>
+        <span className="n">{short(p.id)}</span>
+        <span className="s">{p.agent ? agentKo(p.agent) : '—'}{rn ? <em> · {rn}</em> : null}</span>
+      </button>
+    </div>
   );
 }
 
-// 01 에이스 대결: 막대는 가운데에서 바깥으로, 두 사람 중 더 나은 쪽 숫자를 금색으로.
-function AceDuel({ mt, aces, agentArt, realNameOf, openPlayer, sw, sl }) {
-  const { w, l } = aces;
-  const rows = [
+// 01 에이스 대결: 고른 범위의 합계를 가운데 막대로 비교, "전체"일 때는 아래에 세트별 세부.
+function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, openPlayer }) {
+  const ace = [0, 1].map((t) => rows[t].find((p) => p.id === aceIds[t]) || null);
+  const art = [0, 1].map((t) => { const p = total[t].find((x) => x.id === aceIds[t]); return p ? agentArt(p.agent) : null; });
+  const stat = [
     ['ACS', (p) => p.acs],
-    ['K/D', kdOf, (v) => v.toFixed(2)],
+    ['K/D', (p) => p.kd, (v) => v.toFixed(2)],
     ['킬', (p) => p.kills],
     ['데스', (p) => p.deaths, null, true],
     ['어시스트', (p) => p.assists],
     ['HS%', (p) => p.hsPct, (v) => `${v}%`],
     ['퍼스트 킬', (p) => p.firstKills],
-    ['클러치', (p) => p.clutches]
-  ].map(([label, get, fmt, low]) => ({ label, a: w ? get(w) : null, b: l ? get(l) : null, fmt: fmt || String, low }))
-    .filter((r) => r.a != null || r.b != null);
+    ['클러치', (p) => p.clutches],
+    ...(!scope ? [['경기 MVP', (p) => p.mvp]] : [])
+  ].map(([label, get, fmt, low]) => ({ label, v: ace.map((p) => (p ? get(p) : null)), fmt: fmt || String, low }))
+    .filter((r) => r.v.some((x) => x != null));
+  const per = (s, t) => s.sides[t].find((p) => p.id === aceIds[t]);
   return (
-    <div className="rvDuel">
-      <div className="rvSide w"><Portrait p={w} art={w && agentArt(w.agent)} side="w" /><AceTag p={w} side="w" label="WIN · ACE" realNameOf={realNameOf} openPlayer={openPlayer} /></div>
-      <div className="rvTape">
-        <div className="rvScore"><b style={{ color: WIN }}>{Number.isFinite(sw) ? sw : '—'}</b><span>:</span><b style={{ color: LOSE }}>{Number.isFinite(sl) ? sl : '—'}</b></div>
-        <div className="rvMap">{mt.map}{sw + sl > 24 ? ' · 연장' : ''}</div>
-        {rows.map((r, i) => {
-          const max = Math.max(r.a || 0, r.b || 0);
-          const better = r.a == null || r.b == null || r.a === r.b ? null : (r.low ? r.a < r.b : r.a > r.b) ? 'a' : 'b';
-          return (
-            <div key={r.label} className="rvRow" style={{ '--d': i }}>
-              <span className={`v${better === 'a' ? ' best' : ''}`}>{r.a == null ? '—' : r.label === 'ACS' ? <CountUp value={String(r.a)} dur={1000} /> : r.fmt(r.a)}</span>
-              <span className="bar w"><i style={{ width: `${max ? ((r.a || 0) / max) * 100 : 0}%` }} /></span>
-              <span className="lab">{r.label}</span>
-              <span className="bar l"><i style={{ width: `${max ? ((r.b || 0) / max) * 100 : 0}%` }} /></span>
-              <span className={`v r${better === 'b' ? ' best' : ''}`}>{r.b == null ? '—' : r.label === 'ACS' ? <CountUp value={String(r.b)} dur={1000} /> : r.fmt(r.b)}</span>
-            </div>
-          );
-        })}
+    <div className="rvDuelWrap">
+      <div className="rvDuel">
+        <AceCard p={ace[0] || total[0].find((x) => x.id === aceIds[0])} t={0} label={`ACE · ${sr.wins[0] > sr.wins[1] ? 'WIN' : 'TEAM 1'}`} art={art[0]} realNameOf={realNameOf} openPlayer={openPlayer} />
+        <div className="rvTape">
+          <div className="rvTapeHead">{scope ? `${scope}세트 · ${sets[0].mt.map}` : `${sr.sets.length}세트 합계`}<span>평균 ACS · HS%는 라운드 수 기준</span></div>
+          {stat.map((r, i) => {
+            const [a, b] = r.v;
+            const max = Math.max(a || 0, b || 0);
+            const best = a == null || b == null || a === b ? null : (r.low ? a < b : a > b) ? 0 : 1;
+            const val = (v) => (v == null ? '—' : r.label === 'ACS' ? <CountUp value={String(v)} dur={900} /> : r.fmt(v));
+            return (
+              <div key={r.label} className="rvRow" style={{ '--d': i }}>
+                <span className={`v${best === 0 ? ' best' : ''}`}>{val(a)}</span>
+                <span className="bar t0"><i style={{ width: `${max ? ((a || 0) / max) * 100 : 0}%` }} /></span>
+                <span className="lab">{r.label}</span>
+                <span className="bar t1"><i style={{ width: `${max ? ((b || 0) / max) * 100 : 0}%` }} /></span>
+                <span className={`v r${best === 1 ? ' best' : ''}`}>{val(b)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <AceCard p={ace[1] || total[1].find((x) => x.id === aceIds[1])} t={1} label={`ACE · ${sr.wins[1] > sr.wins[0] ? 'WIN' : 'TEAM 2'}`} art={art[1]} realNameOf={realNameOf} openPlayer={openPlayer} />
       </div>
-      <div className="rvSide l"><Portrait p={l} art={l && agentArt(l.agent)} side="l" /><AceTag p={l} side="l" label="ACE" realNameOf={realNameOf} openPlayer={openPlayer} /></div>
+      {!scope && sr.sets.length > 1 && (
+        <div className="rvPerSet">
+          <div className="hd"><span>세트별</span><span>{short(aceIds[0] || '')}</span><span /><span>{short(aceIds[1] || '')}</span></div>
+          {sr.sets.map((s, i) => {
+            const a = per(s, 0), b = per(s, 1);
+            const line = (p) => (p ? <><b>{p.acs ?? '—'}</b><span>{p.kills ?? '—'}/{p.deaths ?? '—'}/{p.assists ?? '—'}</span>{p.agentIcon && <img src={p.agentIcon} alt="" />}</> : <span className="na">안 뜀</span>);
+            return (
+              <div key={s.no} className="row" style={{ '--d': i }}>
+                <span className="set"><em>{s.no}세트</em>{s.mt.map}</span>
+                <span className="p t0">{line(a)}</span>
+                <span className="sc"><i style={{ color: TEAM[0] }}>{s.score[0]}</i>:<i style={{ color: TEAM[1] }}>{s.score[1]}</i></span>
+                <span className="p t1">{line(b)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-// 02 라인업: 열 명 전원, 팀마다 ACS 순. 아래 얇은 막대가 그 경기 최고 ACS 대비.
-function Lineup({ mt, aces, realNameOf, openPlayer, sw, sl }) {
-  const all = [...mt.winners, ...mt.losers];
-  const top = Math.max(1, ...all.map((p) => p.acs || 0));
-  const team = (list, side) => list.slice().sort((a, b) => (b.acs ?? -1) - (a.acs ?? -1)).map((p, i) => {
-    const rn = realNameOf(p.id);
-    const ace = p === aces.w || p === aces.l;
-    return (
-      <button key={p.id} className={`rvPl ${side}${ace ? ' ace' : ''}`} style={{ '--i': i }} onClick={() => openPlayer(p.id)}>
-        {p.agentIcon ? <img src={p.agentIcon} alt={agentKo(p.agent) || ''} /> : <span className="noimg" />}
-        <span className="nm">
-          <span className="n">{short(p.id)}{p.mvp === 'match' && <em className="mvp">MVP</em>}</span>
-          <span className="s">{rn || agentKo(p.agent) || '—'}</span>
-        </span>
-        <span className="kda">{p.kills == null ? '—' : `${p.kills}/${p.deaths}/${p.assists}`}</span>
-        <span className="hs">{p.hsPct == null ? '—' : `${p.hsPct}%`}</span>
-        <span className="acs">{p.acs ?? '—'}</span>
-        <span className="fill" style={{ width: `${((p.acs || 0) / top) * 100}%` }} />
-      </button>
-    );
-  });
+// 02 라인업: 고른 범위의 선수별 합계, 팀마다 평균 ACS 순.
+function Lineup({ sr, sets, scope, rows, aceIds, teamName, realNameOf, openPlayer }) {
+  const top = Math.max(1, ...rows.flat().map((p) => p.acs || 0));
+  const wins = scope ? [sets[0].score[0], sets[0].score[1]] : sr.wins;
   return (
     <div className="rvLineup">
-      <div className="rvTeam">
-        <div className="rvTeamHead w"><span>WIN</span><span className="cols"><span>K/D/A</span><span>HS</span><span>ACS</span></span></div>
-        {team(mt.winners, 'w')}
-      </div>
-      <div className="rvMid">
-        <span className="ring" /><span className="ring r2" />
-        <div className="sc"><b>{Number.isFinite(sw) ? `${sw}:${sl}` : mt.score}</b><span>{mt.map}</span></div>
-      </div>
-      <div className="rvTeam">
-        <div className="rvTeamHead l"><span>LOSE</span><span className="cols"><span>K/D/A</span><span>HS</span><span>ACS</span></span></div>
-        {team(mt.losers, 'l')}
-      </div>
+      {[0, 1].map((t) => (
+        <div key={t} className={`rvTeam t${t}`} style={{ '--tc': TEAM[t] }}>
+          <div className="rvTeamHead"><span className="tn">{teamName(t)} <b>{wins[t]}</b></span><span className="cols"><span>K/D/A</span><span>HS</span><span>ACS</span></span></div>
+          {rows[t].map((p, i) => {
+            const rn = realNameOf(p.id);
+            return (
+              <button key={p.id} className={`rvPl${p.id === aceIds[t] ? ' ace' : ''}`} style={{ '--i': i }} onClick={() => openPlayer(p.id)}>
+                {p.agentIcon ? <img src={p.agentIcon} alt={agentKo(p.agent) || ''} /> : <span className="noimg" />}
+                <span className="nm">
+                  <span className="n">{short(p.id)}{p.mvp > 0 && <em className="mvp">MVP{p.mvp > 1 ? ` ×${p.mvp}` : ''}</em>}</span>
+                  <span className="s">{rn || agentKo(p.agent) || '—'}{!scope && p.sets < sr.sets.length ? ` · ${p.sets}세트` : ''}</span>
+                </span>
+                <span className="kda">{p.kills == null ? '—' : `${p.kills}/${p.deaths}/${p.assists}`}</span>
+                <span className="hs">{p.hsPct == null ? '—' : `${p.hsPct}%`}</span>
+                <span className="acs">{p.acs ?? '—'}</span>
+                <span className="fill" style={{ width: `${((p.acs || 0) / top) * 100}%` }} />
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
 
-// 03 흐름: rounds = 그 선수 기준 'W'/'L' 문자열 (app/api/records · app/api/rounds).
-// 이긴 팀 기준으로 누적 점수 차를 그린다. 위 = 이긴 팀 앞섬, 아래 = 진 팀 앞섬.
-function Momentum({ mt, aces, active, ensureRounds }) {
-  const seq = mt.winners.find((p) => p.rounds)?.rounds || (() => {
-    const r = mt.losers.find((p) => p.rounds)?.rounds;
-    return r ? [...r].map((c) => (c === 'W' ? 'L' : 'W')).join('') : null;
-  })();
-  const matchKey = [...mt.winners, ...mt.losers].find((p) => p.matchKey)?.matchKey || null;
-  const [status, setStatus] = useState(null); // null | 'loading' | 'failed'
+// 03 흐름: 세트마다 라운드 칸을 이긴 팀 색으로 칠한 줄. 한 세트만 고르면 칸을 크게,
+// 점수가 어떻게 쌓였는지 두 팀 점수 그래프와 요약을 같이 보여 준다.
+function Flow({ sr, sets, scope, teamName, active, ensureRounds }) {
+  const missing = sets.filter((s) => !roundSeq(s) && matchKeyOf(s)?.startsWith('customs:')).map(matchKeyOf);
+  const [loading, setLoading] = useState(false);
+  const missingKey = missing.join(',');
   useEffect(() => {
-    if (!active || seq || !matchKey?.startsWith('customs:')) return;
+    if (!active || !missingKey) return;
     let alive = true;
-    setStatus('loading');
-    ensureRounds(matchKey).then((ok) => { if (alive) setStatus(ok ? null : 'failed'); });
+    setLoading(true);
+    (async () => { for (const key of missingKey.split(',')) await ensureRounds(key); if (alive) setLoading(false); })();
     return () => { alive = false; };
-  }, [active, seq, matchKey, ensureRounds]);
+  }, [active, missingKey, ensureRounds]);
 
-  const data = useMemo(() => {
-    if (!seq) return null;
-    const W = 600, H = 200, mid = H / 2;
-    let diff = 0, flips = 0, lastSign = 0, bestW = 0, bestL = 0;
-    const streak = { W: 0, L: 0 }, cur = { c: null, n: 0 };
-    const diffs = [...seq].map((c) => {
-      diff += c === 'W' ? 1 : -1;
-      const s = Math.sign(diff);
-      if (s && lastSign && s !== lastSign) flips++;
-      if (s) lastSign = s;
-      bestW = Math.max(bestW, diff); bestL = Math.max(bestL, -diff);
-      cur.n = cur.c === c ? cur.n + 1 : 1; cur.c = c;
-      streak[c] = Math.max(streak[c], cur.n);
-      return diff;
-    });
-    const unit = (mid - 18) / Math.max(3, ...diffs.map(Math.abs));
-    const step = W / seq.length;
-    const pts = [[0, mid], ...diffs.map((d, i) => [(i + 1) * step, mid - d * unit])];
-    const path = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-    // 말풍선: 역전한 라운드, 연장 들어간 라운드, 마지막 라운드
-    const events = [];
-    let sign = 0;
-    diffs.forEach((d, i) => {
-      const s = Math.sign(d);
-      if (s && sign && s !== sign) events.push([i + 1, s > 0 ? '🔄 역전' : '🔄 재역전']);
-      if (s) sign = s;
-    });
-    if (seq.length > 24) events.push([24, '⏱ 연장']);
-    events.push([seq.length, '🏁 끝']);
-    const half = (from, to) => { const part = seq.slice(from, to); return [part.split('W').length - 1, part.split('L').length - 1]; };
-    return { W, H, mid, step, pts, path, events: events.slice(-5), flips, bestW, bestL, streak, h1: half(0, 12), h2: half(12, 24), ot: seq.length > 24 ? half(24) : null };
-  }, [seq]);
+  return (
+    <div className={`rvFlow${scope ? ' single' : ''}`}>
+      <div className="rvLegend">
+        <span><i style={{ background: TEAM[0] }} />{teamName(0)} 라운드</span>
+        <span><i style={{ background: TEAM[1] }} />{teamName(1)} 라운드</span>
+      </div>
+      {sets.map((s, si) => <SetFlow key={s.no} s={s} si={si} big={!!scope} loading={loading} />)}
+    </div>
+  );
+}
 
-  if (!data) {
+function SetFlow({ s, si, big, loading }) {
+  const seq = roundSeq(s);
+  const key = matchKeyOf(s);
+  const head = (
+    <div className="rvSetHead">
+      <span className="t"><em>{s.no}세트</em>{s.mt.map}</span>
+      <span className="sc"><i style={{ color: TEAM[0] }}>{s.score[0]}</i> : <i style={{ color: TEAM[1] }}>{s.score[1]}</i></span>
+    </div>
+  );
+  if (!seq) {
     return (
-      <div className="rvEmpty">
-        {status === 'loading' ? '라운드 기록 불러오는 중…'
-          : matchKey?.startsWith('customs:') ? '라운드 기록을 불러오지 못했습니다. 잠시 뒤 다시 열어 보세요.'
-          : '직접 저장한 경기라 라운드 기록이 없습니다. (내전 결과 불러오기로 저장한 경기만 흐름이 나옵니다)'}
+      <div className="rvSet">
+        {head}
+        <div className="rvNoRounds">{loading && key?.startsWith('customs:') ? '라운드 기록 불러오는 중…' : key?.startsWith('customs:') ? '라운드 기록을 불러오지 못했습니다. 잠시 뒤 다시 열어 보세요.' : '직접 저장한 경기라 라운드 기록이 없습니다.'}</div>
       </div>
     );
   }
-  const gid = `rv${mt.date}`;
-  const wName = aces.w ? short(aces.w.id) : '이긴 팀';
-  const lName = aces.l ? short(aces.l.id) : '진 팀';
-  const len = seq.length;
+  // 라운드 칸 + 전반 / 후반 / 연장 구분, 칸마다 그 라운드 뒤 점수
+  const score = [0, 0];
+  const cells = seq.map((w, i) => { score[w] += 1; return { w, i, after: `${score[0]}:${score[1]}` }; });
+  const part = (from, to) => { const p = seq.slice(from, to); return [p.filter((x) => x === 0).length, p.filter((x) => x === 1).length]; };
+  const halves = [['전반', part(0, 12)], ...(seq.length > 12 ? [['후반', part(12, 24)]] : []), ...(seq.length > 24 ? [['연장', part(24)]] : [])];
+  const groups = [cells.slice(0, 12), cells.slice(12, 24), cells.slice(24)].filter((g) => g.length);
   return (
-    <div className="rvMomentum">
-      <div className="rvChart">
-        <svg viewBox={`0 0 ${data.W} ${data.H}`} preserveAspectRatio="none">
-          <defs>
-            <linearGradient id={`${gid}a`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={data.H}>
-              <stop offset="0" stopColor={WIN} stopOpacity=".32" /><stop offset=".5" stopColor={WIN} stopOpacity="0" />
-              <stop offset=".5" stopColor={LOSE} stopOpacity="0" /><stop offset="1" stopColor={LOSE} stopOpacity=".32" />
-            </linearGradient>
-            <linearGradient id={`${gid}l`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={data.H}>
-              <stop offset="0" stopColor={WIN} /><stop offset=".5" stopColor="#C6CDD4" /><stop offset="1" stopColor={LOSE} />
-            </linearGradient>
-          </defs>
-          <line x1="0" y1={data.mid} x2={data.W} y2={data.mid} stroke="rgba(255,255,255,.14)" strokeDasharray="4 6" vectorEffect="non-scaling-stroke" />
-          {len > 12 && <line x1={12 * data.step} y1="0" x2={12 * data.step} y2={data.H} stroke="rgba(255,255,255,.12)" vectorEffect="non-scaling-stroke" />}
-          {len > 24 && <line x1={24 * data.step} y1="0" x2={24 * data.step} y2={data.H} stroke="rgba(255,209,102,.4)" vectorEffect="non-scaling-stroke" />}
-          <path className="rvArea" d={`${data.path} L${data.W},${data.mid} L0,${data.mid} Z`} fill={`url(#${gid}a)`} />
-          <path className="rvLine" d={data.path} pathLength="1" fill="none" stroke={`url(#${gid}l)`} strokeWidth="3" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    <div className="rvSet" style={{ '--s': si }}>
+      {head}
+      <div className="rvStrip">
+        {groups.map((g, gi) => (
+          <div key={gi} className={`grp${gi === 2 ? ' ot' : ''}`} style={{ flex: g.length }}>
+            {g.map((c) => (
+              <span key={c.i} className={`cell t${c.w}`} title={`${c.i + 1}라운드 → ${c.after}`} style={{ '--c': si * 0.25 + c.i * 0.045 }}>{big ? c.i + 1 : ''}</span>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="rvHalves">
+        {halves.map(([label, [a, b]]) => <span key={label}>{label} <i style={{ color: TEAM[0] }}>{a}</i>:<i style={{ color: TEAM[1] }}>{b}</i></span>)}
+      </div>
+      {big && <Race seq={seq} />}
+    </div>
+  );
+}
+
+// 한 세트의 점수 그래프: 두 팀 점수가 라운드마다 계단처럼 올라간다.
+function Race({ seq }) {
+  const W = 600, H = 150, n = seq.length;
+  const final = [seq.filter((x) => x === 0).length, seq.filter((x) => x === 1).length];
+  const top = Math.max(13, ...final);
+  const step = W / n;
+  const y = (v) => H - (v / top) * (H - 8);
+  const paths = [0, 1].map((t) => {
+    let v = 0, d = `M0,${y(0)}`;
+    seq.forEach((w, i) => { if (w === t) { v += 1; d += ` L${(i + 0.5) * step},${y(v - 1)} L${(i + 0.5) * step},${y(v)}`; } });
+    return `${d} L${W},${y(v)}`;
+  });
+  // 가장 길게 이어 딴 라운드 · 최대 점수 차
+  let run = { t: null, n: 0 }, best = [0, 0], lead = [0, 0], sc = [0, 0];
+  seq.forEach((w) => {
+    run = run.t === w ? { t: w, n: run.n + 1 } : { t: w, n: 1 };
+    best[w] = Math.max(best[w], run.n);
+    sc[w] += 1;
+    lead[0] = Math.max(lead[0], sc[0] - sc[1]); lead[1] = Math.max(lead[1], sc[1] - sc[0]);
+  });
+  return (
+    <div className="rvRace">
+      <div className="rvRaceChart">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+          {[...Array(Math.floor(top / 4) + 1)].map((_, i) => <line key={i} x1="0" x2={W} y1={y(i * 4)} y2={y(i * 4)} stroke="rgba(255,255,255,.06)" vectorEffect="non-scaling-stroke" />)}
+          {n > 12 && <line x1={12 * step} x2={12 * step} y1="0" y2={H} stroke="rgba(255,255,255,.18)" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
+          {n > 24 && <line x1={24 * step} x2={24 * step} y1="0" y2={H} stroke="rgba(255,209,102,.5)" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
+          {paths.map((d, t) => <path key={t} className="rvRaceLine" d={d} pathLength="1" fill="none" stroke={TEAM[t]} strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />)}
         </svg>
-        {data.pts.slice(1).map((p, i) => (
-          <i key={i} className="rvDot" style={{ left: `${(p[0] / data.W) * 100}%`, top: p[1], background: seq[i] === 'W' ? WIN : LOSE, animationDelay: `${0.2 + ((i + 1) / len) * 2.2}s` }} />
-        ))}
-        {data.events.map(([r, t]) => (
-          <span key={`${r}${t}`} className={`rvEv${r === len ? ' end' : ''}`} style={{ left: `${(data.pts[r][0] / data.W) * 100}%`, top: data.pts[r][1] - 10, animationDelay: `${0.2 + (r / len) * 2.2}s` }}>{t}</span>
-        ))}
-        <span className="rvAxis t" style={{ color: WIN }}>▲ {wName} 팀</span>
-        <span className="rvAxis b" style={{ color: LOSE }}>▼ {lName} 팀</span>
-        {len > 12 && <span className="rvHalf" style={{ left: `${(12 / len) * 100}%` }}>HALF</span>}
+        {n > 12 && <span className="mark" style={{ left: `${(12 / n) * 100}%` }}>후반</span>}
+        {n > 24 && <span className="mark ot" style={{ left: `${(24 / n) * 100}%` }}>연장</span>}
+        {[0, 1].map((t) => <span key={t} className="end" style={{ top: y(final[t]), color: TEAM[t] }}>{final[t]}</span>)}
       </div>
       <div className="rvFacts">
-        <div><span>전반</span><b><em style={{ color: WIN }}>{data.h1[0]}</em> : <em style={{ color: LOSE }}>{data.h1[1]}</em></b></div>
-        {len > 12 && <div><span>후반</span><b><em style={{ color: WIN }}>{data.h2[0]}</em> : <em style={{ color: LOSE }}>{data.h2[1]}</em></b></div>}
-        {data.ot && <div><span>연장</span><b><em style={{ color: WIN }}>{data.ot[0]}</em> : <em style={{ color: LOSE }}>{data.ot[1]}</em></b></div>}
-        <div><span>역전</span><b>{data.flips}번</b></div>
-        <div><span>최대 점수 차</span><b><em style={{ color: WIN }}>+{data.bestW}</em> / <em style={{ color: LOSE }}>+{data.bestL}</em></b></div>
-        <div><span>최다 연속 라운드</span><b><em style={{ color: WIN }}>{data.streak.W}</em> / <em style={{ color: LOSE }}>{data.streak.L}</em></b></div>
+        <div><span>최다 연속 라운드</span><b><i style={{ color: TEAM[0] }}>{best[0]}</i> / <i style={{ color: TEAM[1] }}>{best[1]}</i></b></div>
+        <div><span>최대 점수 차</span><b><i style={{ color: TEAM[0] }}>+{lead[0]}</i> / <i style={{ color: TEAM[1] }}>+{lead[1]}</i></b></div>
       </div>
     </div>
   );
