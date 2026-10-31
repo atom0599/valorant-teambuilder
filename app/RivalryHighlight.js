@@ -1,7 +1,7 @@
 'use client';
 // 홈 "내전 하이라이트": 내전 날 하나를 같은 두 팀이 치른 시리즈(세트 여러 개)로 보고,
 // 세 장으로 넘겨 본다.
-//   01 에이스 대결 — 양 팀 에이스의 그날 전체 스탯 비교 + 세트별 세부
+//   01 에이스 대결 — 양 팀 에이스의 그날 전체 스탯 비교
 //   02 라인업     — 열 명 전원 스탯
 //   03 흐름       — 세트마다 라운드를 누가 땄는지 (라운드 기록이 없으면 불러온다)
 // 위의 "전체 / 1세트 / 2세트 …"로 보는 범위를 고르면 세 장 모두 그 범위로 바뀐다.
@@ -180,7 +180,7 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
   );
 }
 
-function AceCard({ p, t, label, art, realNameOf, openPlayer }) {
+function AceCard({ p, t, art, realNameOf, openPlayer }) {
   if (!p) return <div className={`rvSide t${t}`} />;
   const rn = realNameOf(p.id);
   return (
@@ -189,7 +189,6 @@ function AceCard({ p, t, label, art, realNameOf, openPlayer }) {
         ? <img className={`rvPortrait t${t}`} src={art.portrait} alt="" aria-hidden="true" />
         : p.agentIcon && <img className={`rvPortrait icon t${t}`} src={p.agentIcon} alt="" aria-hidden="true" />}
       <button className="rvAce" onClick={() => openPlayer(p.id)}>
-        <span className="k">{label}</span>
         <span className="n">{short(p.id)}</span>
         <span className="s">{p.agent ? agentKo(p.agent) : '—'}{rn ? <em> · {rn}</em> : null}</span>
       </button>
@@ -197,7 +196,7 @@ function AceCard({ p, t, label, art, realNameOf, openPlayer }) {
   );
 }
 
-// 01 에이스 대결: 고른 범위의 합계를 가운데 막대로 비교, "전체"일 때는 아래에 세트별 세부.
+// 01 에이스 대결: 고른 범위의 합계를 가운데 막대로 비교.
 function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, openPlayer }) {
   const ace = [0, 1].map((t) => rows[t].find((p) => p.id === aceIds[t]) || null);
   const art = ace.map((p) => (p ? agentArt(p.agent) : null));
@@ -213,11 +212,10 @@ function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, o
     ...(!scope ? [['경기 MVP', (p) => p.mvp]] : [])
   ].map(([label, get, fmt, low]) => ({ label, v: ace.map((p) => (p ? get(p) : null)), fmt: fmt || String, low }))
     .filter((r) => r.v.some((x) => x != null));
-  const per = (s, t) => s.sides[t].find((p) => p.id === aceIds[t]);
   return (
     <div className="rvDuelWrap">
       <div className="rvDuel">
-        <AceCard p={ace[0] || total[0].find((x) => x.id === aceIds[0])} t={0} label={`ACE · ${sr.wins[0] > sr.wins[1] ? 'WIN' : sr.wins[0] < sr.wins[1] ? 'LOSE' : 'TEAM 1'}`} art={art[0]} realNameOf={realNameOf} openPlayer={openPlayer} />
+        <AceCard p={ace[0] || total[0].find((x) => x.id === aceIds[0])} t={0} art={art[0]} realNameOf={realNameOf} openPlayer={openPlayer} />
         <div className="rvTape">
           <div className="rvTapeHead">{scope ? `${scope}세트 · ${sets[0].mt.map}` : `${sr.sets.length}세트 합계`}<span>평균 ACS · HS%는 라운드 수 기준</span></div>
           {stat.map((r, i) => {
@@ -236,25 +234,8 @@ function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, o
             );
           })}
         </div>
-        <AceCard p={ace[1] || total[1].find((x) => x.id === aceIds[1])} t={1} label={`ACE · ${sr.wins[1] > sr.wins[0] ? 'WIN' : sr.wins[1] < sr.wins[0] ? 'LOSE' : 'TEAM 2'}`} art={art[1]} realNameOf={realNameOf} openPlayer={openPlayer} />
+        <AceCard p={ace[1] || total[1].find((x) => x.id === aceIds[1])} t={1} art={art[1]} realNameOf={realNameOf} openPlayer={openPlayer} />
       </div>
-      {!scope && sr.sets.length > 1 && (
-        <div className="rvPerSet">
-          <div className="hd"><span>세트별</span><span>{short(aceIds[0] || '')}</span><span /><span>{short(aceIds[1] || '')}</span></div>
-          {sr.sets.map((s, i) => {
-            const a = per(s, 0), b = per(s, 1);
-            const line = (p) => (p ? <><b>{p.acs ?? '—'}</b><span>{p.kills ?? '—'}/{p.deaths ?? '—'}/{p.assists ?? '—'}</span>{p.agentIcon && <img src={p.agentIcon} alt="" />}</> : <span className="na">안 뜀</span>);
-            return (
-              <div key={s.no} className="row" style={{ '--d': i }}>
-                <span className="set"><em>{s.no}세트</em>{s.mt.map}</span>
-                <span className="p t0">{line(a)}</span>
-                <span className="sc"><i style={{ color: TEAM[0] }}>{s.score[0]}</i>:<i style={{ color: TEAM[1] }}>{s.score[1]}</i></span>
-                <span className="p t1">{line(b)}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

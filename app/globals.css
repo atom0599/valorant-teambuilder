@@ -383,7 +383,6 @@ button:active { transform: scale(.97); }
 @keyframes rvInR { from { opacity: 0; transform: translateX(-10%) scaleX(-1) } }
 .rvAce { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 6px 4px; cursor: pointer; color: #E8EAEC; min-width: 0; text-shadow: 0 2px 12px rgba(0,0,0,.9), 0 0 2px rgba(0,0,0,.8); }
 .rvAce:hover .n { color: var(--tc); }
-.rvAce .k { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: .16em; color: #FFD166; white-space: nowrap; }
 .rvAce .n { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -.02em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rvAce .s { font-size: 11px; color: #8B949E; white-space: nowrap; }
 .rvAce .s em { font-style: normal; color: #4C9AFF; }
@@ -403,24 +402,6 @@ button:active { transform: scale(.97); }
 .rvSlide.on .rvRow { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(.3s + var(--d) * .06s); }
 .rvSlide.on .rvRow .bar i { animation: rvBar .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(.45s + var(--d) * .08s); }
 @keyframes rvBar { from { width: 0 } }
-/* 세트별 세부 */
-.rvPerSet { border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); overflow: hidden; }
-.rvPerSet .hd, .rvPerSet .row { display: grid; grid-template-columns: 110px 1fr 70px 1fr; align-items: center; gap: 10px; padding: 9px 14px; }
-.rvPerSet .hd { font-size: 10.5px; color: #8B949E; border-bottom: 1px solid rgba(255,255,255,.06); }
-.rvPerSet .hd span:nth-child(2) { color: #FF4B57; }
-.rvPerSet .hd span:nth-child(4) { color: #2FD3B7; text-align: right; }
-.rvPerSet .row + .row { border-top: 1px solid rgba(255,255,255,.05); }
-.rvPerSet .set { font-size: 13px; font-weight: 600; }
-.rvPerSet .set em { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; margin-right: 6px; }
-.rvPerSet .p { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8B949E; }
-.rvPerSet .p b { font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 14px; color: #E8EAEC; }
-.rvPerSet .p span { font-family: 'IBM Plex Mono', monospace; }
-.rvPerSet .p .na { font-family: inherit; color: #4A525C; }
-.rvPerSet .p img { width: 20px; height: 20px; border-radius: 5px; }
-.rvPerSet .p.t1 { flex-direction: row-reverse; }
-.rvPerSet .sc { text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: #6B737C; }
-.rvPerSet .sc i { font-style: normal; font-weight: 600; }
-.rvSlide.on .rvPerSet .row { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(.9s + var(--d) * .08s); }
 
 /* 02 라인업 */
 .rvLineup { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -503,8 +484,6 @@ button:active { transform: scale(.97); }
   .rvSide { min-height: 220px; }
   .rvPortrait { height: 190px; }
   .rvLineup { grid-template-columns: 1fr; }
-  .rvPerSet .hd, .rvPerSet .row { grid-template-columns: 70px 1fr 54px 1fr; gap: 6px; padding: 8px 10px; }
-  .rvPerSet .p span { display: none; }
   .rvSetScore { font-size: 26px; padding: 8px 14px 16px; }
   .rvTeamBox .nm { font-size: 14px; }
   .rvTeamBox .icons img, .rvTeamBox .icons span { width: 20px; height: 20px; }
