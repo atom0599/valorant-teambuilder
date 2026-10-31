@@ -2121,7 +2121,7 @@ export default function Page() {
   const playerGrid = '44px minmax(0,1.3fr) minmax(146px,1.2fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 48px 72px';
   // 스크롤 없이 한 화면에. 이름 칸은 좁게 두고(긴 닉네임은 …) 티어 · 요원 ·
   // 스탯 칸이 남는 폭을 나눠 가진다.
-  const rosterGrid = 'minmax(96px,0.9fr) 44px 52px minmax(170px,1.6fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
+  const rosterGrid = 'minmax(96px,0.9fr) 44px 68px minmax(170px,1.6fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
@@ -2396,7 +2396,7 @@ export default function Page() {
                     <div style={{ minWidth: 760 }}>
                       {!!roster.length && (
                         <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 12px 8px', fontSize: 12, color: '#8B949E', letterSpacing: '.06em' }}>
-                          <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div>AGENTS</div><div>K:D</div><div>ACS</div><div>HS%</div><div>WIN%</div><div></div><div></div>
+                          <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div style={{ paddingLeft: 6 }}>AGENTS</div><div>K:D</div><div>ACS</div><div>HS%</div><div>WIN%</div><div></div><div></div>
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2442,7 +2442,7 @@ export default function Page() {
                                   ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 34, height: 34 }} />
                                   : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{personTier(r.name) ? '언랭' : '—'}</span>}
                               </div>
-                              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', paddingLeft: 6 }}>
                                 {(st?.topAgents || []).map((a) => (
                                   <div key={a.agent} title={`${agentKo(a.agent)} ${a.pct}%`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flex: 'none' }}>
                                     {a.icon ? <img src={a.icon} alt={agentKo(a.agent)} style={{ width: 30, height: 30, borderRadius: 7 }} /> : <div style={{ width: 30, height: 30, borderRadius: 7, background: '#252C34' }} />}
