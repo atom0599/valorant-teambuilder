@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { MAP_IMG, agentKo } from '../lib/constants';
 import { CountUp } from './FamePodium';
 
-const TEAM = ['#2FD3B7', '#FF4B57']; // 팀 밸런싱 화면과 같은 두 팀 색 (왼쪽 = 시리즈 이긴 팀)
+const TEAM = ['#FF4B57', '#2FD3B7']; // 내전 화면과 같은 팀 A · 팀 B 색 (왼쪽 = 팀 A = 시리즈 이긴 팀)
 const SLIDES = ['에이스 대결', '라인업', '흐름'];
 const short = (id) => String(id).split('#')[0];
 const scoreOf = (mt) => String(mt.score || '').split(/[:\-]/).map((s) => parseInt(s, 10));
@@ -95,7 +95,7 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
   const total = useMemo(() => [0, 1].map((t) => aggregate(sr.sets, t)), [sr]);
   const aceIds = total.map((list) => (list.find((p) => p.sets * 2 >= sr.sets.length && p.acs != null) || list[0])?.id);
   const rows = useMemo(() => [0, 1].map((t) => aggregate(sets, t)), [sets]);
-  const teamName = (t) => (aceIds[t] ? `팀 ${short(aceIds[t])}` : t ? '오른쪽 팀' : '왼쪽 팀');
+  const teamName = (t) => (t ? '팀 B' : '팀 A');
 
   const d0 = new Date(hl.matches[0].date), d1 = new Date(hl.matches[hl.matches.length - 1].date);
   const dayLabel = `${d0.getMonth() + 1}월 ${d0.getDate()}${d1.getDate() !== d0.getDate() ? `~${d1.getMonth() !== d0.getMonth() ? `${d1.getMonth() + 1}월 ` : ''}${d1.getDate()}` : ''}일`;

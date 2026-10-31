@@ -305,7 +305,7 @@ button:active { transform: scale(.97); }
 .rvCard { position: relative; overflow: hidden; border-radius: 24px; padding: 22px; display: flex; flex-direction: column; gap: 14px; isolation: isolate;
   background: linear-gradient(160deg, rgba(20,25,31,.92), rgba(12,15,19,.94)); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.08); box-shadow: 0 30px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05); }
 .rvCard::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(60% 50% at 0% 0%, rgba(47,211,183,.12), transparent 70%), radial-gradient(60% 50% at 100% 0%, rgba(255,75,87,.12), transparent 70%); }
+  background: radial-gradient(60% 50% at 0% 0%, rgba(255,75,87,.12), transparent 70%), radial-gradient(60% 50% at 100% 0%, rgba(47,211,183,.12), transparent 70%); }
 .rvBg { position: absolute; inset: 0; z-index: -2; background-size: cover; background-position: center; opacity: .13; filter: saturate(.6); animation: rvBg 1.2s ease both, rvKb 24s ease-in-out infinite alternate; }
 .rvBg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(12,15,19,.3), rgba(12,15,19,.96) 55%); }
 @keyframes rvBg { from { opacity: 0 } }
@@ -394,8 +394,8 @@ button:active { transform: scale(.97); }
 .rvRow .lab { text-align: center; font-size: 11px; color: #8B949E; white-space: nowrap; }
 .rvRow .bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; }
 .rvRow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
-.rvRow .bar.t0 i { right: 0; background: linear-gradient(270deg, #2FD3B7, rgba(47,211,183,.3)); }
-.rvRow .bar.t1 i { left: 0; background: linear-gradient(90deg, #FF4B57, rgba(255,75,87,.3)); }
+.rvRow .bar.t0 i { right: 0; background: linear-gradient(270deg, #FF4B57, rgba(255,75,87,.3)); }
+.rvRow .bar.t1 i { left: 0; background: linear-gradient(90deg, #2FD3B7, rgba(47,211,183,.3)); }
 .rvSlide.on .rvRow { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(.3s + var(--d) * .06s); }
 .rvSlide.on .rvRow .bar i { animation: rvBar .9s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(.45s + var(--d) * .08s); }
 @keyframes rvBar { from { width: 0 } }
@@ -403,8 +403,8 @@ button:active { transform: scale(.97); }
 .rvPerSet { border-radius: 16px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); overflow: hidden; }
 .rvPerSet .hd, .rvPerSet .row { display: grid; grid-template-columns: 110px 1fr 70px 1fr; align-items: center; gap: 10px; padding: 9px 14px; }
 .rvPerSet .hd { font-size: 10.5px; color: #8B949E; border-bottom: 1px solid rgba(255,255,255,.06); }
-.rvPerSet .hd span:nth-child(2) { color: #2FD3B7; }
-.rvPerSet .hd span:nth-child(4) { color: #FF4B57; text-align: right; }
+.rvPerSet .hd span:nth-child(2) { color: #FF4B57; }
+.rvPerSet .hd span:nth-child(4) { color: #2FD3B7; text-align: right; }
 .rvPerSet .row + .row { border-top: 1px solid rgba(255,255,255,.05); }
 .rvPerSet .set { font-size: 13px; font-weight: 600; }
 .rvPerSet .set em { font-style: normal; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6B737C; margin-right: 6px; }
@@ -468,8 +468,8 @@ button:active { transform: scale(.97); }
 .rvStrip .grp { display: flex; gap: 3px; min-width: 0; }
 .rvStrip .grp.ot { padding-left: 8px; border-left: 2px dashed rgba(255,209,102,.5); }
 .rvStrip .cell { flex: 1; min-width: 0; height: 18px; border-radius: 4px; display: grid; place-items: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: rgba(11,13,16,.75); }
-.rvStrip .cell.t0 { background: #2FD3B7; }
-.rvStrip .cell.t1 { background: #FF4B57; }
+.rvStrip .cell.t0 { background: #FF4B57; }
+.rvStrip .cell.t1 { background: #2FD3B7; }
 .rvSlide.on .rvStrip .cell { animation: rvCell .3s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(.2s + var(--c) * 1s); }
 @keyframes rvCell { from { opacity: 0; transform: scaleY(.2) } }
 .rvFlow.single .rvStrip .cell { height: 30px; border-radius: 6px; }
