@@ -2186,7 +2186,7 @@ export default function Page() {
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(90deg,rgba(11,13,16,.6) 0%,rgba(11,13,16,.05) 42%,rgba(11,13,16,.55) 100%)' }} />
       </div>
 
-      <div style={{ position: 'relative', maxWidth: 1460, margin: '0 auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ position: 'relative', maxWidth: 1680, margin: '0 auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* top bar */}
         <div className="topBar" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', background: 'rgba(16,20,25,.58)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 22, padding: '10px 16px', boxShadow: '0 18px 44px rgba(0,0,0,.35)', animation: 'dropIn .55s cubic-bezier(.2,.7,.3,1) both' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingRight: 6, flex: 'none' }}>
@@ -2396,7 +2396,7 @@ export default function Page() {
                     <div style={{ minWidth: 700 }}>
                       {!!roster.length && (
                         <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 12px 8px', fontSize: 12, color: '#8B949E', letterSpacing: '.06em' }}>
-                          <div>이름</div><div>최고</div><div>현재</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>승률</div><div></div><div></div>
+                          <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>WIN%</div><div></div><div></div>
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2451,10 +2451,10 @@ export default function Page() {
                                 ))}
                                 {!st?.topAgents?.length && <span style={{ fontSize: 11, color: '#6B737C' }}>—</span>}
                               </div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 600 }}>{st?.matches ? st.acs : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15 }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 600 }}>{st?.matches ? st.kd : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 14, color: '#C6CDD4' }}>{wr == null ? '—' : `${wr}%`}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.acs : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.kd : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{wr == null ? '—' : `${wr}%`}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {!!r.alts?.length && !used && (
                                   <select value={chosenAccount} onChange={(e) => setAltPick((m) => ({ ...m, [r.name]: e.target.value }))} title="이번엔 어느 계정으로 참가시킬지 선택" style={{ fontSize: 10, background: '#1B2027', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 6, padding: '2px 4px' }}>
@@ -3496,7 +3496,7 @@ export default function Page() {
           </div>
 
           {/* right rail */}
-          <div className="rightRail hideOnPhone" style={{ flex: '1 1 330px', minWidth: 270, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
+          <div className="rightRail hideOnPhone" style={{ flex: '0 1 290px', minWidth: 260, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
             <div data-lift="1" style={{ ...glass, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: -50, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,75,87,.13)', filter: 'blur(8px)', animation: 'floaty 7s ease-in-out infinite' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
