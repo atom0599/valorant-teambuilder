@@ -368,3 +368,5 @@ button:active { transform: scale(.97); }
   .hlTile { min-height: 96px; padding: 10px 12px; }
   .hlTileVal { font-size: 22px; }
 }
+
+@media (max-width: 640px) { .clipGrid { grid-template-columns: minmax(0, 1fr) !important; } }

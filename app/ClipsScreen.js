@@ -88,11 +88,8 @@ function Thumb({ clip }) {
   );
 }
 
+// 3 × 3 per page (one column on phones, see .clipGrid in globals.css).
 const PAGE = 9;
-// A narrow window (rail stacked under the grid, 1–2 columns) shows fewer
-// clips per page so a page doesn't turn into a long scroll.
-const PAGE_SMALL = 4;
-const SMALL_QUERY = '(max-width: 1100px)';
 
 export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [clips, setClips] = useState([]);
@@ -108,7 +105,6 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
   const [sort, setSort] = useState('new');
   const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState(null);
-  const [small, setSmall] = useState(false);
   const [draft, setDraft] = useState('');
   const cidRef = useRef(null);
   // Clips already counted as viewed in this page session, so reopening the
@@ -129,14 +125,6 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     pull();
     const t = setInterval(pull, 5000);
     return () => { alive = false; clearInterval(t); };
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia(SMALL_QUERY);
-    const sync = () => setSmall(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
   }, []);
 
   useEffect(() => {
@@ -213,7 +201,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     : sort === 'views' ? [...clips].sort((a, b) => b.views - a.views || b.createdAt - a.createdAt)
     : sort === 'old' ? [...clips].reverse()
     : clips;
-  const perPage = small ? PAGE_SMALL : PAGE;
+  const perPage = PAGE;
   const pageCount = Math.ceil(list.length / perPage);
   // Clamp in case a delete (or another viewer's) shrank the list under us.
   const curPage = Math.min(page, Math.max(pageCount - 1, 0));
@@ -258,7 +246,7 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
 
       {loaded && !clips.length && <div style={{ ...card, textAlign: 'center', color: '#8B949E', fontSize: 13 }}>아직 올라온 클립이 없어요. 첫 클립을 올려보세요!</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+      <div className="clipGrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
         {list.slice(curPage * perPage, curPage * perPage + perPage).map((c) => (
           <div key={c.id} data-lift="1" onClick={() => openClip(c.id)} style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 14, padding: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
             <Thumb clip={c} />

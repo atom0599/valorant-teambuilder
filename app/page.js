@@ -3496,7 +3496,7 @@ export default function Page() {
           </div>
 
           {/* right rail */}
-          <div className="rightRail hideOnPhone" style={{ flex: '0 1 290px', minWidth: 260, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
+          <div className="rightRail hideOnPhone" style={{ flex: '0 1 360px', minWidth: 300, display: 'flex', flexDirection: 'column', gap: 12, animation: 'slideInR .55s cubic-bezier(.2,.7,.3,1) both' }}>
             <div data-lift="1" style={{ ...glass, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: -50, right: -30, width: 170, height: 170, borderRadius: '50%', background: 'rgba(255,75,87,.13)', filter: 'blur(8px)', animation: 'floaty 7s ease-in-out infinite' }} />
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
