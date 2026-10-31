@@ -148,7 +148,7 @@ export async function GET(request) {
 
     const topAgents = Object.entries(agentCounts)
       .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 3)
+      .slice(0, 5)
       .map(([agent, v]) => ({ agent, count: v.count, pct: Math.round((v.count / matchesUsed) * 100), icon: v.icon }));
 
     const { rounds, kills, deaths, assists, score, damage, hs, bs, ls } = sum;

@@ -30,6 +30,9 @@ input:focus, select:focus { outline: none; border-color: #FF4B57 !important; }
 [data-scrollx] { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 [data-scrollx]::-webkit-scrollbar { height: 6px; }
 [data-scrollx]::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 999px; }
+/* 스크롤은 되지만 바는 안 보이게 (인원 관리 표). */
+[data-scrollx].noBar { scrollbar-width: none; }
+[data-scrollx].noBar::-webkit-scrollbar { display: none; }
 button { transition: transform .16s ease, filter .16s ease, background .2s ease, color .2s ease, border-color .2s ease; }
 button:hover { filter: brightness(1.12); }
 button:active { transform: scale(.97); }

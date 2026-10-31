@@ -2118,10 +2118,10 @@ export default function Page() {
   const glass = { background: 'rgba(16,20,25,.72)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 22, padding: 18, boxShadow: '0 20px 50px rgba(0,0,0,.4)' };
   const h1 = { fontFamily: "'Archivo'", fontWeight: 800, fontSize: 'clamp(26px,5vw,34px)' };
   const sub = { fontSize: 13, color: '#8B949E', marginTop: 4 };
-  const playerGrid = '44px minmax(0,1.3fr) minmax(88px,0.9fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 72px';
+  const playerGrid = '44px minmax(0,1.3fr) minmax(146px,1.2fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 48px 72px';
   // 스크롤 없이 한 화면에. 이름 칸은 좁게 두고(긴 닉네임은 …) 티어 · 요원 ·
   // 스탯 칸이 남는 폭을 나눠 가진다.
-  const rosterGrid = 'minmax(96px,0.9fr) minmax(40px,0.45fr) minmax(40px,0.45fr) minmax(104px,1.2fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
+  const rosterGrid = 'minmax(96px,0.9fr) 44px 52px minmax(170px,1.6fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
@@ -2392,8 +2392,8 @@ export default function Page() {
                     <button onClick={addMember} style={{ background: '#C8F24C', color: '#0B0D10', border: 'none', borderRadius: 10, padding: '11px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>명단에 추가</button>
                   </div>
 
-                  <div data-scrollx="1">
-                    <div style={{ minWidth: 700 }}>
+                  <div data-scrollx="1" className="noBar">
+                    <div style={{ minWidth: 760 }}>
                       {!!roster.length && (
                         <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 12px 8px', fontSize: 12, color: '#8B949E', letterSpacing: '.06em' }}>
                           <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div>AGENTS</div><div>ACS</div><div>HS%</div><div>K:D</div><div>WIN%</div><div></div><div></div>
@@ -2547,10 +2547,10 @@ export default function Page() {
                   </div>
                 )}
                 <div data-scrollx="1" style={{ ...card, padding: 8 }}>
-                  <div style={{ minWidth: 780, display: 'grid', gridTemplateColumns: playerGrid, gap: 10, padding: '10px 14px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
-                    <div>#</div><div>RIOT ID</div><div>주 사용 요원</div><div>포지션</div><div>최고 티어</div><div>현재 티어</div><div>ACS</div><div>K:D</div><div>승률</div>
+                  <div style={{ minWidth: 900, display: 'grid', gridTemplateColumns: playerGrid, gap: 10, padding: '10px 14px', fontSize: 11, color: '#8B949E', letterSpacing: '.06em' }}>
+                    <div>#</div><div>RIOT ID</div><div>주 사용 요원</div><div>포지션</div><div>최고 티어</div><div>현재 티어</div><div>ACS</div><div>HS%</div><div>K:D</div><div>승률</div>
                   </div>
-                  <div style={{ minWidth: 780, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ minWidth: 900, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {players.map((p, i) => {
                       const t = tierPill(p.tier); // 최고 티어 column — 현재 티어 has its own column
                       // Records are stored under the canonical (main) account
@@ -2615,6 +2615,7 @@ export default function Page() {
                             )}
                           </div>
                           <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].acs : '—'}</div>
+                          <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? `${seasonStats[p.name.trim()].hsPct}%` : '—'}</div>
                           <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: seasonStats[p.name.trim()]?.matches ? '#E8EAEC' : '#6B737C' }}>{seasonStats[p.name.trim()]?.matches ? seasonStats[p.name.trim()].kd : '—'}</div>
                           <div style={wr == null
                             ? { fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }
@@ -2736,6 +2737,12 @@ export default function Page() {
                               <div key={idx} data-row="1" onClick={() => clickPlayer(k, idx)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: active ? '#2A313A' : '#1B2027', border: `1px solid ${active ? color : '#262C34'}`, borderRadius: 12, padding: '11px 14px', cursor: 'pointer' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                                  {(() => {
+                                    // 팀은 서버에서 동기화돼 realName이 없을 수 있어 명단(본계정 · 부계정)에서도 찾는다.
+                                    const n = p.name.trim();
+                                    const rn = p.realName || roster.find((r) => r.name === n || (r.alts || []).includes(n))?.realName;
+                                    return rn ? <div style={{ fontSize: 11, color: '#4C9AFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rn}</div> : null;
+                                  })()}
                                   <div style={{ fontSize: 11, color: '#8B949E' }}>
                                     {p.pos}
                                     {p.skill != null && (() => {
