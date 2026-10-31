@@ -136,7 +136,7 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
       {/* 두 팀 · 세트 스코어 */}
       <div className="rvVersus" key={`vs-${k}`}>
         {[0, 1].map((t) => (
-          <div key={t} className={`rvTeamBox t${t}${sr.wins[t] > sr.wins[1 - t] ? ' won' : sr.wins[t] < sr.wins[1 - t] ? ' lost' : ''}`} style={{ '--tc': TEAM[t] }}>
+          <div key={t} className={`rvTeamBox t${t}${sr.wins[t] > sr.wins[1 - t] ? ' won' : ''}`} style={{ '--tc': TEAM[t] }} data-mark={t ? 'B' : 'A'}>
             <div className="nm">{t === 1 && teamName(t)}{sr.wins[t] !== sr.wins[1 - t] && <span className={`res${sr.wins[t] > sr.wins[1 - t] ? ' win' : ''}`}>{sr.wins[t] > sr.wins[1 - t] ? 'WIN' : 'LOSE'}</span>}{t === 0 && teamName(t)}</div>
             <div className="icons">{rows[t].slice(0, 5).map((p) => p.agentIcon ? <img key={p.id} src={p.agentIcon} alt="" title={short(p.id)} /> : <span key={p.id} />)}</div>
           </div>
@@ -150,7 +150,7 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
       <div className="rvScopes" data-scrollx="1">
         <button className={`rvScope${!scope ? ' on' : ''}`} onClick={() => setScope(0)}>전체 <span>{sr.sets.length}세트</span></button>
         {sr.sets.map((s) => (
-          <button key={s.no} className={`rvScope${scope === s.no ? ' on' : ''}`} onClick={() => setScope(s.no)}>
+          <button key={s.no} className={`rvScope map${scope === s.no ? ' on' : ''}`} style={{ '--map': `url(${mapImg(s.mt.map)})` }} onClick={() => setScope(s.no)}>
             {s.no}세트 <span>{s.mt.map}</span>
             <b><i style={{ color: TEAM[0] }}>{s.score[0]}</i>:<i style={{ color: TEAM[1] }}>{s.score[1]}</i></b>
           </button>
@@ -185,6 +185,8 @@ function AceCard({ p, t, art, realNameOf, openPlayer }) {
   const rn = realNameOf(p.id);
   return (
     <div className={`rvSide t${t}`} style={{ '--tc': TEAM[t] }}>
+      <span className="rvPanel" aria-hidden="true" />
+      {p.agent && <span className="rvGhost" aria-hidden="true">{String(p.agent).toUpperCase()}</span>}
       {art?.portrait
         ? <img className={`rvPortrait t${t}`} src={art.portrait} alt="" aria-hidden="true" />
         : p.agentIcon && <img className={`rvPortrait icon t${t}`} src={p.agentIcon} alt="" aria-hidden="true" />}
@@ -224,7 +226,7 @@ function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, o
             const best = a == null || b == null || a === b ? null : (r.low ? a < b : a > b) ? 0 : 1;
             const val = (v) => (v == null ? '—' : r.label === 'ACS' ? <CountUp value={String(v)} dur={900} /> : r.fmt(v));
             return (
-              <div key={r.label} className="rvRow" style={{ '--d': i }}>
+              <div key={r.label} className={`rvRow${i === 0 ? ' hero' : ''}`} style={{ '--d': i }}>
                 <span className={`v${best === 0 ? ' best' : ''}`}>{val(a)}</span>
                 <span className="bar t0"><i style={{ width: `${max ? ((a || 0) / max) * 100 : 0}%` }} /></span>
                 <span className="lab">{r.label}</span>

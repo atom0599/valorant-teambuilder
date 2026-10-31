@@ -326,13 +326,10 @@ button:active { transform: scale(.97); }
 .rvTeamBox.t0 { padding-right: 80px; }
 .rvTeamBox.t1 { padding-left: 80px; }
 .rvTeamBox .nm { font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 17px; letter-spacing: -.01em; color: var(--tc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.rvTeamBox .res { display: inline-block; vertical-align: 2px; margin-right: 9px; padding: 3px 9px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: .16em; line-height: 1.2; color: #8B949E; background: transparent; border: 1px solid #3A424C; }
+.rvTeamBox .res { display: inline-block; vertical-align: 2px; margin-right: 9px; padding: 3px 9px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: .16em; line-height: 1.2; color: #fff; background: #E5303D; border: 1px solid #E5303D; box-shadow: 0 0 14px rgba(229,48,61,.45); }
 .rvTeamBox.t1 .res { margin-right: 0; margin-left: 9px; }
-.rvTeamBox .res.win { color: #0B0D10; background: #C8F24C; border-color: #C8F24C; box-shadow: 0 0 14px rgba(200,242,76,.45); }
+.rvTeamBox .res.win { color: #fff; background: #2F7BFF; border-color: #2F7BFF; box-shadow: 0 0 14px rgba(47,123,255,.55); }
 .rvTeamBox.won { border-color: var(--tc); }
-.rvTeamBox.lost { filter: saturate(.45); }
-.rvTeamBox.lost .nm { color: color-mix(in srgb, var(--tc) 60%, #8B949E); }
-.rvTeamBox.lost .icons img { opacity: .6; }
 .rvTeamBox .icons { display: flex; gap: 4px; }
 .rvTeamBox .icons img, .rvTeamBox .icons span { width: 26px; height: 26px; border-radius: 7px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); }
 .rvSetScore { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 8px; padding: 10px 20px 18px; border-radius: 18px;
@@ -478,11 +475,68 @@ button:active { transform: scale(.97); }
 .rvFacts b { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 15px; }
 .rvFacts i { font-style: normal; }
 
+/* 꾸밈: 카드 위 팀색 라인, 팀 칸 A/B 워터마크 · 사선, 에이스 뒤 사선 패널 · 요원 이름, 세트 버튼 맵 그림 */
+.rvCard::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, #FF4B57, rgba(255,75,87,0) 38%, rgba(47,211,183,0) 62%, #2FD3B7); }
+.rvEyebrow::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; background: #C8F24C; transform: rotate(45deg); box-shadow: 0 0 10px rgba(200,242,76,.7); }
+
+.rvTeamBox::before { content: attr(data-mark); position: absolute; top: 50%; transform: translateY(-50%); font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 120px; line-height: 1; letter-spacing: -.06em; pointer-events: none;
+  color: transparent; -webkit-text-stroke: 1.5px color-mix(in srgb, var(--tc) 35%, transparent); }
+.rvTeamBox.t0::before { right: 92px; }
+.rvTeamBox.t1::before { left: 92px; }
+.rvTeamBox::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: repeating-linear-gradient(115deg, transparent 0 14px, color-mix(in srgb, var(--tc) 10%, transparent) 14px 15px);
+  -webkit-mask-image: linear-gradient(90deg, #000, transparent 55%); mask-image: linear-gradient(90deg, #000, transparent 55%); }
+.rvTeamBox.t1::after { -webkit-mask-image: linear-gradient(270deg, #000, transparent 55%); mask-image: linear-gradient(270deg, #000, transparent 55%); }
+.rvTeamBox > * { position: relative; z-index: 1; }
+.rvTeamBox.won { box-shadow: 0 12px 34px color-mix(in srgb, var(--tc) 22%, transparent), inset 0 0 40px color-mix(in srgb, var(--tc) 12%, transparent); }
+.rvSetScore { box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 0 4px rgba(12,15,19,.9); }
+.rvSetScore::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(90deg, #FF4B57, rgba(255,255,255,.1) 50%, #2FD3B7); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.rvSetScore b { text-shadow: 0 0 18px currentColor; }
+
+.rvScope.map { position: relative; overflow: hidden; isolation: isolate; }
+.rvScope.map::before { content: ""; position: absolute; inset: 0; z-index: -2; background: var(--map) center / cover; opacity: .35; filter: saturate(.7); transition: opacity .25s; }
+.rvScope.map::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(12,15,19,.85), rgba(12,15,19,.35)); }
+.rvScope.map:hover::before, .rvScope.map.on::before { opacity: .7; }
+
+.rvPanel { position: absolute; left: 10%; right: 10%; bottom: 44px; height: 250px; pointer-events: none; transform: skewX(-10deg); border-radius: 6px; overflow: hidden;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--tc) 24%, transparent));
+  border-bottom: 3px solid var(--tc); box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--tc) 60%, transparent); }
+.rvSide.t1 .rvPanel { transform: skewX(10deg); }
+.rvPanel::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(255,255,255,.035) 5px 6px); }
+.rvGhost { position: absolute; bottom: 56px; max-height: 270px; overflow: hidden; pointer-events: none; white-space: nowrap; writing-mode: vertical-rl;
+  font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 44px; letter-spacing: .04em; line-height: 1; color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--tc) 55%, transparent); }
+.rvSide.t0 .rvGhost { left: 2%; transform: rotate(180deg); }
+.rvSide.t1 .rvGhost { right: 2%; }
+.rvSlide.on .rvPanel { animation: rvPanelIn .7s .05s cubic-bezier(.2,.8,.2,1) both; }
+.rvGhost { opacity: 0; }
+.rvSlide.on .rvGhost { animation: rvFade .9s .3s forwards; }
+@keyframes rvPanelIn { from { opacity: 0; clip-path: inset(100% 0 0 0) } to { opacity: 1; clip-path: inset(0 0 0 0) } }
+.rvAce .n { font-size: 21px; }
+
+.rvRow.hero { grid-template-columns: 58px 1fr 64px 1fr 58px; padding-bottom: 8px; margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.rvRow.hero .v { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 24px; color: #E8EAEC; }
+.rvRow.hero .v.best { color: #FFD166; text-shadow: 0 0 16px rgba(255,209,102,.45); }
+.rvRow.hero .lab { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: .18em; color: #C6CDD4; }
+.rvRow.hero .bar { height: 10px; border-radius: 5px; }
+.rvTapeHead::before, .rvTapeHead::after { content: ""; position: absolute; top: 9px; width: 18%; height: 1px; }
+.rvTapeHead { position: relative; }
+.rvTapeHead::before { left: 4%; background: linear-gradient(90deg, transparent, #FF4B57); }
+.rvTapeHead::after { right: 4%; background: linear-gradient(270deg, transparent, #2FD3B7); }
+
 @media (max-width: 760px) {
   .rvDuel { grid-template-columns: 1fr 1fr; min-height: 0; }
   .rvTape { grid-column: 1 / -1; order: 3; padding: 14px 0 0; }
   .rvSide { min-height: 220px; }
   .rvPortrait { height: 190px; }
+  .rvPanel { height: 160px; }
+  .rvGhost { font-size: 30px; max-height: 180px; }
+  .rvTeamBox::before { font-size: 80px; }
+  .rvTeamBox.t0::before { right: 70px; }
+  .rvTeamBox.t1::before { left: 70px; }
+  .rvRow.hero .v { font-size: 19px; }
+  .rvRow.hero { grid-template-columns: 46px 1fr 64px 1fr 46px; }
   .rvLineup { grid-template-columns: 1fr; }
   .rvSetScore { font-size: 26px; padding: 8px 14px 16px; }
   .rvTeamBox .nm { font-size: 14px; }
