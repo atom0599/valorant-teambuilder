@@ -338,9 +338,12 @@ export default function Page() {
         });
       }).catch(() => {});
     };
+    // Vercel 무료 요청 한도 때문에 1초 → 30초, 화면을 안 보고 있으면 쉬고 돌아오면 바로 한 번.
     pull();
-    const t = setInterval(pull, 1000);
-    return () => { alive = false; clearInterval(t); };
+    const t = setInterval(() => { if (!document.hidden) pull(); }, 30000);
+    const onVis = () => { if (!document.hidden) pull(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   /* ---------- background crossfade ---------- */
@@ -719,8 +722,11 @@ export default function Page() {
         })
         .catch(() => {});
     };
-    const t2 = setInterval(pullRoom, 1000);
-    return () => { alive = false; clearInterval(t2); };
+    // 요청 한도 때문에 1초 → 2초, 화면을 안 보고 있으면 쉬고 돌아오면 바로 한 번.
+    const t2 = setInterval(() => { if (!document.hidden) pullRoom(); }, 2000);
+    const onVis = () => { if (!document.hidden) pullRoom(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(t2); document.removeEventListener('visibilitychange', onVis); };
   }, [roomCode]);
 
   // "방 초기화" — everyone shares the same fixed room code (DEFAULT_ROOM_CODE),

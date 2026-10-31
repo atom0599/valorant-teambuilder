@@ -514,6 +514,8 @@ button:active { transform: scale(.97); }
 .rvSlide.on .rvGhost { animation: rvFade .9s .3s forwards; }
 @keyframes rvPanelIn { from { opacity: 0; clip-path: inset(100% 0 0 0) } to { opacity: 1; clip-path: inset(0 0 0 0) } }
 .rvAce .n { font-size: 21px; }
+.rvAce { top: 14px; }
+.rvDuelWrap { padding-bottom: 14px; }
 
 .rvRow.hero { grid-template-columns: 58px 1fr 64px 1fr 58px; padding-bottom: 8px; margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .rvRow.hero .v { font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 24px; color: #E8EAEC; }

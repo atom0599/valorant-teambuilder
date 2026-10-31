@@ -123,8 +123,10 @@ export default function ClipsScreen({ isAdmin, adminHeaders, input, pill }) {
     const pull = () => fetch(`/api/clips?cid=${encodeURIComponent(cidRef.current)}`).then((r) => r.json())
       .then((d) => { if (alive) { applyData(d); if (Array.isArray(d.clips)) setLoaded(true); } }).catch(() => {});
     pull();
-    const t = setInterval(pull, 5000);
-    return () => { alive = false; clearInterval(t); };
+    const t = setInterval(() => { if (!document.hidden) pull(); }, 15000);
+    const onVis = () => { if (!document.hidden) pull(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
   }, []);
 
   useEffect(() => {
