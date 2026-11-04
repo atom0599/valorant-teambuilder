@@ -91,10 +91,10 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
   const sr = series[seriesIdx ?? defaultSeries] || series[0];
   const sets = scope ? sr.sets.filter((s) => s.no === scope) : sr.sets;
 
-  // 에이스는 시리즈 전체 기준으로 고정 (절반 이상 세트를 뛴 사람 중 평균 ACS 1위)
-  const total = useMemo(() => [0, 1].map((t) => aggregate(sr.sets, t)), [sr]);
-  const aceIds = total.map((list) => (list.find((p) => p.sets * 2 >= sr.sets.length && p.acs != null) || list[0])?.id);
+  // 에이스는 고른 범위마다 따로: 세트를 고르면 그 세트 ACS 1위,
+  // 전체면 세트들의 전투 점수(ACS × 라운드)를 다 더해 가장 많은 사람.
   const rows = useMemo(() => [0, 1].map((t) => aggregate(sets, t)), [sets]);
+  const aceIds = rows.map((list) => list.reduce((best, p) => (!best || p.acsW > best.acsW ? p : best), null)?.id);
   const teamName = (t) => (t ? '팀 B' : '팀 A');
 
   const d0 = new Date(hl.matches[0].date), d1 = new Date(hl.matches[hl.matches.length - 1].date);
@@ -112,7 +112,7 @@ export default function RivalryHighlight({ hl, hlDay, hlDays, hlIndex, setHlInde
   };
 
   const k = `${hlDay.start}-${seriesIdx ?? defaultSeries}-${scope}`;
-  const ctx = { sr, sets, scope, rows, total, aceIds, teamName, agentArt, realNameOf, openPlayer };
+  const ctx = { sr, sets, scope, rows, aceIds, teamName, agentArt, realNameOf, openPlayer };
   const bgMap = (scope ? sets[0] : sr.sets[sr.sets.length - 1]).mt.map;
 
   return (
@@ -199,7 +199,7 @@ function AceCard({ p, t, art, realNameOf, openPlayer }) {
 }
 
 // 01 에이스 대결: 고른 범위의 합계를 가운데 막대로 비교.
-function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, openPlayer }) {
+function AceDuel({ sr, sets, scope, rows, aceIds, agentArt, realNameOf, openPlayer }) {
   const ace = [0, 1].map((t) => rows[t].find((p) => p.id === aceIds[t]) || null);
   const art = ace.map((p) => (p ? agentArt(p.agent) : null));
   const stat = [
@@ -217,7 +217,7 @@ function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, o
   return (
     <div className="rvDuelWrap">
       <div className="rvDuel">
-        <AceCard p={ace[0] || total[0].find((x) => x.id === aceIds[0])} t={0} art={art[0]} realNameOf={realNameOf} openPlayer={openPlayer} />
+        <AceCard p={ace[0]} t={0} art={art[0]} realNameOf={realNameOf} openPlayer={openPlayer} />
         <div className="rvTape">
           <div className="rvTapeHead">{scope ? `${scope}세트 · ${sets[0].mt.map}` : `${sr.sets.length}세트 합계`}<span>평균 ACS · HS%는 라운드 수 기준</span></div>
           {stat.map((r, i) => {
@@ -236,7 +236,7 @@ function AceDuel({ sr, sets, scope, rows, total, aceIds, agentArt, realNameOf, o
             );
           })}
         </div>
-        <AceCard p={ace[1] || total[1].find((x) => x.id === aceIds[1])} t={1} art={art[1]} realNameOf={realNameOf} openPlayer={openPlayer} />
+        <AceCard p={ace[1]} t={1} art={art[1]} realNameOf={realNameOf} openPlayer={openPlayer} />
       </div>
     </div>
   );
