@@ -1,4 +1,4 @@
-import { getJSON, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ const sameSet = (x, y) => JSON.stringify([...(x || [])].sort()) === JSON.stringi
 
 export async function GET() {
   try {
-    const roster = (await getJSON(KEY)) || [];
+    const roster = (await getCached(KEY, 60000)) || [];
     return Response.json({ roster, persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return Response.json({ error: String(e), roster: [] }, { status: 502 });

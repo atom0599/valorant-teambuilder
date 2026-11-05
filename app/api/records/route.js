@@ -1,4 +1,4 @@
-import { getJSON, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,7 @@ async function renameExcluded(from, to) {
 export async function GET(request) {
   const id = new URL(request.url).searchParams.get('id');
   try {
-    const [all, excluded] = await Promise.all([getJSON(KEY), getJSON(EXCLUDED_KEY)]);
+    const [all, excluded] = await Promise.all([getCached(KEY, 60000), getCached(EXCLUDED_KEY, 60000)]);
     if (id) return Response.json({ id, record: (all || {})[id] || null, persistent: hasKV });
     return Response.json({ records: all || {}, excluded: excluded || [], persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {

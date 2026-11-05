@@ -1,4 +1,4 @@
-import { getJSON, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +16,7 @@ const TIERS_KEY = 'seasonstats:tiers';
 
 export async function GET() {
   try {
-    const [stats, tiers] = await Promise.all([getJSON(KEY), getJSON(TIERS_KEY)]);
+    const [stats, tiers] = await Promise.all([getCached(KEY, 60000), getCached(TIERS_KEY, 60000)]);
     return Response.json({ stats: stats || {}, tiers: tiers || {}, persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return Response.json({ error: String(e), stats: {}, tiers: {} }, { status: 502 });

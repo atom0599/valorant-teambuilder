@@ -1,4 +1,4 @@
-import { getJSON, setJSON, casJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, casJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 import { mergeScores } from '../../../lib/scores';
 import { ALL_MAPS, normalizePool } from '../../../lib/constants';
@@ -14,7 +14,7 @@ export async function GET(request) {
   const code = new URL(request.url).searchParams.get('code');
   if (!code) return Response.json({ error: 'code required' }, { status: 400 });
   try {
-    const room = await getJSON(`room:${code}`);
+    const room = await getCached(`room:${code}`, 5000);
     if (room?.pool) room.pool = normalizePool(room.pool);
     return Response.json({ room, persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {

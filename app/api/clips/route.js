@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { getJSON, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
@@ -52,7 +52,7 @@ export async function GET(request) {
   const cid = new URL(request.url).searchParams.get('cid');
   try {
     const ok = validCid(cid);
-    const [all, names] = await Promise.all([getJSON(KEY), ok ? getJSON(NAMES_KEY) : null]);
+    const [all, names] = await Promise.all([getCached(KEY, 60000), ok ? getCached(NAMES_KEY, 60000) : null]);
     return respond(all || [], ok ? cid : null, ok ? (names || {})[cid] : null);
   } catch (e) {
     return Response.json({ error: String(e), clips: [] }, { status: 502 });
