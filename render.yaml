@@ -1,0 +1,26 @@
+# Render 배포 설정 (Blueprint). GitHub main에 push하면 자동으로 다시 배포된다.
+# 비밀 값(sync: false)은 Render 대시보드에서 직접 넣는다.
+services:
+  - type: web
+    name: valorant-teambuilder
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: HENRIKDEV_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
