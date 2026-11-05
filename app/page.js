@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { mergeScores } from '../lib/scores';
 import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps, mostAgent } from '../lib/fame';
 import { highlightDays, dayHighlight } from '../lib/highlights';
@@ -107,6 +108,7 @@ export default function Page() {
   const [selectedMap, setSelectedMap] = useState(null);
   const [deciderAnimating, setDeciderAnimating] = useState(false);
   const [deciderDisplay, setDeciderDisplay] = useState('');
+  const [deciderLanded, setDeciderLanded] = useState(false);
   const seenDeciderRef = useRef(null);
   const [scores, setScores] = useState({});
 
@@ -774,6 +776,7 @@ export default function Page() {
     bpStartDirtyRef.current = false;
     setBp(fresh.bp);
     setDeciderAnimating(false);
+    setDeciderLanded(false);
     setDeciderDisplay('');
     seenDeciderRef.current = null;
     setScores(fresh.scores);
@@ -830,28 +833,34 @@ export default function Page() {
 
     setDeciderAnimating(true);
     const { candidates, chosen } = bp.deciderRoll;
-    // Slot-machine deceleration instead of a flat tick rate: fast flicker at
-    // the start, easing (cubic ease-out) into longer and longer pauses right
-    // before landing, so it reads as "spinning down" rather than just
-    // stopping abruptly. ~20 ticks between 60ms and 250ms apart averages out
-    // to roughly twice the old flat-18-ticks-at-110ms (~2s) total spin time.
-    const totalTicks = 20;
-    const minDelay = 60;
-    const maxDelay = 250;
+    // 룰렛처럼 하이라이트가 후보 칸을 왼쪽부터 차례로 돌면서(무작위로 튀지
+    // 않게) 점점 느려지다 뽑힌 맵에서 멈춘다. 마지막 칸이 정확히 chosen에
+    // 떨어지도록 전체 칸 수를 (몇 바퀴 + chosen 위치)로 맞춘다. 멈춘 뒤에는
+    // 뽑힌 맵만 커지고 나머지는 흐려지는 결과 화면을 잠깐 보여 준다.
+    const n = candidates.length;
+    const target = Math.max(0, candidates.indexOf(chosen));
+    const laps = n <= 2 ? 6 : n === 3 ? 4 : 3;
+    const totalTicks = laps * n + target; // 0번 칸에서 시작해 이만큼 움직이면 chosen
+    const minDelay = 70;
+    const maxDelay = 520;
     let tick = 0;
     let timer;
+    setDeciderLanded(false);
+    setDeciderDisplay(candidates[0]);
     const scheduleNext = () => {
       tick++;
-      setDeciderDisplay(candidates[Math.floor(Math.random() * candidates.length)]);
+      setDeciderDisplay(candidates[tick % n]);
       if (tick >= totalTicks) {
         setDeciderDisplay(chosen);
-        timer = setTimeout(() => setDeciderAnimating(false), 700);
+        setDeciderLanded(true);
+        timer = setTimeout(() => { setDeciderAnimating(false); setDeciderLanded(false); }, 1800);
         return;
       }
-      const eased = 1 - Math.pow(1 - tick / totalTicks, 3);
-      timer = setTimeout(scheduleNext, minDelay + (maxDelay - minDelay) * eased);
+      // 뒤로 갈수록 크게 느려지는 감속 (ease-in 4제곱).
+      const p = tick / totalTicks;
+      timer = setTimeout(scheduleNext, minDelay + (maxDelay - minDelay) * Math.pow(p, 4));
     };
-    timer = setTimeout(scheduleNext, minDelay);
+    timer = setTimeout(scheduleNext, 650); // 칸들이 나타나는 동안 잠깐 기다렸다 시작
     return () => clearTimeout(timer);
   }, [deciderRollKey]);
 
@@ -959,8 +968,34 @@ export default function Page() {
       const altRenames = new Map(); // main name -> [[oldAlt, newAlt]]
       const puuids = new Map();
       const altPuuids = new Map(); // main name -> { alt: puuid }
+      // HenrikDev는 분당 30번이라 서버가 2초 남짓에 1번씩만 보낸다 — 요청 수가
+      // 곧 걸리는 시간. 그래서 시즌 기록(증분)을 먼저 받아 보고, 새 경기가 없거나
+      // 최근 경기의 이름 · 티어가 저장된 것과 같으면 티어 조회는 건너뛴다(한 사람에
+      // 요청 1번). 이름이 바뀌었거나 티어가 달라졌거나 처음 보는 사람이면 예전처럼
+      // 티어 조회 → 시즌 기록 순서로 한다.
+      const tierLabelOf = (e) => (e && e.tier != null ? TIERS[e.tier]?.label || null : null);
+      const tierSnapshot = currentTiers;
       for (const r of members) {
         const full = r.name.trim();
+        const cachedTier = tierSnapshot[full];
+        if (r.puuid && cachedTier && cachedTier.peak != null) {
+          const quick = await requestSeasonStats(full, r.puuid, full);
+          const sameName = !quick?.account || lowerOf(quick.account) === lowerOf(full);
+          const unchanged = quick && !quick.error && sameName && (
+            quick.newMatches === 0 ||
+            (quick.newMatches > 0 && (quick.matchTier || null) === tierLabelOf(cachedTier))
+          );
+          if (unchanged) {
+            storeSeasonStats(full, quick);
+            tick();
+            await refreshAlts(r);
+            continue;
+          }
+        }
+        await refreshMain(r, full);
+        await refreshAlts(r);
+      }
+      async function refreshMain(r, full) {
         const isOwnAlt = (acc) => (r.alts || []).some((a) => lowerOf(a) === lowerOf(acc));
         let puuid = r.puuid || null;
         let rank = await rankBy(puuid, full);
@@ -981,9 +1016,14 @@ export default function Page() {
         }
         storeSeasonStats(key, await requestSeasonStats(key, puuid, full));
         tick();
-
+      }
+      // 부계정은 티어만 본다(본계정과 비교용). 12시간 안에 받아 둔 티어가 있으면
+      // 다시 조회하지 않는다.
+      async function refreshAlts(r) {
         for (const alt of (r.alts || []).map((a) => a.trim()).filter((a) => a.includes('#'))) {
           const ap = r.altPuuids?.[alt] || null;
+          const cachedAlt = tierSnapshot[alt];
+          if (ap && cachedAlt?.at && Date.now() - cachedAlt.at < 12 * 60 * 60 * 1000) { tick(); continue; }
           const d = await rankBy(ap, alt);
           if (d?.source === 'api' && d.account) {
             let altKey = alt;
@@ -2129,7 +2169,7 @@ export default function Page() {
   const playerGrid = '44px minmax(0,1.3fr) minmax(146px,1.2fr) 84px minmax(0,0.9fr) minmax(0,0.9fr) 48px 48px 48px 72px';
   // 스크롤 없이 한 화면에. 이름 칸은 좁게 두고(긴 닉네임은 …) 티어 · 요원 ·
   // 스탯 칸이 남는 폭을 나눠 가진다.
-  const rosterGrid = 'minmax(96px,0.9fr) 44px 68px minmax(170px,1.6fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
+  const rosterGrid = 'minmax(96px,0.9fr) 112px 112px minmax(170px,1.6fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(42px,0.5fr) minmax(44px,0.5fr) 96px 18px';
   const boardGrid = 'minmax(210px,2.4fr) minmax(96px,auto) minmax(96px,1.1fr) 68px 52px 60px 68px';
   const input = { background: '#0F1318', border: '1px solid #2C333C', borderRadius: 9, padding: '9px 11px', color: '#E8EAEC', fontSize: 13, width: '100%' };
 
@@ -2310,10 +2350,10 @@ export default function Page() {
                   </div>
 
                   <div data-scrollx="1" className="noBar">
-                    <div style={{ minWidth: 760 }}>
+                    <div style={{ minWidth: 900 }}>
                       {!!roster.length && (
                         <div style={{ display: 'grid', gridTemplateColumns: rosterGrid, gap: 8, padding: '0 12px 8px', fontSize: 12, color: '#8B949E', letterSpacing: '.06em' }}>
-                          <div>이름</div><div style={{ textAlign: 'center' }}>PEAK</div><div style={{ textAlign: 'center' }}>CURRENT</div><div style={{ paddingLeft: 6 }}>AGENTS</div><div>K:D</div><div>ACS</div><div>HS%</div><div>WIN%</div><div></div><div></div>
+                          <div>이름</div><div>PEAK</div><div>CURRENT</div><div style={{ paddingLeft: 6 }}>AGENTS</div><div>K:D</div><div>ACS</div><div>HS%</div><div>WIN%</div><div></div><div></div>
                         </div>
                       )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2349,15 +2389,16 @@ export default function Page() {
                                   )}
                                 </div>
                               </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                              {/* 참가자 등록의 최고 · 현재 티어 칸과 같은 모양 (아이콘 28 + 이름 12). */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                 {personPeak(r.name)?.peakIcon
-                                  ? <img src={personPeak(r.name).peakIcon} alt={tierPill(personPeak(r.name).peak).label} title={`최고 ${tierPill(personPeak(r.name).peak).label}`} style={{ width: 34, height: 34 }} />
+                                  ? <><img src={personPeak(r.name).peakIcon} alt={tierPill(personPeak(r.name).peak).label} title={`최고 ${tierPill(personPeak(r.name).peak).label}`} style={{ width: 28, height: 28, flex: 'none' }} /><span style={{ fontSize: 12, color: '#C6CDD4', whiteSpace: 'nowrap' }}>{tierPill(personPeak(r.name).peak).label}</span></>
                                   : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>—</span>}
                               </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                                 {personTier(r.name)?.tierIcon
-                                  ? <img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 34, height: 34 }} />
-                                  : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E' }}>{personTier(r.name) ? '언랭' : '—'}</span>}
+                                  ? <><img src={personTier(r.name).tierIcon} alt={tierPill(personTier(r.name).tier).label} title={`현재 ${tierPill(personTier(r.name).tier).label}`} style={{ width: 28, height: 28, flex: 'none' }} /><span style={{ fontSize: 12, color: '#C6CDD4', whiteSpace: 'nowrap' }}>{tierPill(personTier(r.name).tier).label}</span></>
+                                  : <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 12, color: '#8B949E' }}>{personTier(r.name) ? '언랭' : '—'}</span>}
                               </div>
                               <div style={{ display: 'flex', gap: 4, alignItems: 'center', paddingLeft: 6 }}>
                                 {(st?.topAgents || []).map((a) => (
@@ -2368,10 +2409,10 @@ export default function Page() {
                                 ))}
                                 {!st?.topAgents?.length && <span style={{ fontSize: 11, color: '#6B737C' }}>—</span>}
                               </div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.kd : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? st.acs : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 400, color: '#C6CDD4' }}>{wr == null ? '—' : `${wr}%`}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>{st?.matches ? st.kd : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>{st?.matches ? st.acs : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
+                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: wr == null ? '#6B737C' : '#E8EAEC' }}>{wr == null ? '—' : `${wr}%`}</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {!!r.alts?.length && !used && (
                                   <select value={chosenAccount} onChange={(e) => setAltPick((m) => ({ ...m, [r.name]: e.target.value }))} title="이번엔 어느 계정으로 참가시킬지 선택" style={{ fontSize: 10, background: '#1B2027', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 6, padding: '2px 4px' }}>
@@ -2874,6 +2915,22 @@ export default function Page() {
                                   {!!sideLabel && (
                                     <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 10, letterSpacing: '.05em', color: '#C8F24C', textAlign: 'center' }}>{sideLabel}</div>
                                   )}
+                                  {/* 진영을 고른 팀 기준이 아니라, 결과로 누가 공격 · 수비로 시작하는지 바로 보이게. */}
+                                  {!!info.side && (() => {
+                                    const atk = info.side === 'attack' ? info.sideBy : (info.sideBy === 'A' ? 'B' : 'A');
+                                    const def = atk === 'A' ? 'B' : 'A';
+                                    const teamColor = (t) => (t === 'A' ? '#FF4B57' : '#2FD3B7');
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                                        {[['공격', atk], ['수비', def]].map(([label, t]) => (
+                                          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', background: 'rgba(11,13,16,.6)', border: `1px solid ${teamColor(t)}66`, borderRadius: 999, padding: '2px 9px' }}>
+                                            <span style={{ color: '#C6CDD4' }}>{label}</span>
+                                            <span style={{ color: teamColor(t) }}>{teamName(t)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
                                 </>
                               )}
                             </div>
@@ -2884,36 +2941,43 @@ export default function Page() {
                   </div>
                 )}
 
-                {deciderAnimating && bp?.deciderRoll && (
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(9,11,13,.97)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 32, padding: 24 }}>
-                    <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, letterSpacing: '.2em', color: '#E5C04C', animation: 'pulseDot 1s ease-in-out infinite' }}>🎲 데사이더 맵 추첨 중</div>
+                {deciderAnimating && bp?.deciderRoll && createPortal(
+                  // 검은 배경 없이 화면을 살짝 흐리게만 해서 밴픽 화면 위에 바로 떠오르게.
+                  // body에 바로 붙인다 — 화면 컨테이너의 fadeUp transform 안에 있으면
+                  // fixed가 화면 전체가 아니라 그 컨테이너 기준이 돼서 위쪽에 붙는다.
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'transparent', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 24, animation: 'dcFade .35s ease-out both' }}>
+                    <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 15, fontWeight: 600, letterSpacing: '.2em', color: '#E5C04C', textShadow: '0 2px 12px rgba(0,0,0,.85)', animation: deciderLanded ? 'popIn .4s ease-out both' : 'pulseDot 1.2s ease-in-out infinite' }}>
+                      {deciderLanded ? `DECIDER · ${bp.deciderRoll.chosen}` : '데사이더 맵 추첨 중'}
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(bp.deciderRoll.candidates.length, 4)},1fr)`, gap: 20, width: '100%', maxWidth: 980 }}>
-                      {bp.deciderRoll.candidates.map((m) => {
+                      {bp.deciderRoll.candidates.map((m, ci) => {
                         const hit = deciderDisplay === m;
+                        const win = deciderLanded && hit;
+                        const lose = deciderLanded && !hit;
                         return (
-                          <div key={m} style={{
-                            position: 'relative', overflow: 'hidden', minHeight: 220, borderRadius: 20,
-                            display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 18,
-                            border: `3px solid ${hit ? '#E5C04C' : '#262C34'}`,
-                            boxShadow: hit ? '0 0 0 6px #E5C04C33, 0 0 50px #E5C04C77' : 'none',
-                            // Same darkness on every tile at all times — only the
-                            // glow/border/scale moves between candidates, instead
-                            // of each tile also flatly darkening/lightening as the
-                            // highlight lands on or leaves it. A touch slower
-                            // transition than the fastest ticks so consecutive
-                            // highlights blend into a moving glow rather than
-                            // snapping between two states.
-                            backgroundImage: `linear-gradient(180deg,rgba(11,13,16,.55),rgba(11,13,16,.8)), url(${MAP_IMG[m] || '/maps/ascent.png'})`,
-                            backgroundSize: 'cover', backgroundPosition: 'center 30%',
-                            transform: hit ? 'scale(1.05)' : 'scale(1)',
-                            transition: 'transform .16s ease-out, box-shadow .16s ease-out, border-color .16s ease-out'
-                          }}>
-                            <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: hit ? '#E5C04C' : '#E8EAEC', transition: 'color .16s ease-out' }}>{m}</div>
+                          <div key={m} style={{ animation: `dcIn .5s cubic-bezier(.2,.8,.3,1) ${ci * 80}ms both` }}>
+                            <div style={{
+                              position: 'relative', overflow: 'hidden', minHeight: 220, borderRadius: 20,
+                              display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 18,
+                              border: `3px solid ${hit ? '#E5C04C' : 'rgba(255,255,255,.12)'}`,
+                              boxShadow: win ? '0 0 0 8px #E5C04C40, 0 0 80px #E5C04Caa, 0 20px 50px rgba(0,0,0,.6)' : hit ? '0 0 0 5px #E5C04C33, 0 0 44px #E5C04C77, 0 16px 40px rgba(0,0,0,.55)' : '0 14px 34px rgba(0,0,0,.5)',
+                              backgroundImage: `linear-gradient(180deg,rgba(11,13,16,.15) 30%,rgba(11,13,16,.85)), url(${MAP_IMG[m] || '/maps/ascent.png'})`,
+                              backgroundSize: 'cover', backgroundPosition: 'center 30%',
+                              transform: win ? 'scale(1.1)' : hit ? 'scale(1.05)' : lose ? 'scale(.94)' : 'scale(1)',
+                              opacity: lose ? 0.3 : 1,
+                              filter: lose ? 'grayscale(.8)' : 'none',
+                              // 하이라이트가 칸 사이를 미끄러지듯 옮겨 가게 전환을 넉넉히.
+                              transition: 'transform .28s cubic-bezier(.2,.8,.3,1), box-shadow .28s ease-out, border-color .22s ease-out, opacity .5s ease-out, filter .5s ease-out'
+                            }}>
+                              {win && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(110deg, transparent 30%, rgba(229,192,76,.35) 50%, transparent 70%)', animation: 'sweep 1.1s ease-out both' }} />}
+                              <div style={{ position: 'relative', fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, color: hit ? '#E5C04C' : '#E8EAEC', textShadow: '0 2px 10px rgba(0,0,0,.8)', transition: 'color .22s ease-out' }}>{m}</div>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
+                  </div>,
+                  document.body
                 )}
 
                 {pendingShow && !deciderAnimating && (
