@@ -92,6 +92,14 @@ export default function Page() {
   const [rotation, setRotation] = useState(ROTATION);
   const [poolPickerOpen, setPoolPickerOpen] = useState(false);
   const [captains, setCaptains] = useState({ A: null, B: null });
+  // 서버가 적은 주장 자리 채운 시각 { A: ms, B: ms } — 먼저 들어온 주장만 밴픽 시작.
+  const [captainSince, setCaptainSince] = useState({});
+  // 인원 관리 새로고침 잠금(서버 메모리, lib/refreshLock.js). 이 탭의 id로 내 것인지 구분.
+  const [refreshLock, setRefreshLock] = useState({ active: false, progress: 0, mine: false, endedAt: 0 });
+  const refreshTabIdRef = useRef(null);
+  if (refreshTabIdRef.current == null && typeof window !== 'undefined') {
+    refreshTabIdRef.current = `T${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  }
   const [myRole, setMyRole] = useState(null);
   // Which captain tokens THIS browser actually issued (persisted to
   // localStorage per room) — the only thing that lets us tell "I'm the one
@@ -233,9 +241,12 @@ export default function Page() {
       url.searchParams.set('room', code);
       window.history.replaceState({}, '', url);
     }
-    fetch(`/api/room?code=${encodeURIComponent(code)}`)
+    fetch(`/api/room?code=${encodeURIComponent(code)}&rid=${refreshTabIdRef.current}`)
       .then((r) => r.json())
-      .then((d) => { if (d?.room) applyRoom(d.room); })
+      .then((d) => {
+        if (d?.refresh) setRefreshLock(d.refresh);
+        if (d?.room) { setCaptainSince(d.room.captainSince || {}); applyRoom(d.room); }
+      })
       .catch(() => {});
     const t = setTimeout(() => setSplash(false), 1750);
     return () => clearTimeout(t);
@@ -318,6 +329,7 @@ export default function Page() {
   // from the server or the fallback timeout clears it.
   const pendingResetRef = useRef(null);
 
+  const pullSharedRef = useRef(() => {});
   useEffect(() => {
     let alive = true;
     const pull = () => {
@@ -341,6 +353,7 @@ export default function Page() {
       }).catch(() => {});
     };
     // Vercel 무료 요청 한도 때문에 1초 → 30초, 화면을 안 보고 있으면 쉬고 돌아오면 바로 한 번.
+    pullSharedRef.current = pull;
     pull();
     const t = setInterval(() => { if (!document.hidden) pull(); }, 30000);
     const onVis = () => { if (!document.hidden) pull(); };
@@ -636,6 +649,7 @@ export default function Page() {
           setRemoteOk(!!d.persistent);
           if (d.room) {
             version.current = d.room.version;
+            if (!isStaleBeforePendingReset(d.room.createdAt)) setCaptainSince(d.room.captainSince || {});
             if (d.rejected) {
               applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) }, d.room);
             } else {
@@ -712,9 +726,11 @@ export default function Page() {
     if (!roomCode) return;
     let alive = true;
     const pullRoom = () => {
-      fetch(`/api/room?code=${encodeURIComponent(roomCode)}`)
+      fetch(`/api/room?code=${encodeURIComponent(roomCode)}&rid=${refreshTabIdRef.current}`)
         .then((r) => r.json())
         .then((d) => {
+          if (alive && d?.refresh) setRefreshLock(d.refresh);
+          if (alive && d?.room && !isStaleBeforePendingReset(d.room.createdAt)) setCaptainSince(d.room.captainSince || {});
           if (!alive || !d?.room || pushInFlightRef.current) return;
           if (typeof d.room.version === 'number' && d.room.version > version.current) {
             applyRoom({ ...d.room, players: mergePlayers(roomStateRef.current.players, d.room.players) }, d.room);
@@ -940,10 +956,37 @@ export default function Page() {
     storeSeasonStats(full, await requestSeasonStats(full, null, full));
   }
 
-  function fetchSeasonStats() {
-    if (!roster.length || seasonStatsLoading) return;
+  // 새로고침 잠금 요청. 결과로 받은 잠금 상태를 바로 화면에 반영한다.
+  async function refreshLockCall(action, progress) {
+    try {
+      const res = await fetch('/api/refreshlock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, id: refreshTabIdRef.current, progress })
+      });
+      const d = await res.json();
+      if (d?.lock) setRefreshLock(d.lock);
+      return !!d?.ok;
+    } catch {
+      return action !== 'start'; // 서버에 못 닿으면 시작은 안 하고, 진행 · 끝 실패는 무시
+    }
+  }
+  const othersRefreshing = refreshLock.active && !refreshLock.mine && !seasonStatsLoading;
+  // 다른 사람의 새로고침이 끝나면 그 결과(티어 · 시즌 기록)를 바로 받아 온다.
+  const lastRefreshEndRef = useRef(null);
+  useEffect(() => {
+    if (lastRefreshEndRef.current != null && refreshLock.endedAt && refreshLock.endedAt !== lastRefreshEndRef.current && !seasonStatsLoading) pullSharedRef.current();
+    lastRefreshEndRef.current = refreshLock.endedAt || 0;
+  }, [refreshLock.endedAt]);
+
+  async function fetchSeasonStats() {
+    if (!roster.length || seasonStatsLoading || othersRefreshing) return;
     setSeasonStatsLoading(true);
     setSeasonStatsProgress(0);
+    // 먼저 누른 사람만. 다른 사람이 잡고 있으면 아무것도 하지 않는다.
+    if (!(await refreshLockCall('start', 0))) { setSeasonStatsLoading(false); return; }
+    // 한 사람 조회가 오래 걸려도(429 대기 등) 잠금이 풀리지 않게 10초마다 알림.
+    const progressRef = { v: 0 };
+    const heartbeat = setInterval(() => refreshLockCall('progress', progressRef.v), 10000);
     // Goes through the same lookupQueueRef as registration lookups so a
     // manual refresh never runs concurrently with an in-flight auto-fetch.
     const task = lookupQueueRef.current.then(async () => {
@@ -963,7 +1006,13 @@ export default function Page() {
       const members = rosterRef.current.filter((r) => r.name.includes('#'));
       const steps = members.reduce((n, r) => n + 1 + (r.alts || []).filter((a) => a.includes('#')).length, 0) || 1;
       let done = 0;
-      const tick = () => { done++; setSeasonStatsProgress(Math.round((done / steps) * 100)); };
+      const tick = () => {
+        done++;
+        const pct = Math.round((done / steps) * 100);
+        setSeasonStatsProgress(pct);
+        progressRef.v = pct;
+        refreshLockCall('progress', pct);
+      };
       const renames = [];
       const altRenames = new Map(); // main name -> [[oldAlt, newAlt]]
       const puuids = new Map();
@@ -1069,7 +1118,11 @@ export default function Page() {
       if (lines.length) window.alert(`닉네임이 바뀐 계정을 찾아 명단을 고쳤습니다:\n${lines.join('\n')}`);
     });
     lookupQueueRef.current = task.catch(() => {});
-    task.finally(() => setSeasonStatsLoading(false));
+    task.finally(() => {
+      clearInterval(heartbeat);
+      refreshLockCall('end');
+      setSeasonStatsLoading(false);
+    });
   }
 
   /* ---------- balancing ---------- */
@@ -1576,7 +1629,7 @@ export default function Page() {
   }
 
   function startBanpick() {
-    if (pool.length < minPoolSize || !captains.A || !captains.B || !teams || bp) return;
+    if (pool.length < minPoolSize || !captains.A || !captains.B || !teams || bp || !iAmFirstCaptain) return;
     // Fresh per-session seed so the decider's deterministic "roll" (below)
     // actually varies between banpick attempts — without it, the same
     // ban/pick order always hashed to the same leftover map (looked rigged).
@@ -1857,7 +1910,13 @@ export default function Page() {
   // to already be balanced — captains joining doesn't imply anyone ever
   // clicked "5:5 자동 밸런싱", and starting banpick without teams set would
   // leave the whole match unattributed (no roster for either side).
-  const canStart = poolReady && captains.A && captains.B && !!teams && !bp;
+  // 먼저 주장으로 들어온 쪽(서버가 적은 시각이 이른 쪽). 시각이 없거나 같으면(예전 방) 둘 다 가능.
+  const firstCaptain = captainSince.A && captainSince.B && captainSince.A !== captainSince.B
+    ? (captainSince.A < captainSince.B ? 'A' : 'B') : null;
+  const iAmCaptain = (k) => !!captains[k] && myCaptainTokens[k] === captains[k];
+  const iAmFirstCaptain = firstCaptain ? iAmCaptain(firstCaptain) : (iAmCaptain('A') || iAmCaptain('B'));
+  const setupReady = poolReady && captains.A && captains.B && !!teams && !bp;
+  const canStart = setupReady && iAmFirstCaptain;
   const pendingShow = !!bp?.pending;
   const myTurn = !!bp && ((pendingShow && myRole === bp.pending.chooser) || (!pendingShow && step && step[0] !== 'decider' && myRole === step[1]));
   const finished = !!bp && bp.index >= steps.length && !bp.pending;
@@ -2338,9 +2397,16 @@ export default function Page() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button onClick={storeCurrentAsRoster} style={{ background: '#252C34', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>현재 참가자 입력값 명단에 저장</button>
                       <button onClick={clearSlots} style={{ background: 'transparent', color: '#8B949E', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, cursor: 'pointer' }}>참가자 입력란 비우기</button>
-                      <button onClick={fetchSeasonStats} disabled={seasonStatsLoading} style={{ background: seasonStatsLoading ? `linear-gradient(90deg, rgba(200,242,76,.22) ${seasonStatsProgress}%, #252C34 ${seasonStatsProgress}%)` : '#252C34', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, cursor: seasonStatsLoading ? 'default' : 'pointer' }}>
-                        {seasonStatsLoading ? `새로고침 중… ${seasonStatsProgress}%` : '↻ 새로고침'}
-                      </button>
+                      {(() => {
+                        // 내가 누른 새로고침이면 내 진행률, 다른 사람이 누른 거면 서버가 알려 준 그 사람 진행률.
+                        const busy = seasonStatsLoading || othersRefreshing;
+                        const pct = seasonStatsLoading ? seasonStatsProgress : refreshLock.progress;
+                        return (
+                          <button onClick={fetchSeasonStats} disabled={busy} title={othersRefreshing ? '다른 사람이 새로고침하는 중입니다. 끝나면 결과가 자동으로 보입니다.' : ''} style={{ background: busy ? `linear-gradient(90deg, rgba(200,242,76,.22) ${pct}%, #252C34 ${pct}%)` : '#252C34', color: '#C8D0D8', border: '1px solid #333B45', borderRadius: 10, padding: '10px 14px', fontSize: 12, cursor: busy ? 'default' : 'pointer' }}>
+                            {seasonStatsLoading ? `새로고침 중… ${pct}%` : othersRefreshing ? `다른 사람이 새로고침 중… ${pct}%` : '↻ 새로고침'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -2822,6 +2888,7 @@ export default function Page() {
                       <div style={{ fontSize: 12, color: '#8B949E', textWrap: 'pretty' }}>토큰을 발급받은 주장만 자기 차례에 밴픽할 수 있고, 나머지 참가자는 관전 모드로 진행 상황만 봅니다.</div>
                       <button onClick={startBanpick} disabled={!canStart} style={{ marginTop: 4, borderRadius: 12, padding: 13, fontSize: 13, fontWeight: 700, border: 'none', cursor: canStart ? 'pointer' : 'not-allowed', background: canStart ? '#C8F24C' : '#252C34', color: canStart ? '#0B0D10' : '#6B737C' }}>
                         {canStart ? '밴픽 시작'
+                          : setupReady ? (firstCaptain ? `${teamName(firstCaptain)} 주장(먼저 참가)만 밴픽을 시작할 수 있습니다` : '주장만 밴픽을 시작할 수 있습니다')
                           : bp ? '이미 밴픽이 시작됨 — 방 초기화 후 다시 시작하세요'
                           : !poolReady ? `맵 ${minPoolSize}개 이상이 필요합니다`
                           : (!captains.A || !captains.B) ? '주장 2명이 필요합니다'

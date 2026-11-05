@@ -3,6 +3,7 @@ import { isAdmin } from '../../../lib/admin';
 import { mergeScores } from '../../../lib/scores';
 import { ALL_MAPS, normalizePool } from '../../../lib/constants';
 import { loadRotation } from '../../../lib/mappool';
+import { lockView } from '../../../lib/refreshLock';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,12 +12,15 @@ export const dynamic = 'force-dynamic';
 // rather than silently wiping itself after 12h.
 
 export async function GET(request) {
-  const code = new URL(request.url).searchParams.get('code');
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  // 인원 관리 새로고침 잠금 상태도 같이 — 따로 묻지 않아도 2초마다 퍼센트가 보이게.
+  const refresh = lockView(url.searchParams.get('rid'));
   if (!code) return Response.json({ error: 'code required' }, { status: 400 });
   try {
     const room = await getCached(`room:${code}`, 5000);
     if (room?.pool) room.pool = normalizePool(room.pool);
-    return Response.json({ room, persistent: hasKV }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json({ room, persistent: hasKV, refresh }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return Response.json({ error: String(e), room: null }, { status: 502 });
   }
@@ -127,7 +131,20 @@ export async function POST(request) {
   // Scores merge per map (newest edit wins) instead of blob-level last-write-wins.
   const scores = (!body.force && prev?.scores && body.room.scores) ? mergeScores(prev.scores, body.room.scores) : body.room.scores;
 
-  const room = { ...body.room, captains, bp, pool, scores, teams, version: (prev?.version ?? 0) + 1, updatedAt: Date.now() };
+  // 주장 자리가 채워진 시각은 서버가 직접 적는다 (각자 컴퓨터 시계가 달라도
+  // 순서가 꼬이지 않게). 먼저 들어온 주장만 "밴픽 시작"을 누를 수 있다
+  // (app/page.js canStart). 자리가 바뀌면 새로 적고, 비면 지운다. 클라이언트가
+  // 보낸 값은 쓰지 않는다.
+  const captainSince = {};
+  if (!body.force) {
+    ['A', 'B'].forEach((k) => {
+      const tok = captains?.[k];
+      if (!tok) return;
+      captainSince[k] = tok === prev?.captains?.[k] && prev?.captainSince?.[k] ? prev.captainSince[k] : Date.now();
+    });
+  }
+
+  const room = { ...body.room, captains, captainSince, bp, pool, scores, teams, version: (prev?.version ?? 0) + 1, updatedAt: Date.now() };
   try {
     // Only land if nobody else wrote since we read `prev` — otherwise two
     // pushes arriving together both pass the version check above, and the
