@@ -37,9 +37,10 @@ export async function GET(request) {
   const key = process.env.HENRIKDEV_API_KEY;
   if (!key) return Response.json({ error: 'HENRIKDEV_API_KEY not set' }, { status: 503 });
 
-  let prior = null;
+  let prior = null, stored = null;
   if (id) {
-    try { prior = ((await getJSON('seasonstats:all')) || {})[id] || null; } catch { /* full scan instead */ }
+    try { stored = ((await getJSON('seasonstats:all')) || {})[id] || null; } catch { /* full scan instead */ }
+    prior = stored;
     if (!prior?.raw || !Array.isArray(prior.ids) || !prior.seasonId) prior = null;
   }
 
@@ -151,6 +152,13 @@ export async function GET(request) {
       .slice(0, 5)
       .map(([agent, v]) => ({ agent, count: v.count, pct: Math.round((v.count / matchesUsed) * 100), icon: v.icon }));
 
+    // 지난 시즌 요약. 새 액트 첫날엔 이번 시즌이 1~2경기뿐이라 K/D가 크게
+    // 흔들리니, 화면 · 밸런싱이 경기 수가 적을 때 이 값 쪽으로 당겨 쓴다(app/page.js seasonKd).
+    // 시즌이 바뀐 첫 조회에서 저장돼 있던 지난 시즌 값(5경기 이상)을 옮겨 두고, 그 뒤로는 그대로 이어 간다.
+    const prevSeason = stored?.seasonId && stored.seasonId !== seasonId
+      ? (stored.matches >= 5 ? { seasonId: stored.seasonId, matches: stored.matches, kd: stored.kd, acs: stored.acs, hsPct: stored.hsPct } : stored.prevSeason || null)
+      : stored?.prevSeason || null;
+
     const { rounds, kills, deaths, assists, score, damage, hs, bs, ls } = sum;
     return Response.json({
       seasonId,
@@ -170,6 +178,7 @@ export async function GET(request) {
       puuid: selfPuuid,
       matchTier,
       newMatches: knownIds ? ids.length - prior.ids.length : null,
+      prevSeason,
       // 다음 증분 새로고침용. 전체를 다시 훑다 중간에 끊긴 결과(fetchError)는
       // 이어 붙이면 안 되니 raw를 빼서 다음엔 처음부터 다시 훑게 한다.
       ...(fetchError ? {} : { raw: { ...sum, matches: matchesUsed, maxKills, agentCounts }, ids: [...new Set(ids)].slice(0, MAX_IDS) })

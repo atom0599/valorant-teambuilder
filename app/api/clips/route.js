@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
@@ -38,14 +38,16 @@ const respond = (all, cid, myName) => Response.json({ clips: all.map((c) => view
 
 // The nickname this browser must use: its pinned one, or — first time —
 // the one it just sent, which then gets pinned.
-async function authorFor(cid, requested) {
-  const names = (await getJSON(NAMES_KEY)) || {};
-  if (names[cid]) return names[cid];
-  const name = clean(requested, 20);
-  if (!name) return null;
-  names[cid] = name;
-  await setJSON(NAMES_KEY, names);
-  return name;
+function authorFor(cid, requested) {
+  return withLock(NAMES_KEY, async () => {
+    const names = (await getJSON(NAMES_KEY)) || {};
+    if (names[cid]) return names[cid];
+    const name = clean(requested, 20);
+    if (!name) return null;
+    names[cid] = name;
+    await setJSON(NAMES_KEY, names);
+    return name;
+  });
 }
 
 export async function GET(request) {
@@ -72,6 +74,7 @@ export async function POST(request) {
   if (!validCid(cid)) return Response.json({ error: 'cid required' }, { status: 400 });
   const admin = isAdmin(request);
 
+  return withLock(KEY, async () => {
   try {
     const all = (await getJSON(KEY)) || [];
     const clip = body.id ? all.find((c) => c.id === body.id) : null;
@@ -131,4 +134,5 @@ export async function POST(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }

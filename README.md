@@ -23,6 +23,8 @@ Vercel: 이 `next/` 폴더를 루트로 하는 프로젝트로 임포트하면 �
 | `ADMIN_PASSWORD` | 관리자 로그인 비밀번호 (맵 풀 변경, 전적 삭제). 미설정 시 관리자 기능 비활성 | 없음 |
 
 `lib/store.js`는 Supabase → KV/Redis → 인스턴스 메모리 순으로 사용 가능한 저장소를 자동 선택합니다.
+같은 키의 읽고-고치고-저장(전적 · 클립 · 명단 · 시즌 기록)은 `withLock`으로 서버 안에서 한 줄로 처리하고,
+주요 키는 그날 첫 쓰기 직전 값을 `backup:<키>:<날짜>`로 30일간 보관합니다(관리자 화면 → 통계 탭에서 되돌리기).
 여러 사람이 같은 방을 공유하려면 둘 중 하나는 반드시 연결해야 합니다.
 
 ### Supabase로 연결하기
@@ -47,13 +49,13 @@ Vercel: 이 `next/` 폴더를 루트로 하는 프로젝트로 임포트하면 �
 | 라우트 | 메서드 | 설명 |
 |---|---|---|
 | `/api/rank?name=닉네임&tag=KR1` | GET | HenrikDev v2 MMR → 최고 티어(한글 라벨) |
-| `/api/role?name=닉네임&tag=KR1` | GET | HenrikDev v3 최근 30경기 → 사용 요원 기반 포지션 추론(과반 역할 없으면 '플렉스') + 최다 사용 요원 top 3 |
 | `/api/stats?name=닉네임&tag=KR1` | GET | HenrikDev **v4** 이번 시즌 경쟁전 전체(최대 100경기, 10개씩 페이지네이션) → ACS/ADR/KPR/APR/HS%/K:D/K/Kmax + 최다 사용 요원 top 3(아이콘 포함) |
 | `/api/seasonstats` | GET / POST | `/api/stats` 조회 결과를 Riot ID 기준으로 캐싱 — 방과 별개로 영구 보관되고, 다른 사람 화면에도 폴링으로 뜸. UI의 "새로고침" 버튼을 누르면 `/api/stats`를 다시 불러와 여기 저장 |
 | `/api/room?code=MAIN` | GET | 방 상태 조회 (폴링) |
 | `/api/room` | POST | 방 상태 저장, `version` 기반 stale write 차단(캡틴 자리·밴픽 진행 상태는 동시 쓰기로부터 필드 단위 보호), TTL 없음(영구 저장, "방 초기화" 전까지 유지) |
 | `/api/records` | GET / POST | Riot ID 기준 누적 전적 (승·패·날짜·티어 스냅샷) |
-| `/api/roster` | GET / POST | 상시 멤버 명단 (닉네임 + 포지션) |
+| `/api/roster` | GET / POST | 상시 멤버 명단 (닉네임 + 포지션). POST는 `base`(마지막으로 받은 명단)와 비교해 이 탭이 바꾼 것만 합침 — 오래된 탭이 다른 사람의 추가 · 수정을 지우지 않음 |
+| `/api/admin/status` | GET / POST | 관리자 전용. HenrikDev 상태(정상 / 한도 초과 / 키 오류) + 하루 한 벌 백업 목록, POST `{ restore }`로 백업 되돌리기 |
 
 ## 구조
 

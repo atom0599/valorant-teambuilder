@@ -1,10 +1,35 @@
-import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
 
 const KEY = 'roster:all';
 const sameSet = (x, y) => JSON.stringify([...(x || [])].sort()) === JSON.stringify([...(y || [])].sort());
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// 보낸 명단을 그대로 저장하지 않고 3-way로 합친다. 예전엔 받은 목록으로 통째로
+// 바꿔서, 오래 열어 둔 탭이 예전 명단을 보내면 그 사이 다른 사람이 추가한 사람이
+// 빠지거나 바꾼 포지션이 되돌아갔다. 이제 클라이언트는 마지막으로 서버에서 받은
+// 명단(base)을 같이 보내고, 서버는 base와 비교해 이 탭이 실제로 바꾼 것만 지금
+// 명단(cur)에 반영한다:
+//   - base에 있었는데 보낸 목록에 없음  → 이 탭이 삭제
+//   - base와 다르게 보냄 / base에 없던 사람 → 이 탭이 추가 · 수정
+//   - base와 똑같이 보냄 / 이 탭이 모르는 사람 → 지금 서버 값 유지
+// base가 없는 예전 화면은 삭제를 못 한다(추가 · 수정만).
+function mergeRoster(cur, sent, base) {
+  const byName = (list) => new Map((list || []).filter((r) => r?.name).map((r) => [String(r.name).trim(), r]));
+  const curM = byName(cur), sentM = byName(sent), baseM = base ? byName(base) : null;
+  const out = new Map(curM);
+  if (baseM) baseM.forEach((_, name) => { if (!sentM.has(name)) out.delete(name); });
+  sentM.forEach((r, name) => {
+    const b = baseM?.get(name);
+    if (b && same(b, r) && out.has(name)) return;
+    out.set(name, r);
+    // 닉변(같은 puuid, 새 이름): 이 탭이 예전 이름을 몰라 base에서 못 지웠어도 옛 항목을 뺀다.
+    if (r.puuid) curM.forEach((c, n) => { if (n !== name && c.puuid === r.puuid && !sentM.has(n)) out.delete(n); });
+  });
+  return [...out.values()];
+}
 
 export async function GET() {
   try {
@@ -15,7 +40,7 @@ export async function GET() {
   }
 }
 
-// body: { roster: [{ name, pos, realName, alts, puuid }] } — full replace, deduped by name.
+// body: { roster: [{ name, pos, realName, alts, puuid }], base: 마지막으로 받은 명단 } — mergeRoster로 합친다, deduped by name.
 // `alts` are other Riot IDs (부계정) the same person also plays on — see
 // rosterAlias in app/page.js, which folds their match records back onto
 // `name` so switching accounts doesn't split one person's 전적 in two.
@@ -28,13 +53,15 @@ export async function POST(request) {
   if (!Array.isArray(body?.roster)) return Response.json({ error: 'roster array required' }, { status: 400 });
 
   const admin = isAdmin(request);
+  return withLock(KEY, async () => {
   let prevList = [];
   try { prevList = (await getJSON(KEY)) || []; } catch { /* treat as empty, not fatal for a fresh roster */ }
+  const merged = mergeRoster(prevList, body.roster, Array.isArray(body.base) ? body.base : null);
   const prevByName = new Map(prevList.map((r) => [r.name, r]));
   const prevByPuuid = new Map(prevList.filter((r) => r.puuid).map((r) => [r.puuid, r]));
 
   const map = new Map();
-  body.roster.forEach((r) => {
+  merged.forEach((r) => {
     const name = String(r?.name || '').trim();
     if (!name) return;
     const puuid = r?.puuid ? String(r.puuid).trim() : null;
@@ -67,4 +94,5 @@ export async function POST(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }

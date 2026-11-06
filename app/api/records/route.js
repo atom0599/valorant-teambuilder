@@ -1,4 +1,4 @@
-import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +31,10 @@ function mergeRecords(dst, src) {
 }
 
 async function renameExcluded(from, to) {
-  const excluded = (await getJSON(EXCLUDED_KEY)) || [];
-  if (excluded.includes(from)) await setJSON(EXCLUDED_KEY, [...new Set(excluded.map((x) => (x === from ? to : x)))]);
+  await withLock(EXCLUDED_KEY, async () => {
+    const excluded = (await getJSON(EXCLUDED_KEY)) || [];
+    if (excluded.includes(from)) await setJSON(EXCLUDED_KEY, [...new Set(excluded.map((x) => (x === from ? to : x)))]);
+  });
 }
 
 export async function GET(request) {
@@ -51,6 +53,7 @@ export async function POST(request) {
   const body = await request.json().catch(() => null);
   if (!body?.winner || !body?.teams) return Response.json({ error: 'winner and teams required' }, { status: 400 });
 
+  return withLock(KEY, async () => {
   try {
     const all = (await getJSON(KEY)) || {};
 
@@ -135,6 +138,7 @@ export async function POST(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }
 
 // Not admin-gated — fires automatically when app/page.js's runLookup detects
@@ -150,6 +154,7 @@ export async function PATCH(request) {
   const to = body?.to ? String(body.to).trim() : null;
   if (!from || !to || from === to) return Response.json({ error: 'from and to (different) required' }, { status: 400 });
 
+  return withLock(KEY, async () => {
   try {
     const all = (await getJSON(KEY)) || {};
     const src = all[from];
@@ -165,6 +170,7 @@ export async function PATCH(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }
 
 // Admin only. body: { id, excluded: boolean } hides (or restores) one player
@@ -175,6 +181,7 @@ export async function PUT(request) {
   const id = body?.id != null ? String(body.id) : null;
   if (!id || typeof body.excluded !== 'boolean') return Response.json({ error: 'id and excluded required' }, { status: 400 });
 
+  return withLock(EXCLUDED_KEY, async () => {
   try {
     const cur = (await getJSON(EXCLUDED_KEY)) || [];
     const next = body.excluded ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
@@ -183,6 +190,7 @@ export async function PUT(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }
 
 // Admin only. body: { id } removes one player's whole record, or
@@ -194,6 +202,7 @@ export async function DELETE(request) {
   const body = await request.json().catch(() => null);
   if (!body || (body.id == null && body.date == null)) return Response.json({ error: 'id or date required' }, { status: 400 });
 
+  return withLock(KEY, async () => {
   try {
     const all = (await getJSON(KEY)) || {};
     if (body.id != null) {
@@ -225,4 +234,5 @@ export async function DELETE(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }

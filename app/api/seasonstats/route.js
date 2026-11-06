@@ -1,4 +1,4 @@
-import { getJSON, getCached, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,7 @@ export async function POST(request) {
   const body = await request.json().catch(() => null);
   if (!body?.id || (!body?.data && !body?.tier)) return Response.json({ error: 'id and data (or tier) required' }, { status: 400 });
 
+  return withLock(body.tier ? TIERS_KEY : KEY, async () => {
   try {
     if (body.tier) {
       const tiers = (await getJSON(TIERS_KEY)) || {};
@@ -43,4 +44,5 @@ export async function POST(request) {
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
+  });
 }

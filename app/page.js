@@ -8,6 +8,7 @@ import { highlightDays, dayHighlight } from '../lib/highlights';
 import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
+import AdminStatusCard from './AdminStatusCard';
 import PatchNotesScreen from './PatchNotesScreen';
 import FamePodium from './FamePodium';
 import RivalryHighlight from './RivalryHighlight';
@@ -65,6 +66,17 @@ const SYNC_PROTOCOL = 2;
 function roomSnap(r) {
   const players = Array.isArray(r.players) ? r.players.map(({ loading, ...p }) => p) : null;
   return stableJson([r.createdAt, players, r.usePosition, r.balanceMode, r.teams, r.series, r.pool, r.captains, r.bp, r.scores]);
+}
+
+// 시즌 K/D를 밸런싱에 쓸 값. 새 액트 초반처럼 이번 시즌 경기가 적으면(10경기 미만)
+// 한두 판 결과로 팀이 크게 쏠리지 않게 지난 시즌 K/D(없으면 1) 쪽으로 당긴다.
+// 10경기부터는 이번 시즌 K/D 그대로.
+const SEASON_FULL_MATCHES = 10;
+function seasonKd(st) {
+  const base = st?.prevSeason?.kd ?? 1;
+  if (!st?.matches) return base;
+  const w = Math.min(1, st.matches / SEASON_FULL_MATCHES);
+  return w * st.kd + (1 - w) * base;
 }
 
 export default function Page() {
@@ -125,6 +137,10 @@ export default function Page() {
   // 명단이 바뀌어도 끝날 때 최신 명단 위에 고치도록.
   const rosterRef = useRef(roster);
   rosterRef.current = roster;
+  // 마지막으로 서버에서 받은 명단. 저장할 때 같이 보내서 서버가 이 탭이 실제로
+  // 바꾼 것만 합치게 한다(/api/roster의 mergeRoster) — 오래 열어 둔 탭이 다른
+  // 사람이 추가한 사람을 지우거나 바꾼 포지션을 되돌리지 않게.
+  const rosterBaseRef = useRef(null);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRealName, setNewMemberRealName] = useState('');
   const [altPick, setAltPick] = useState({}); // roster name -> which of their accounts to register with next
@@ -333,7 +349,7 @@ export default function Page() {
   useEffect(() => {
     let alive = true;
     const pull = () => {
-      fetch('/api/roster').then((r) => r.json()).then((d) => { if (alive && Array.isArray(d.roster)) setRoster(d.roster); }).catch(() => {});
+      fetch('/api/roster').then((r) => r.json()).then((d) => { if (alive && Array.isArray(d.roster)) { rosterBaseRef.current = d.roster; setRoster(d.roster); } }).catch(() => {});
       fetch('/api/mappool').then((r) => r.json()).then((d) => { if (alive && Array.isArray(d.rotation) && d.rotation.length) setRotation(d.rotation); }).catch(() => {});
       fetch('/api/records').then((r) => r.json()).then((d) => {
         if (!alive) return;
@@ -725,10 +741,15 @@ export default function Page() {
   useEffect(() => {
     if (!roomCode) return;
     let alive = true;
+    // 서버 재시작(배포) · 연결 끊김을 위 동기화 점으로 알린다. 한 번 실패는 흔하니 연속 2번부터.
+    let fails = 0;
+    const pullFailed = () => { fails++; if (alive && fails >= 2) setRemoteOk(false); };
     const pullRoom = () => {
       fetch(`/api/room?code=${encodeURIComponent(roomCode)}&rid=${refreshTabIdRef.current}`)
-        .then((r) => r.json())
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
         .then((d) => {
+          fails = 0;
+          if (alive) setRemoteOk((v) => (v === false ? !!d?.persistent : v));
           if (alive && d?.refresh) setRefreshLock(d.refresh);
           if (alive && d?.room && !isStaleBeforePendingReset(d.room.createdAt)) setCaptainSince(d.room.captainSince || {});
           if (!alive || !d?.room || pushInFlightRef.current) return;
@@ -738,7 +759,7 @@ export default function Page() {
             setBp(d.room.bp);
           }
         })
-        .catch(() => {});
+        .catch(pullFailed);
     };
     // 요청 한도 때문에 1초 → 2초, 화면을 안 보고 있으면 쉬고 돌아오면 바로 한 번.
     const t2 = setInterval(() => { if (!document.hidden) pullRoom(); }, 2000);
@@ -1141,8 +1162,7 @@ export default function Page() {
     const peakIdx = p.tier == null ? 0 : p.tier;
     const curIdx = p.currentTier ? TIERS.findIndex((t) => t.label === p.currentTier) : -1;
     const base = curIdx >= 0 ? curIdx : peakIdx;
-    const st = seasonStats[p.name.trim()];
-    const kd = st?.matches ? st.kd : 1;
+    const kd = seasonKd(seasonStats[p.name.trim()]);
     const tierWeight = 1 + base * 0.07;
     return base + (kd - 1) * 2 * tierWeight;
   }
@@ -1391,9 +1411,9 @@ export default function Page() {
     try {
       // Admin token rides along: the server only accepts 부계정 add/remove
       // from an admin, and without it every addAlt was silently reverted.
-      const res = await fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify({ roster: list }) });
+      const res = await fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify({ roster: list, base: rosterBaseRef.current || [] }) });
       const d = await res.json().catch(() => null);
-      if (Array.isArray(d?.roster)) setRoster(d.roster);
+      if (Array.isArray(d?.roster)) { rosterBaseRef.current = d.roster; setRoster(d.roster); }
     } catch {}
   }
   function addMember() {
@@ -2315,7 +2335,13 @@ export default function Page() {
                 <span>밴픽중</span>
               </button>
             )}
-            <div className={remoteOk === false ? 'syncPill syncPill--error' : 'syncPill'} title={remoteOk === false ? '동기화 오류' : '동기화 정상'} style={{ display: 'flex', alignItems: 'center', background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '9px 10px' }}>
+            {remoteOk === false && (
+              <div role="status" style={{ position: 'fixed', left: '50%', bottom: 18, transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(20,24,29,.96)', border: '1px solid rgba(225,66,79,.45)', borderRadius: 999, padding: '9px 16px', fontSize: 12, color: '#E8EAEC', boxShadow: '0 8px 24px rgba(0,0,0,.4)', maxWidth: 'calc(100vw - 32px)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E1424F', animation: 'pulseDot 1.2s infinite', flex: 'none' }} />
+                서버와 연결이 끊겼어요 · 다시 연결하는 중… (서버 업데이트 중이면 1분 안에 돌아와요)
+              </div>
+            )}
+            <div className={remoteOk === false ? 'syncPill syncPill--error' : 'syncPill'} title={remoteOk === false ? '서버와 연결이 끊겼습니다 — 다시 연결하는 중 (서버 업데이트 중이면 잠시 뒤 자동으로 돌아옵니다)' : '동기화 정상'} style={{ display: 'flex', alignItems: 'center', background: 'rgba(27,32,39,.7)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 999, padding: '9px 10px' }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: remoteOk === false ? '#E1424F' : '#C8F24C', animation: 'pulseDot 1.6s infinite' }} />
             </div>
             <button className="adminBtn" onClick={() => (isAdmin ? adminLogout() : setAdminOpen(true))} style={{ background: isAdmin ? 'rgba(200,242,76,.14)' : 'transparent', color: isAdmin ? '#C8F24C' : '#8B949E', border: `1px solid ${isAdmin ? 'rgba(200,242,76,.4)' : 'rgba(255,255,255,.14)'}`, borderRadius: 999, padding: '7px 13px', fontSize: 12, fontWeight: isAdmin ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -2475,7 +2501,10 @@ export default function Page() {
                                 ))}
                                 {!st?.topAgents?.length && <span style={{ fontSize: 11, color: '#6B737C' }}>—</span>}
                               </div>
-                              <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>{st?.matches ? st.kd : '—'}</div>
+                              <div title={st?.matches ? `이번 시즌 경쟁전 ${st.matches}경기${st.matches < SEASON_FULL_MATCHES ? ` — 경기가 적어서 밸런싱엔 ${st.prevSeason ? `지난 시즌 K/D ${st.prevSeason.kd}` : 'K/D 1'} 쪽으로 당겨 씁니다` : ''}` : undefined} style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>
+                                {st?.matches ? st.kd : '—'}
+                                {!!st?.matches && st.matches < SEASON_FULL_MATCHES && <div style={{ fontSize: 9, color: '#E5C04C', fontFamily: 'inherit' }}>{st.matches}경기</div>}
+                              </div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>{st?.matches ? st.acs : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: st?.matches ? '#E8EAEC' : '#6B737C' }}>{st?.matches ? `${st.hsPct}%` : '—'}</div>
                               <div style={{ fontFamily: "'IBM Plex Mono'", fontSize: 13, color: wr == null ? '#6B737C' : '#E8EAEC' }}>{wr == null ? '—' : `${wr}%`}</div>
@@ -3137,6 +3166,8 @@ export default function Page() {
                   </div>
                 </div>
 
+                {isAdmin && <AdminStatusCard adminHeaders={adminHeaders} onRestored={() => pullSharedRef.current()} />}
+
                 {isAdmin && <div style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>방금 끝난 내전 저장</div>
@@ -3586,8 +3617,7 @@ export default function Page() {
                     const list = teams?.[k] || [];
                     const avg = list.length ? list.reduce((a, p) => a + (p.tier ?? 0), 0) / list.length : 0;
                     const kd = list.length ? list.reduce((a, p) => {
-                      const st = seasonStats[p.name];
-                      return a + (st?.matches ? st.kd : 1);
+                      return a + seasonKd(seasonStats[p.name]);
                     }, 0) / list.length : 0;
                     return { avg, kd, n: list.length };
                   };

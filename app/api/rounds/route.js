@@ -1,4 +1,4 @@
-import { getJSON, setJSON, hasKV } from '../../../lib/store';
+import { getJSON, setJSON, withLock, hasKV } from '../../../lib/store';
 import { henrikFetch } from '../../../lib/henrik';
 
 export const dynamic = 'force-dynamic';
@@ -35,13 +35,15 @@ export async function POST(request) {
     const loseTeam = winTeam === 'Red' ? 'Blue' : 'Red';
 
     // HenrikDev 응답을 기다리는 동안 다른 저장이 있었을 수 있어 다시 읽고 쓴다.
-    const all = (await getJSON(KEY)) || {};
-    entriesOf(all).forEach((x) => {
-      const team = x.result === '승' ? winTeam : loseTeam;
-      x.rounds = seq.map((t) => (t === team ? 'W' : 'L')).join('');
+    return await withLock(KEY, async () => {
+      const all = (await getJSON(KEY)) || {};
+      entriesOf(all).forEach((x) => {
+        const team = x.result === '승' ? winTeam : loseTeam;
+        x.rounds = seq.map((t) => (t === team ? 'W' : 'L')).join('');
+      });
+      await setJSON(KEY, all);
+      return Response.json({ records: all, persistent: hasKV });
     });
-    await setJSON(KEY, all);
-    return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
