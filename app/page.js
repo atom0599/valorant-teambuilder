@@ -2072,7 +2072,7 @@ export default function Page() {
     const mvp = mvpCounts[id]?.mvp || 0;
     const teamMvp = mvpCounts[id]?.teamMvp || 0;
     const elo = ratings[id];
-    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists, mvp, teamMvp, elo: elo?.games ? elo.rating : null, eloGames: elo?.games || 0, eloLast: elo?.last || 0 };
+    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists, mvp, teamMvp, elo: elo?.games ? elo.rating : null, eloGames: elo?.games || 0, eloLast: elo?.last || 0, eloBonus: elo?.bonus || 0 };
   }), [records, roster, excludedIds, currentTiers, mvpCounts, ratings]);
   // Everyone the leaderboard actually ranks — excluded players never take a
   // rank or count toward the summary tiles.
@@ -2600,7 +2600,7 @@ export default function Page() {
                       : balanceMode === 'customsFresh'
                       ? ['티어에 우리 내전 성적(ACS · K/D · 승률)을 더한 실력으로,', '실력 차이는 최선과 거의 같게 맞추고,', '그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.']
                       : balanceMode === 'elo'
-                      ? ['우리 내전 승패로 오르내리는 내전 점수(Elo)로 배분합니다.', '강한 팀을 이기면 많이, 약한 팀을 이기면 조금 오르고, 시작 점수는 티어로 정합니다.', '내전을 안 해 본 사람은 티어 그대로 봅니다. 점수는 통계 탭에서 "내전 점수순"으로 볼 수 있어요.']
+                      ? ['이번 시즌 티어에 우리 내전 성적(Elo)을 최대 ±1티어 미만으로 더한 내전 점수로 배분합니다.', '강한 팀을 이기면 많이, 약한 팀을 이기면 조금 오르고, 두 티어 이상 차이는 뒤집히지 않습니다.', '내전을 안 해 본 사람은 티어 그대로 봅니다. 점수는 통계 탭에서 "내전 점수순"으로 볼 수 있어요.']
                       : balanceMode === 'customs'
                       ? ['티어를 기준으로 우리 내전 성적(ACS · K/D · 승률)을 더해서,', '내전에서 잘하는 사람은 높게, 못하는 사람은 낮게 쳐서 배분합니다.', '승률보다 ACS · K/D를 더 크게 보고, 내전을 적게 한 사람은 티어 쪽에 더 가깝게 봅니다.']
                       : ['실력(티어 + 랭크 K:D) 차이가 가장 적은 배분을 고릅니다.']
@@ -2776,12 +2776,12 @@ export default function Page() {
                           <div>
                             <div style={{ color: '#E8EAEC', fontWeight: 600 }}>내전 점수 (Elo)</div>
                             <ul style={{ margin: '2px 0', paddingLeft: 18 }}>
-                              <li style={li}>시작 점수 = 1000 + (티어 칸 − 12) × 25. 티어 한 칸 = 25점입니다.</li>
-                              <li style={li}>경기마다 두 팀 평균 점수로 이길 확률을 구하고, 결과와의 차이만큼 오르내립니다. 질 거라던 팀이 이기면 많이(최대 약 ±24점), 이길 팀이 이기면 조금.</li>
-                              <li style={li}>처음 {PLACEMENT}판은 더 크게(최대 ±40점) 움직여 빨리 제자리를 찾고, 라운드 차이가 크게 이긴 판은 최대 1.5배까지 더 움직입니다.</li>
+                              <li style={li}>내전 점수 = 티어 기준 점수 + 내전 보정. 티어 기준 점수 = 1000 + (이번 시즌 티어 칸 − 12) × 25 (티어 한 칸 = 25점, 플래티넘 1 = 1000).</li>
+                              <li style={li}>내전 보정은 경기마다 두 팀 평균으로 이길 확률을 구해 결과와의 차이만큼 쌓은 성적(Elo)입니다. 질 거라던 팀이 이기면 많이, 이길 팀이 이기면 조금 쌓입니다. 처음 {PLACEMENT}판은 더 크게 움직이고, 라운드 차이가 크게 난 판은 최대 1.5배.</li>
+                              <li style={li}>보정은 <b style={{ color: '#E8EAEC' }}>최대 ±24점(티어 한 칸 미만)</b>으로 눌러 담습니다. 내전 승패에는 팀운이 크게 섞여서, 두 티어 이상 차이는 내전 성적으로 뒤집히지 않고 바로 위 · 아래 티어끼리만 뒤집힐 수 있습니다.</li>
                               <li style={li}>실력 칸 = 12 + (점수 − 1000) ÷ 25. 내전을 안 해 본 사람은 티어 칸 그대로입니다.</li>
                             </ul>
-                            <div style={{ marginTop: 6, color: '#8B949E' }}>예) 내전 점수 1110 → 12 + 110 ÷ 25 = 실력 16.4</div>
+                            <div style={{ marginTop: 6, color: '#8B949E' }}>예) 초월자 1(18칸 → 1150점), 내전 보정 +20 → 1170점 → 실력 18.8</div>
                           </div>
                         ) : customs ? (
                           <div>
@@ -3402,7 +3402,7 @@ export default function Page() {
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> · <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : statSort === 'elo' ? (x.eloGames >= PLACEMENT ? <><span style={{ color: '#C8F24C' }}>내전 점수 {x.elo}</span>{!!x.eloLast && <span style={{ color: x.eloLast > 0 ? '#C8F24C' : '#E1424F' }}> {x.eloLast > 0 ? '▲' : '▼'}{Math.abs(x.eloLast)}</span>}</> : <span style={{ color: '#E5C04C' }}>배치 중 {x.eloGames}/{PLACEMENT}</span>) : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
+                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> · <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : statSort === 'elo' ? (x.eloGames >= PLACEMENT ? <><span style={{ color: '#C8F24C' }}>내전 점수 {x.elo}</span><span style={{ color: '#8B949E' }}> (보정 {x.eloBonus >= 0 ? '+' : ''}{x.eloBonus})</span>{!!x.eloLast && <span style={{ color: x.eloLast > 0 ? '#C8F24C' : '#E1424F' }}> {x.eloLast > 0 ? '▲' : '▼'}{Math.abs(x.eloLast)}</span>}</> : <span style={{ color: '#E5C04C' }}>배치 중 {x.eloGames}/{PLACEMENT}</span>) : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
                             </div>
                             <div className="b-tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3464,7 +3464,7 @@ export default function Page() {
                               <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 44, lineHeight: 1, color: '#C8F24C' }}>{statRate}%</div>
                             </div>
                             {!!ratings[statId]?.games && (
-                              <div title={`우리 내전 승패로 오르내리는 점수 (Elo). 시작 점수는 티어로 정하고, 강한 팀을 이기면 많이 오릅니다.${ratings[statId].games < PLACEMENT ? ` 배치 중 ${ratings[statId].games}/${PLACEMENT}판.` : ''}`}>
+                              <div title={`티어 기준 ${ratings[statId].seed}점 + 내전 보정 ${ratings[statId].bonus >= 0 ? '+' : ''}${ratings[statId].bonus}점. 보정은 내전 승패(Elo)로 쌓이고 최대 ±24점(티어 한 칸 미만)입니다.${ratings[statId].games < PLACEMENT ? ` 배치 중 ${ratings[statId].games}/${PLACEMENT}판.` : ''}`}>
                                 <div style={{ fontSize: 11, color: '#C6CDD4', letterSpacing: '.06em' }}>내전 점수</div>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
                                   <span style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, lineHeight: 1, color: ratings[statId].games < PLACEMENT ? '#E5C04C' : '#F5F7F9' }}>{ratings[statId].rating}</span>
