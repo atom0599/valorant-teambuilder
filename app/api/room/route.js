@@ -1,7 +1,8 @@
 import { getJSON, getCached, setJSON, casJSON, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
+import { logAdmin } from '../../../lib/adminLog';
 import { mergeScores } from '../../../lib/scores';
-import { ALL_MAPS, normalizePool } from '../../../lib/constants';
+import { ALL_MAPS, normalizePool, seqFor } from '../../../lib/constants';
 import { loadRotation } from '../../../lib/mappool';
 import { lockView } from '../../../lib/refreshLock';
 
@@ -39,6 +40,22 @@ export async function POST(request) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
   if (prev?.pool) prev.pool = normalizePool(prev.pool);
+
+  // "방 초기화"(force)는 밴픽이 진행 중일 때 관리자나 그 방의 주장만 할 수 있다.
+  // 예전엔 아무나 누를 수 있어서 관전자가 실수로 누르면 진행 중인 밴픽이 통째로 날아갔다.
+  // 밴픽 전 · 끝난 뒤에는 지금처럼 누구나.
+  let resetBy = null;
+  if (body.force) {
+    const bpLive = !!prev?.bp && !(prev.bp.index >= seqFor(prev.series, (prev.pool || []).length).length && !prev.bp.pending);
+    const tok = typeof body.captainToken === 'string' ? body.captainToken : null;
+    const isCaptain = !!tok && (prev?.captains?.A === tok || prev?.captains?.B === tok);
+    const admin = isAdmin(request);
+    if (bpLive && !admin && !isCaptain) {
+      return Response.json({ room: prev, rejected: true, forbidden: 'reset_during_banpick', persistent: hasKV }, { status: 403 });
+    }
+    resetBy = admin ? '관리자' : isCaptain ? '주장' : '참가자';
+    if (bpLive) resetBy += ' · 밴픽 진행 중';
+  }
 
   // last-write-wins with a monotonic version guard so stale pollers can't clobber
   // each other — except `force` (used by "방 초기화"): that reset always starts
@@ -159,6 +176,7 @@ export async function POST(request) {
     } else {
       await setJSON(key, room);
     }
+    if (resetBy) await logAdmin('방 초기화', resetBy);
     return Response.json({ room, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });

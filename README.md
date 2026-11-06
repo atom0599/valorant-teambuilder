@@ -53,9 +53,9 @@ Vercel: 이 `next/` 폴더를 루트로 하는 프로젝트로 임포트하면 �
 | `/api/seasonstats` | GET / POST | `/api/stats` 조회 결과를 Riot ID 기준으로 캐싱 — 방과 별개로 영구 보관되고, 다른 사람 화면에도 폴링으로 뜸. UI의 "새로고침" 버튼을 누르면 `/api/stats`를 다시 불러와 여기 저장 |
 | `/api/room?code=MAIN` | GET | 방 상태 조회 (폴링) |
 | `/api/room` | POST | 방 상태 저장, `version` 기반 stale write 차단(캡틴 자리·밴픽 진행 상태는 동시 쓰기로부터 필드 단위 보호), TTL 없음(영구 저장, "방 초기화" 전까지 유지) |
-| `/api/records` | GET / POST | Riot ID 기준 누적 전적 (승·패·날짜·티어 스냅샷) |
+| `/api/records` | GET / POST / PATCH / PUT / DELETE | Riot ID 기준 누적 전적 (승·패·날짜·티어 스냅샷). POST · PUT · DELETE는 관리자 전용, PATCH(닉변 · 부계정 합치기)는 명단에 반영된 경우만 |
 | `/api/roster` | GET / POST | 상시 멤버 명단 (닉네임 + 포지션). POST는 `base`(마지막으로 받은 명단)와 비교해 이 탭이 바꾼 것만 합침 — 오래된 탭이 다른 사람의 추가 · 수정을 지우지 않음 |
-| `/api/admin/status` | GET / POST | 관리자 전용. HenrikDev 상태(정상 / 한도 초과 / 키 오류) + 하루 한 벌 백업 목록, POST `{ restore }`로 백업 되돌리기 |
+| `/api/admin/status` | GET / POST | 관리자 전용. HenrikDev 상태(정상 / 한도 초과 / 키 오류) + 하루 한 벌 백업 목록 + 관리자 활동 기록(`admin:log`, 최근 300개), POST `{ restore }`로 백업 되돌리기 |
 
 ## 구조
 

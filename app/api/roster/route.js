@@ -1,5 +1,6 @@
 import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
+import { logAdmin } from '../../../lib/adminLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,7 @@ export async function POST(request) {
   const prevByPuuid = new Map(prevList.filter((r) => r.puuid).map((r) => [r.puuid, r]));
 
   const map = new Map();
+  const altLog = [];
   merged.forEach((r) => {
     const name = String(r?.name || '').trim();
     if (!name) return;
@@ -83,6 +85,11 @@ export async function POST(request) {
     const ident = (list, pu) => list.map((a) => pu[a] || a);
     const sameAccounts = sameSet(ident(alts, altPuuids), ident(prevAlts, prevAltPuuids));
     const finalAlts = (prevs.length && !admin && !sameSet(alts, prevAlts) && !sameAccounts) ? prevAlts : alts;
+    if (admin && !sameAccounts) {
+      const added = finalAlts.filter((a) => !prevAlts.includes(a)), removed = prevAlts.filter((a) => !finalAlts.includes(a));
+      if (added.length) altLog.push(['부계정 추가', `${name} ← ${added.join(', ')}`]);
+      if (removed.length) altLog.push(['부계정 삭제', `${name} ✕ ${removed.join(', ')}`]);
+    }
     const keptAltPuuids = Object.fromEntries(finalAlts.filter((a) => altPuuids[a]).map((a) => [a, String(altPuuids[a])]));
     map.set(name, { name, pos: r.pos || '미정', realName: String(r?.realName || '').trim(), alts: finalAlts, puuid, altPuuids: keptAltPuuids });
   });
@@ -90,6 +97,7 @@ export async function POST(request) {
 
   try {
     await setJSON(KEY, roster);
+    for (const [a, d] of altLog) await logAdmin(a, d);
     return Response.json({ roster, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });

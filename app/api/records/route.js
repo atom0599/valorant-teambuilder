@@ -1,5 +1,6 @@
 import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
+import { logAdmin } from '../../../lib/adminLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,8 +49,12 @@ export async function GET(request) {
   }
 }
 
+// 관리자 전용. 경기 저장은 관리자 화면의 "내전 결과 불러오기" · "과거 내전 불러오기"
+// (Riot 기록에서 가져옴)로만 한다 — 예전엔 인증이 없어서 주소만 알면 누구나 가짜
+// 경기 · 날짜를 넣을 수 있었다.
 // body: { winner: 'A'|'B', score: '2 : 1', maps: string[], teams: { A: [{name, tier}], B: [...] } }
 export async function POST(request) {
+  if (!isAdmin(request)) return Response.json({ error: 'admin only' }, { status: 403 });
   const body = await request.json().catch(() => null);
   if (!body?.winner || !body?.teams) return Response.json({ error: 'winner and teams required' }, { status: 400 });
 
@@ -134,11 +139,32 @@ export async function POST(request) {
     if (wrote) await setJSON(KEY, all);
     for (const [from, to] of renamed) await renameExcluded(from, to);
     if (matchKey && wrote) await setJSON(KEYS_KEY, [matchKey, ...savedKeys].slice(0, 5000));
+    if (wrote) await logAdmin('전적 저장', `${mapLabel || '맵 ?'} ${body.score || ''} · ${wrote}명${matchKey ? ` · ${matchKey}` : ''}`);
     return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
   }
   });
+}
+
+// 관리자가 아니면 명단(roster:all)이 이 합치기를 뒷받침할 때만 허용한다 — 예전엔
+// 아무나 from/to만 보내면 남의 전적을 다른 사람에게 합칠 수 있었다. 허용하는 경우:
+//   (가) from이 to의 부계정으로 명단에 올라 있음 (부계정 기록 합치기)
+//   (나) from은 명단 어디에도 없고(이미 닉변 반영됨) to는 명단에 있으며,
+//        from 기록의 puuid가 to의 puuid와 같음 (기록에 puuid가 없으면 이름만으로)
+// 클라이언트는 명단을 먼저 저장한 뒤 PATCH를 보낸다 (app/page.js relinkRosterNames).
+async function patchAllowed(from, to, src) {
+  const roster = (await getJSON('roster:all')) || [];
+  const low = (x) => String(x || '').trim().toLowerCase();
+  const main = roster.find((r) => low(r.name) === low(to));
+  if (main && (main.alts || []).some((a) => low(a) === low(from))) return true;
+  const inRoster = (n) => roster.some((r) => low(r.name) === low(n) || (r.alts || []).some((a) => low(a) === low(n)));
+  if (inRoster(from) || !inRoster(to)) return false;
+  const owner = roster.find((r) => low(r.name) === low(to)) || roster.find((r) => (r.alts || []).some((a) => low(a) === low(to)));
+  const toPuuid = low(owner?.name) === low(to) ? owner?.puuid : Object.entries(owner?.altPuuids || {}).find(([a]) => low(a) === low(to))?.[1];
+  const srcPuuids = src?.puuids || [];
+  if (!srcPuuids.length) return true;
+  return !!toPuuid && srcPuuids.includes(toPuuid);
 }
 
 // Not admin-gated — fires automatically when app/page.js's runLookup detects
@@ -159,6 +185,8 @@ export async function PATCH(request) {
     const all = (await getJSON(KEY)) || {};
     const src = all[from];
     if (!src) return Response.json({ records: all, persistent: hasKV });
+    const admin = isAdmin(request);
+    if (!admin && !(await patchAllowed(from, to, src))) return Response.json({ error: 'not linked in roster' }, { status: 403 });
 
     all[to] = mergeRecords(all[to], src);
     delete all[from];
@@ -166,6 +194,7 @@ export async function PATCH(request) {
     await setJSON(KEY, all);
     // An excluded player stays excluded under their new Riot ID.
     await renameExcluded(from, to);
+    if (admin) await logAdmin('전적 합치기', `${from} → ${to}`);
     return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
@@ -186,6 +215,7 @@ export async function PUT(request) {
     const cur = (await getJSON(EXCLUDED_KEY)) || [];
     const next = body.excluded ? [...new Set([...cur, id])] : cur.filter((x) => x !== id);
     await setJSON(EXCLUDED_KEY, next);
+    await logAdmin(body.excluded ? '순위 제외' : '순위 복원', id);
     return Response.json({ excluded: next, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });
@@ -230,6 +260,7 @@ export async function DELETE(request) {
       }
     }
     await setJSON(KEY, all);
+    await logAdmin(body.id != null ? '선수 전적 삭제' : '경기 삭제', body.id != null ? String(body.id) : new Date(body.date).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
     return Response.json({ records: all, persistent: hasKV });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 502 });

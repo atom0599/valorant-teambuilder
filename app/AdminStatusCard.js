@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-// 관리자 전용 카드 (통계 탭): HenrikDev 상태와 하루 한 벌 백업 되돌리기.
+// 관리자 전용 카드 (통계 탭): HenrikDev 상태, 하루 한 벌 백업 되돌리기, 관리자 활동 기록.
 const STATE = {
   ok: ['정상', '#C8F24C'],
   rate_limited: ['요청 한도 초과 (잠시 뒤 풀림)', '#E5C04C'],
@@ -20,6 +20,12 @@ const KEY_LABEL = {
   'clips:all': '클립',
   'clips:names': '클립 닉네임',
   'mappool:rotation': '맵풀'
+};
+
+const LOG_SHOW = 60;
+const LOG_COLOR = {
+  '로그인 실패': '#E5C04C', '로그인 잠김': '#E1424F', '선수 전적 삭제': '#E1424F', '경기 삭제': '#E1424F',
+  '클립 삭제': '#E1424F', '클립 댓글 삭제': '#E1424F', '백업 되돌리기': '#E5C04C', '방 초기화': '#E5C04C'
 };
 
 const ago = (t) => {
@@ -74,7 +80,7 @@ export default function AdminStatusCard({ adminHeaders, onRestored }) {
 
   return (
     <div style={{ background: '#14181D', border: '1px solid #2C333C', borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 700 }}>서버 상태 · 백업 <span style={{ fontSize: 11, color: '#6B737C', fontWeight: 500 }}>(관리자만 보임)</span></div>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>서버 상태 · 백업 · 활동 기록 <span style={{ fontSize: 11, color: '#6B737C', fontWeight: 500 }}>(관리자만 보임)</span></div>
       {err && <div style={{ fontSize: 12, color: '#E5C04C' }}>{err}</div>}
       {data && (
         <>
@@ -107,6 +113,19 @@ export default function AdminStatusCard({ adminHeaders, onRestored }) {
               </div>
             ))}
             {msg && <div style={{ fontSize: 12, color: msg.startsWith('실패') ? '#E1424F' : '#C8F24C' }}>{msg}</div>}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700 }}>관리자 활동 기록 <span style={{ fontSize: 11, color: '#6B737C', fontWeight: 500 }}>최근 {LOG_SHOW}개 · 최대 300개 보관</span></div>
+            {!data.log?.length && <div style={{ fontSize: 12, color: '#6B737C' }}>아직 기록이 없습니다.</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
+              {(data.log || []).slice(0, LOG_SHOW).map((e, i) => (
+                <div key={`${e.at}-${i}`} style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: 10, alignItems: 'baseline', fontSize: 12, padding: '5px 10px', background: '#1B2027', borderRadius: 8 }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono'", fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap' }}>{new Date(e.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span style={{ fontWeight: 700, whiteSpace: 'nowrap', color: LOG_COLOR[e.action] || '#E8EAEC' }}>{e.action}</span>
+                  <span style={{ color: '#B8BEC6', minWidth: 0, overflowWrap: 'anywhere' }}>{e.detail}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}

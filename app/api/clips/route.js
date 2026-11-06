@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getJSON, getCached, setJSON, withLock, hasKV } from '../../../lib/store';
 import { isAdmin } from '../../../lib/admin';
+import { logAdmin } from '../../../lib/adminLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +101,11 @@ export async function POST(request) {
         break;
       }
       case 'view': {
+        // 브라우저(cid)당 한 번만 센다 — 예전엔 열 때마다 올라서 새로고침으로 부풀릴 수 있었다.
+        // 이 목록 이전에 쌓인 조회수(views)는 그대로 두고 그 위에 더한다.
+        const viewers = clip.viewers || (clip.viewers = []);
+        if (viewers.includes(cid)) break;
+        viewers.push(cid);
         clip.views = (clip.views || 0) + 1;
         await setJSON(KEY, all);
         break;
@@ -120,11 +126,13 @@ export async function POST(request) {
         if (c.cid !== cid && !admin) return Response.json({ error: 'forbidden' }, { status: 403 });
         clip.comments = clip.comments.filter((x) => x !== c);
         await setJSON(KEY, all);
+        if (c.cid !== cid) await logAdmin('클립 댓글 삭제', `"${clip.title}" · ${c.author}: ${c.text.slice(0, 60)}`);
         break;
       }
       case 'delete': {
         if (clip.ownerCid !== cid && !admin) return Response.json({ error: 'forbidden' }, { status: 403 });
         await setJSON(KEY, all.filter((c) => c !== clip));
+        if (clip.ownerCid !== cid) await logAdmin('클립 삭제', `"${clip.title}" · ${clip.author}`);
         return respond(all.filter((c) => c !== clip), cid, ((await getJSON(NAMES_KEY)) || {})[cid]);
       }
       default:
