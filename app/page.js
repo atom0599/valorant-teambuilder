@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { mergeScores } from '../lib/scores';
 import { computeTitles, computeFame, TITLE_DEFS, matchAwards, countMvps, mostAgent } from '../lib/fame';
 import { highlightDays, dayHighlight } from '../lib/highlights';
-import { computeRatings, ratingToSkill, PLACEMENT } from '../lib/rating';
 import { useAgentArt, agentCardBg } from '../lib/agentArt';
 import TrendChart from './TrendChart';
 import ClipsScreen from './ClipsScreen';
@@ -519,7 +518,7 @@ export default function Page() {
     // server's empty slot over it — the "등록하자마자 해제" bug.
     if (d.players) { setPlayers(d.players); lastSyncedPlayersRef.current = (raw || d).players; }
     if (typeof d.usePosition === 'boolean') setUsePosition(d.usePosition);
-    if (['skill', 'customs', 'fresh', 'customsFresh', 'elo'].includes(d.balanceMode)) setBalanceMode(d.balanceMode);
+    if (['skill', 'customs', 'fresh', 'customsFresh'].includes(d.balanceMode)) setBalanceMode(d.balanceMode);
     if (!teamsDirtyRef.current) setTeams(d.teams ?? null);
     if (d.series) setSeries(d.series);
     if (d.pool && !poolDirtyRef.current) setPool(d.pool);
@@ -1258,13 +1257,8 @@ export default function Page() {
   function customsSkill(p) {
     return baseTierIdx(p) + (customsPerf[canonicalName(p.name.trim())]?.adj || 0);
   }
-  // 내전 점수 모드: 내전 Elo(lib/rating.js)를 티어 칸 단위로. 내전을 안 해 봤으면 티어 그대로.
-  function eloSkill(p) {
-    return ratingToSkill(ratings[canonicalName(p.name.trim())]) ?? baseTierIdx(p);
-  }
   function modeSkill(p, i) {
     if (balanceMode === 'customs' || balanceMode === 'customsFresh') return customsSkill(p);
-    if (balanceMode === 'elo') return eloSkill(p);
     return skillScore(p, i);
   }
 
@@ -1284,7 +1278,7 @@ export default function Page() {
         tierIcon: seasonTierIdx(p) != null ? p.currentTierIcon || null : null,
         skill: modeSkill(p, i),
         // 밸런싱 화면 카드에 "실력 4.9 (내전 −2.1)"처럼 보여 줄 보정 종류.
-        adjKind: balanceMode === 'customs' || balanceMode === 'customsFresh' ? '내전' : balanceMode === 'elo' ? '내전 점수' : 'K:D',
+        adjKind: balanceMode === 'customs' || balanceMode === 'customsFresh' ? '내전' : 'K:D',
         base: baseTierIdx(p),
         groupId: p.groupId || null
       }))
@@ -2040,8 +2034,6 @@ export default function Page() {
     return best;
   }
 
-  // 내전 실력 점수(Elo) — 기록 전체를 날짜순으로 다시 계산. 시작 점수는 이번 시즌 티어.
-  const ratings = useMemo(() => computeRatings(records, (id) => personTier(id)?.tier ?? null), [records, roster, currentTiers]);
   const board = useMemo(() => Object.entries(records).map(([id, r]) => {
     const g = r.wins + r.losses;
     // Not necessarily matches[0] — a 과거 내전 불러오기 import can add an
@@ -2071,9 +2063,8 @@ export default function Page() {
     const tierIcon = cur ? cur.tierIcon : last?.tierIcon ?? null;
     const mvp = mvpCounts[id]?.mvp || 0;
     const teamMvp = mvpCounts[id]?.teamMvp || 0;
-    const elo = ratings[id];
-    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists, mvp, teamMvp, elo: elo?.games ? elo.rating : null, eloGames: elo?.games || 0, eloLast: elo?.last || 0, eloBonus: elo?.bonus || 0 };
-  }), [records, roster, excludedIds, currentTiers, mvpCounts, ratings]);
+    return { id, realName, excluded: excludedIds.includes(id), wins: r.wins, losses: r.losses, games: g, rate: g ? Math.round((r.wins / g) * 100) : 0, tier, tierIcon, lastDate: last?.date || 0, kd, hsPct, assists, mvp, teamMvp };
+  }), [records, roster, excludedIds, currentTiers, mvpCounts]);
   // Everyone the leaderboard actually ranks — excluded players never take a
   // rank or count toward the summary tiles.
   const rankedBoard = useMemo(() => board.filter((x) => !x.excluded), [board]);
@@ -2085,9 +2076,7 @@ export default function Page() {
       kd: (a, b) => (b.kd ?? -1) - (a.kd ?? -1) || b.rate - a.rate,
       hsPct: (a, b) => (b.hsPct ?? -1) - (a.hsPct ?? -1) || b.rate - a.rate,
       assists: (a, b) => (b.assists ?? -1) - (a.assists ?? -1) || b.rate - a.rate,
-      mvp: (a, b) => b.mvp - a.mvp || b.teamMvp - a.teamMvp || b.rate - a.rate,
-      // 배치(PLACEMENT판) 전인 사람은 아래로.
-      elo: (a, b) => (b.eloGames >= PLACEMENT) - (a.eloGames >= PLACEMENT) || (b.elo ?? -1) - (a.elo ?? -1) || b.rate - a.rate
+      mvp: (a, b) => b.mvp - a.mvp || b.teamMvp - a.teamMvp || b.rate - a.rate
     };
     const cmp = sorters[statSort];
     const sorted = [...rankedBoard].sort(cmp);
@@ -2100,8 +2089,7 @@ export default function Page() {
       kd: (x) => x.kd ?? -1,
       hsPct: (x) => x.hsPct ?? -1,
       assists: (x) => x.assists ?? -1,
-      mvp: (x) => x.mvp,
-      elo: (x) => (x.eloGames >= PLACEMENT ? x.elo : -1)
+      mvp: (x) => x.mvp
     }[statSort];
     // Dense ranking ("1, 1, 2, 3…"): a tie shares one rank, and the next
     // distinct entry just continues from there — a 2-way tie for 1st is
@@ -2590,7 +2578,7 @@ export default function Page() {
                   <div style={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13 }}>밸런싱 방식</span>
-                    {[['skill', '실력만'], ['customs', '내전 스탯'], ['elo', '내전 점수'], ['fresh', '실력 + 새 조합'], ['customsFresh', '내전 스탯 + 새 조합']].map(([k, label]) => (
+                    {[['skill', '실력만'], ['customs', '내전 스탯'], ['fresh', '실력 + 새 조합'], ['customsFresh', '내전 스탯 + 새 조합']].map(([k, label]) => (
                       <button key={k} onClick={() => setBalanceMode(k)} style={{ ...pill(balanceMode === k, '#FF4B57'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                   </div>
@@ -2599,8 +2587,6 @@ export default function Page() {
                       ? ['실력 차이는 최선과 거의 같게 맞추고,', '그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.']
                       : balanceMode === 'customsFresh'
                       ? ['티어에 우리 내전 성적(ACS · K/D · 승률)을 더한 실력으로,', '실력 차이는 최선과 거의 같게 맞추고,', '그 안에서 내전에서 같은 팀을 자주 안 해본 사람끼리 묶습니다.']
-                      : balanceMode === 'elo'
-                      ? ['이번 시즌 티어에 우리 내전 성적(Elo)을 최대 ±1티어 미만으로 더한 내전 점수로 배분합니다.', '강한 팀을 이기면 많이, 약한 팀을 이기면 조금 오르고, 두 티어 이상 차이는 뒤집히지 않습니다.', '내전을 안 해 본 사람은 티어 그대로 봅니다. 점수는 통계 탭에서 "내전 점수순"으로 볼 수 있어요.']
                       : balanceMode === 'customs'
                       ? ['티어를 기준으로 우리 내전 성적(ACS · K/D · 승률)을 더해서,', '내전에서 잘하는 사람은 높게, 못하는 사람은 낮게 쳐서 배분합니다.', '승률보다 ACS · K/D를 더 크게 보고, 내전을 적게 한 사람은 티어 쪽에 더 가깝게 봅니다.']
                       : ['실력(티어 + 랭크 K:D) 차이가 가장 적은 배분을 고릅니다.']
@@ -2729,7 +2715,7 @@ export default function Page() {
                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                   <div>
                     <div style={h1}>팀 밸런싱</div>
-                    <div style={sub}>{teams ? `이번 시즌 티어(없으면 최고 티어) + ${balanceMode === 'customs' || balanceMode === 'customsFresh' ? '내전 스탯' : balanceMode === 'elo' ? '내전 점수' : 'K:D'} 반영 배분${usePosition ? ' + 포지션 분산' : ''}${balanceMode === 'fresh' || balanceMode === 'customsFresh' ? ' + 새 조합' : ''} 결과입니다.` : '먼저 참가자를 등록하세요.'}</div>
+                    <div style={sub}>{teams ? `이번 시즌 티어(없으면 최고 티어) + ${balanceMode === 'customs' || balanceMode === 'customsFresh' ? '내전 스탯' : 'K:D'} 반영 배분${usePosition ? ' + 포지션 분산' : ''}${balanceMode === 'fresh' || balanceMode === 'customsFresh' ? ' + 새 조합' : ''} 결과입니다.` : '먼저 참가자를 등록하세요.'}</div>
                     {!!teams && (balanceMode === 'fresh' || balanceMode === 'customsFresh') && <div style={{ fontSize: 12, color: '#8B949E', marginTop: 4 }}>팀 안에서 같은 팀으로 해본 판수 합 · 팀 A {teamFamiliarity(teams.A || [])}판 · 팀 B {teamFamiliarity(teams.B || [])}판</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -2756,7 +2742,7 @@ export default function Page() {
                         <div style={{ width: `${wc.A}%`, background: 'linear-gradient(90deg,#B8303B,#FF4B57)', transition: 'width .5s cubic-bezier(.2,.7,.3,1)' }} />
                         <div style={{ width: `${wc.B}%`, background: 'linear-gradient(90deg,#2FD3B7,#1E9C87)', transition: 'width .5s cubic-bezier(.2,.7,.3,1)' }} />
                       </div>
-                      <div style={{ fontSize: 11, color: '#6B737C' }}>밸런싱에 쓴 실력 점수({balanceMode === 'customs' || balanceMode === 'customsFresh' ? '티어 + 내전 스탯' : balanceMode === 'elo' ? '내전 점수' : '티어 + K:D'}) 차이로 계산한 대략적인 예상입니다. 선수를 바꾸면 바로 다시 계산됩니다.</div>
+                      <div style={{ fontSize: 11, color: '#6B737C' }}>밸런싱에 쓴 실력 점수({balanceMode === 'customs' || balanceMode === 'customsFresh' ? '티어 + 내전 스탯' : '티어 + K:D'}) 차이로 계산한 대략적인 예상입니다. 선수를 바꾸면 바로 다시 계산됩니다.</div>
                     </div>
                   );
                 })()}
@@ -2772,18 +2758,7 @@ export default function Page() {
                           <div style={{ color: '#E8EAEC', fontWeight: 600 }}>기준 티어 칸</div>
                           <div>아이언 1을 0으로 두고 한 티어마다 1칸씩 올라갑니다. 골드 1 = 9, 플래티넘 1 = 12, 다이아 1 = 15, 초월자 1 = 18, 불멸 1 = 21, 레디언트 = 24. 이번 시즌 티어를 쓰고, 이번 시즌 배치를 안 했으면 최고 티어, 그것도 없으면 0입니다.</div>
                         </div>
-                        {balanceMode === 'elo' ? (
-                          <div>
-                            <div style={{ color: '#E8EAEC', fontWeight: 600 }}>내전 점수 (Elo)</div>
-                            <ul style={{ margin: '2px 0', paddingLeft: 18 }}>
-                              <li style={li}>내전 점수 = 티어 기준 점수 + 내전 보정. 티어 기준 점수 = 1000 + (이번 시즌 티어 칸 − 12) × 25 (티어 한 칸 = 25점, 플래티넘 1 = 1000).</li>
-                              <li style={li}>내전 보정은 경기마다 두 팀 평균으로 이길 확률을 구해 결과와의 차이만큼 쌓은 성적(Elo)입니다. 질 거라던 팀이 이기면 많이, 이길 팀이 이기면 조금 쌓입니다. 처음 {PLACEMENT}판은 더 크게 움직이고, 라운드 차이가 크게 난 판은 최대 1.5배.</li>
-                              <li style={li}>보정은 <b style={{ color: '#E8EAEC' }}>최대 ±24점(티어 한 칸 미만)</b>으로 눌러 담습니다. 내전 승패에는 팀운이 크게 섞여서, 두 티어 이상 차이는 내전 성적으로 뒤집히지 않고 바로 위 · 아래 티어끼리만 뒤집힐 수 있습니다.</li>
-                              <li style={li}>실력 칸 = 12 + (점수 − 1000) ÷ 25. 내전을 안 해 본 사람은 티어 칸 그대로입니다.</li>
-                            </ul>
-                            <div style={{ marginTop: 6, color: '#8B949E' }}>예) 초월자 1(18칸 → 1150점), 내전 보정 +20 → 1170점 → 실력 18.8</div>
-                          </div>
-                        ) : customs ? (
+                        {customs ? (
                           <div>
                             <div style={{ color: '#E8EAEC', fontWeight: 600 }}>내전 보정 (우리 내전 기록 전체)</div>
                             <ul style={{ margin: '2px 0', paddingLeft: 18 }}>
@@ -3271,7 +3246,7 @@ export default function Page() {
                   </div>
                   <div style={{ width: 1, height: 20, background: '#2C333C', flex: 'none' }} />
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순'], ['assists', '어시스트순'], ['mvp', 'MVP순'], ['elo', '내전 점수순']].map(([k, label]) => (
+                    {statView === 'player' && [['rate', '승률순'], ['tier', '티어순'], ['kd', 'K/D순'], ['hsPct', '헤드샷률순'], ['assists', '어시스트순'], ['mvp', 'MVP순']].map(([k, label]) => (
                       <button key={k} onClick={() => setStatSort(k)} style={{ ...pill(statSort === k, '#C8F24C'), padding: '7px 14px', fontSize: 12 }}>{label}</button>
                     ))}
                     {statView === 'match' && [['newest', '최신순'], ['oldest', '오래된순']].map(([k, label]) => (
@@ -3402,7 +3377,7 @@ export default function Page() {
                                   <div title={x.id} style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{x.id}</div>
                                   {!!x.realName && <div style={{ flex: 'none', fontSize: 12, color: '#4C9AFF', whiteSpace: 'nowrap' }}>{x.realName}</div>}
                                 </div>
-                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> · <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : statSort === 'elo' ? (x.eloGames >= PLACEMENT ? <><span style={{ color: '#C8F24C' }}>내전 점수 {x.elo}</span><span style={{ color: '#8B949E' }}> (보정 {x.eloBonus >= 0 ? '+' : ''}{x.eloBonus})</span>{!!x.eloLast && <span style={{ color: x.eloLast > 0 ? '#C8F24C' : '#E1424F' }}> {x.eloLast > 0 ? '▲' : '▼'}{Math.abs(x.eloLast)}</span>}</> : <span style={{ color: '#E5C04C' }}>배치 중 {x.eloGames}/{PLACEMENT}</span>) : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
+                                <div style={{ fontSize: 11, color: '#8B949E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.games}경기 · {statSort === 'assists' ? <span style={{ color: '#C8F24C' }}>경기당 어시 {x.assists ?? '—'}</span> : statSort === 'mvp' ? <><span style={{ color: '#FFD166' }}>MVP {x.mvp}회</span> · <span style={{ color: '#C9D2DA' }}>팀 MVP {x.teamMvp}회</span></> : <>최근 {x.lastDate ? fmtDate(x.lastDate) : '—'}</>}</div>
                               </div>
                             </div>
                             <div className="b-tier" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3463,15 +3438,6 @@ export default function Page() {
                               <div style={{ fontSize: 11, color: '#C6CDD4', letterSpacing: '.06em' }}>승률</div>
                               <div style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 44, lineHeight: 1, color: '#C8F24C' }}>{statRate}%</div>
                             </div>
-                            {!!ratings[statId]?.games && (
-                              <div title={`티어 기준 ${ratings[statId].seed}점 + 내전 보정 ${ratings[statId].bonus >= 0 ? '+' : ''}${ratings[statId].bonus}점. 보정은 내전 승패(Elo)로 쌓이고 최대 ±24점(티어 한 칸 미만)입니다.${ratings[statId].games < PLACEMENT ? ` 배치 중 ${ratings[statId].games}/${PLACEMENT}판.` : ''}`}>
-                                <div style={{ fontSize: 11, color: '#C6CDD4', letterSpacing: '.06em' }}>내전 점수</div>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                                  <span style={{ fontFamily: "'Archivo'", fontWeight: 800, fontSize: 28, lineHeight: 1, color: ratings[statId].games < PLACEMENT ? '#E5C04C' : '#F5F7F9' }}>{ratings[statId].rating}</span>
-                                  {!!ratings[statId].last && <span style={{ fontSize: 11, fontWeight: 700, color: ratings[statId].last > 0 ? '#C8F24C' : '#E1424F' }}>{ratings[statId].last > 0 ? '▲' : '▼'}{Math.abs(ratings[statId].last)}</span>}
-                                </div>
-                              </div>
-                            )}
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 6 }}>
                               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '4px 10px', fontSize: 13, fontWeight: 700, color: '#F5F7F9' }}>
                                 <span style={{ whiteSpace: 'nowrap' }}>{statRec.wins}승 {statRec.losses}패</span>
